@@ -11,7 +11,7 @@
 <title>Inventario Hieli Cream PRO</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#6366f1">
-     
+
 <!-- Librerías -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
@@ -2544,20 +2544,82 @@ async function clearSales(){
    - sales (incluye costUnit)
    - recetas CU
 ========================= */
-function exportData(){
- saveSilent();
- const payload={
-  inventory,
-  sales,
-  cu_recipes: cuGetRecipes(),
-  cu_catalog: cuGetCatalog()
- };
- const blob=new Blob([JSON.stringify(payload)],{type:"application/json"});
- const a=document.createElement("a");
- a.href=URL.createObjectURL(blob);
- a.download="hieli_cream_backup.json";
- a.click();
+
+/* ===========================
+   KODULAR / APP INVENTOR BRIDGE
+   Permite exportar archivos (JSON / PDF) desde WebViewer sin depender de descargas del navegador.
+   En Kodular: usa el evento WebViewStringChange para recibir el JSON con {type, filename, mime, base64}.
+   =========================== */
+function __hasHostBridge(){
+  try{
+    return !!(window.AppInventor && typeof window.AppInventor.setWebViewString === "function");
+  }catch(e){ return false; }
 }
+function __sendToHost(payloadObj){
+  // payloadObj: {type:"file", filename:"x.json", mime:"application/json", base64:"..."}
+  try{
+    if(!__hasHostBridge()) return false;
+    window.AppInventor.setWebViewString(JSON.stringify(payloadObj));
+    return true;
+  }catch(e){ return false; }
+}
+function __b64FromUtf8(str){
+  // utf8 -> base64 seguro
+  return btoa(unescape(encodeURIComponent(str)));
+}
+function __isAndroidWebView(){
+  const ua = navigator.userAgent || "";
+  return /Android/i.test(ua) && /wv|Version\//i.test(ua);
+}
+
+function __b64FromBlob(blob){
+  return new Promise((resolve,reject)=>{
+    try{
+      const reader = new FileReader();
+      reader.onload = () => {
+        const res = String(reader.result || "");
+        const base64 = res.includes(",") ? res.split(",")[1] : "";
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    }catch(e){ reject(e); }
+  });
+}
+
+
+function exportData(){
+  saveSilent();
+  const payload={
+    inventory,
+    sales,
+    cu_recipes: cuGetRecipes(),
+    cu_catalog: cuGetCatalog()
+  };
+  const jsonStr = JSON.stringify(payload);
+
+  // Si estás dentro de Kodular/App Inventor WebViewer, manda el archivo al host para que lo guarde con File component
+  if(__sendToHost({type:"file", filename:"hieli_cream_backup.json", mime:"application/json", base64: __b64FromUtf8(jsonStr)})){
+    toast("Listo: envié el JSON a la app para guardarlo 📦");
+    return;
+  }
+
+  // Navegador normal: descarga directa
+  const blob=new Blob([jsonStr],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="hieli_cream_backup.json";
+  // En Android WebView a veces el click no dispara descarga: usa navegación directa
+  if(__isAndroidWebView()){
+    window.location.href = a.href;
+  }else{
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+} 
+
+
 
 function triggerImport(){
  const input=document.getElementById("importFile");
@@ -2731,7 +2793,7 @@ function renderHistory(){
 }
 
 /* PDF carta + gráfica abajo sin deformar */
-function downloadPDF(){
+async function downloadPDF(){
   try{
     const from = (hFrom.value||todayLocalISO());
     const to   = (hTo.value||todayLocalISO());
@@ -2977,24 +3039,40 @@ function header(){
     drawDetalle();
     drawChart();
 
-    // ----- Descarga robusta (file:// / content://) -----
-    const filename = `reporte_hieli_${from}_a_${to}.pdf`;
-    const blob = doc.output('blob');
-    const url = URL.createObjectURL(blob);
+    // ----- Export (Navegador o Kodular/App Inventor) -----
+    const filename = `Reporte_${new Date().toISOString().slice(0,10)}.pdf`;
+    const pdfData = doc.output('arraybuffer');
+    const blob = new Blob([pdfData], { type: "application/pdf" });
 
-    const a=document.createElement('a');
-    a.href=url;
-    a.download=filename;
-    a.style.display='none';
+    // WebViewer (Kodular/App Inventor): manda el PDF a la app para guardarlo
+    if(__hasHostBridge()){
+      try{
+        AppUI.toast('Preparando PDF para la app…');
+        const b64 = await __b64FromBlob(blob);
+        if(__sendToHost({type:"file", filename, mime:"application/pdf", base64: b64})){
+          AppUI.toast('Listo: envié el PDF a la app para guardarlo 📄');
+        }else{
+          AppUI.toast('No pude enviar el PDF a la app 😕');
+        }
+      }catch(e){
+        AppUI.toast('Error preparando PDF 😕');
+      }
+      return;
+    }
+
+    // Navegador normal: descarga directa
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    if(__isAndroidWebView()){
+    window.location.href = url;
+  }else{
     document.body.appendChild(a);
     a.click();
     a.remove();
-
-    // fallback: si el navegador bloquea el click
-    setTimeout(()=>{
-      URL.revokeObjectURL(url);
-    }, 4000);
-
+    URL.revokeObjectURL(url);
+  }
     AppUI.toast('Reporte listo ✅');
 
   }catch(e){
