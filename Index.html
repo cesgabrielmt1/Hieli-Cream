@@ -1,0 +1,3203 @@
+<!-- =========================
+     PARTE 1 / 5
+     Inventario Hieli Cream PRO (FULL)
+     Copia y pega TAL CUAL
+========================= -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventario Hieli Cream PRO</title>
+
+<!-- Librerías -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+:root{
+ --bg:linear-gradient(180deg,#f8fafc,#eef2ff);
+ --glass:rgba(255,255,255,.94);
+ --primary:#6366f1;
+ --success:#22c55e;
+ --danger:#ef4444;
+ --info:#0ea5e9;
+ --warn:#f59e0b;
+ --violet:#8b5cf6;
+ --text:#0f172a;
+ --muted:#64748b;
+}
+
+*{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif}
+
+body{
+ margin:0;
+ padding:22px 18px 260px;
+ background:var(--bg);
+ color:var(--text);
+}
+
+h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
+.subhead{color:var(--muted);font-weight:800;margin:0 0 18px}
+
+/* INVENTARIO */
+.inventory{display:grid;gap:18px}
+
+.card{
+ background:var(--glass);
+ border-radius:30px;
+ padding:22px;
+ box-shadow:0 30px 60px rgba(0,0,0,.12);
+ position:relative;
+ overflow:hidden;
+ padding-right:72px;}
+.card.hasStrip{padding-right:58px}
+
+/* REPORTES: separación */
+#historyWrap .card{margin-bottom:16px}
+#historyWrap .tableCard{margin-bottom:14px}
+
+
+/* Reporte: tarjetas con mejor separación */
+.reportCard{
+ background:#f8fafc;
+ border:1px solid #e5e7eb;
+ border-radius:18px;
+ padding:14px;
+ margin-bottom:14px;
+}
+#historyWrap .card{margin-bottom:16px}
+/* Barrita de color elegible (derecha, centrada) */
+.colorStrip{position:absolute;right:22px;top:50%;transform:translateY(-50%);width:24px;height:120px;border-radius:999px;opacity:.95;box-shadow:0 10px 20px rgba(0,0,0,.12)}
+
+
+/* flash visual al presionar botones */
+.cardFlash{
+ position:absolute;
+ inset:0;
+ border-radius:30px;
+ opacity:0;
+ pointer-events:none;
+ transition:.18s;
+}
+.cardFlash.show{opacity:.18}
+
+.card.low{
+ border:2px solid var(--danger);
+ background:linear-gradient(180deg,#fee2e2,#fff);
+}
+
+.card-header{
+ display:flex;
+ justify-content:space-between;
+ align-items:center;
+ font-weight:950;
+}
+.gear{background:none;border:none;font-size:20px;cursor:pointer}
+
+.qty{
+ font-size:3rem;
+ font-weight:1000;
+ margin:12px 0;
+ color:var(--primary);
+}
+
+.actions{
+ display:grid;
+ grid-template-columns:1fr 1fr 1.6fr;
+ gap:14px;
+}
+
+.btn{
+ border:none;
+ border-radius:999px;
+ padding:16px;
+ font-weight:950;
+ cursor:pointer;
+ transition:.12s;
+}
+.btn:active{transform:scale(.97)}
+.minus{background:var(--danger);color:white}
+.plus{background:var(--primary);color:white}
+.sell{background:var(--success);color:white;position:relative}
+
+/* Palomita vender */
+.checkpop{
+ position:absolute;
+ inset:0;
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ font-size:38px;
+ font-weight:1000;
+ color:#fff;
+ background:rgba(34,197,94,.95);
+ opacity:0;
+ transform:scale(.9);
+ transition:.18s;
+ pointer-events:none;
+}
+.checkpop.show{opacity:1;transform:scale(1)}
+
+/* FAB */
+.speed-dial{
+ position:fixed;
+ right:22px;
+ bottom:22px;
+ z-index:1000;
+}
+.main-fab{
+ width:72px;height:72px;border-radius:50%;
+ border:none;
+ background:var(--primary); /* ✅ sin degradado */
+ color:white;font-size:34px;
+ box-shadow:0 25px 45px rgba(0,0,0,.35);
+ transition:.25s;
+}
+.main-fab.active{transform:rotate(45deg)}
+
+/* SHEETS */
+.sheet{
+ position:fixed;
+ left:0;right:0;
+ bottom:-110%;
+ background:white;
+ border-radius:34px 34px 0 0;
+ padding:24px;
+ transition:.35s;
+ max-height:92vh;
+ overflow:auto;
+ z-index:1500;
+}
+.sheet.active{bottom:0}
+
+.sheet input,.sheet select{
+ width:100%;
+ padding:14px;
+ border-radius:14px;
+ border:1px solid #e5e7eb;
+ margin-bottom:14px;
+ font-weight:800;
+}
+
+.sheet button{
+ width:100%;
+ padding:16px;
+ border:none;
+ border-radius:999px;
+ background:var(--primary);
+ color:white;
+ font-weight:950;
+ cursor:pointer;
+}
+.sheet button + button{margin-top:12px}
+
+/* KPI */
+.kpi2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 14px}
+.kpiBox{
+ padding:14px 16px;
+ border-radius:18px;
+ background:#f8fafc;
+ border:1px solid #e5e7eb;
+}
+.kpiBox .t{color:var(--muted);font-weight:950;font-size:.82rem}
+.kpiBox .v{font-size:1.25rem;font-weight:1000;margin-top:6px}
+
+/* GRÁFICA SCROLL */
+.chartScroll{overflow-x:auto;padding-bottom:10px}
+.chart-wrap{height:520px;min-width:420px}
+
+.savedStamp{margin:16px 0 10px;text-align:center;font-size:12px;color:rgba(100,116,139,.75);}
+
+/* TABLAS */
+.tableCard{
+ background:#f8fafc;
+ border:1px solid #e5e7eb;
+ border-radius:18px;
+ padding:12px;
+ margin-bottom:12px;
+}
+
+/* Reporte: tarjetas con mejor respiración */
+.reportCard{
+ margin:14px 0;
+ padding:16px;
+ border-radius:20px;
+ background:#ffffff;
+ border:1px solid #e5e7eb;
+ box-shadow:0 18px 32px rgba(0,0,0,.08);
+}
+.reportCard + .reportCard{margin-top:16px}
+.reportCard .subhead{margin:6px 0 0}
+
+.row3{
+ display:grid;
+ grid-template-columns:1fr 1fr 1fr;
+ gap:10px;
+ align-items:end;
+}
+.lbl{color:var(--muted);font-weight:950;font-size:.8rem;margin-bottom:6px}
+
+/* TOP 3 */
+.top3Row{display:flex;gap:10px}
+.top3Item{
+ flex:1;
+ background:#f8fafc;
+ border:1px solid #e5e7eb;
+ border-radius:16px;
+ padding:12px;
+ text-align:center;
+}
+.top3Medal{font-size:22px}
+.top3Name{font-weight:900;margin-top:4px}
+.top3Qty{color:var(--muted);font-weight:800}
+
+/* Medallas con colores reales */
+.medalGold{color:#d4af37}
+.medalSilver{color:#c0c0c0}
+.medalBronze{color:#cd7f32}
+
+
+/* BOTÓN CERRAR */
+.closeBtn{background:#111827 !important;margin-top:16px}
+
+/* Toggles (ventas / sabores) */
+.toggleRow{display:flex;gap:12px;justify-content:center;align-items:center;margin:16px 0 14px}
+
+.pill{flex:1;max-width:320px;background:rgba(99,102,241,.14);border:0;border-radius:999px;padding:14px 18px;font-weight:900;color:#2d2f5f;display:flex;align-items:center;justify-content:center} 
+.pill.active{
+ background:var(--primary);
+ color:#fff;
+ border-color:transparent;
+}
+
+/* Color picker grid */
+.colorGrid{
+ display:grid;
+ grid-template-columns:repeat(10, 1fr);
+ gap:10px;
+ margin-top:10px;
+}
+.colorDot{
+ width:26px;height:26px;border-radius:999px;
+ border:1px solid rgba(15,23,42,.10);
+ cursor:pointer;
+ box-shadow:0 10px 18px rgba(0,0,0,.10);
+}
+.colorDot.active{outline:3px solid rgba(99,102,241,.35)}
+
+
+/* ====== App Modal + Toast (sin prompt/confirm del navegador) ====== */
+.modal-overlay{
+  position:fixed;inset:0;
+  background:rgba(15,23,42,.55);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  display:flex;align-items:center;justify-content:center;
+  padding:18px;
+  z-index:9999;
+}
+.modal-overlay[aria-hidden="true"]{display:none;}
+.modal-card{
+  width:min(520px, 100%);
+  background:rgba(255,255,255,.96);
+  border:1px solid rgba(148,163,184,.28);
+  border-radius:22px;
+  box-shadow:0 18px 60px rgba(2,6,23,.25);
+  overflow:hidden;
+}
+.modal-head{padding:16px 18px 10px;display:flex;gap:10px;align-items:center;justify-content:space-between;}
+.modal-title{margin:0;font-weight:900;font-size:18px;color:var(--text);}
+.modal-close{border:none;background:transparent;font-size:22px;line-height:1;cursor:pointer;color:var(--muted);padding:6px 10px;border-radius:12px;}
+.modal-close:active{transform:scale(.98)}
+.modal-body{padding:0 18px 16px;color:var(--text)}
+.modal-msg{margin:6px 0 12px;color:var(--muted);font-size:14px;line-height:1.35}
+.modal-input{
+  width:100%;
+  padding:14px 14px;
+  border-radius:16px;
+  border:1px solid rgba(148,163,184,.35);
+  background:rgba(248,250,252,.9);
+  outline:none;
+  font-size:16px;
+}
+.modal-input:focus{border-color:rgba(99,102,241,.55);box-shadow:0 0 0 4px rgba(99,102,241,.15)}
+.modal-actions{display:flex;gap:12px;justify-content:flex-end;padding:0 18px 18px;}
+.modal-btn{border:none;border-radius:16px;padding:12px 14px;font-weight:900;cursor:pointer;min-width:120px}
+.modal-btn.cancel{background:rgba(148,163,184,.18);color:var(--text)}
+.modal-btn.ok{background:var(--primary);color:white}
+.modal-btn.danger{background:var(--danger);color:white}
+.modal-btn:active{transform:scale(.99)}
+
+.toast{
+  position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+  background:rgba(15,23,42,.92);
+  color:white;
+  padding:12px 14px;
+  border-radius:16px;
+  box-shadow:0 12px 34px rgba(2,6,23,.35);
+  z-index:9998;
+  opacity:0;pointer-events:none;
+  transition:opacity .18s ease, transform .18s ease;
+  max-width:min(520px, calc(100% - 28px));
+  text-align:center;
+  font-weight:800;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+
+</style>
+</head>
+
+<body>
+
+<h1>INVENTARIO HIELI CREAM</h1>
+<p class="subhead">PRO • ventas • costos • reportes</p>
+
+<div class="inventory" id="inventory"></div>
+<div id="savedStamp" class="savedStamp"></div>
+
+<!-- FAB -->
+<div class="speed-dial">
+ <button class="main-fab" id="fab" onclick="toggleMenu()">＋</button>
+</div>
+
+<!-- MENU -->
+<div class="sheet" id="menuSheet">
+ <h2>Menú</h2>
+ <p class="subhead">Elige qué quieres hacer</p>
+
+ <!-- ✅ sin degradados: puros colores pastel -->
+ <div class="menuGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;">
+  <button class="menuBtn" style="border:none;border-radius:26px;padding:18px 16px;height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#111827;font-weight:950;cursor:pointer;box-shadow:0 18px 35px rgba(0,0,0,.10);transition:.12s;background:#ede9fe" onclick="goTo('add')">
+   <div style="font-size:1.2rem;line-height:1.1">Nuevo Hielito</div>
+   <div style="font-size:.92rem;opacity:.85;font-weight:850;margin-top:6px">Agregar sabores</div>
+  </button>
+
+  <button class="menuBtn" style="border:none;border-radius:26px;padding:18px 16px;height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#111827;font-weight:950;cursor:pointer;box-shadow:0 18px 35px rgba(0,0,0,.10);transition:.12s;background:#dbeafe" onclick="goTo('stats')">
+   <div style="font-size:1.2rem;line-height:1.1">Gráficas</div>
+   <div style="font-size:.92rem;opacity:.85;font-weight:850;margin-top:6px">Ventas + total</div>
+  </button>
+
+  <button class="menuBtn" style="border:none;border-radius:26px;padding:18px 16px;height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#111827;font-weight:950;cursor:pointer;box-shadow:0 18px 35px rgba(0,0,0,.10);transition:.12s;background:#fee2e2" onclick="goTo('history')">
+   <div style="font-size:1.2rem;line-height:1.1">Reportes</div>
+   <div style="font-size:.92rem;opacity:.85;font-weight:850;margin-top:6px">Historial + PDF</div>
+  </button>
+
+  <button class="menuBtn" style="border:none;border-radius:26px;padding:18px 16px;height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#111827;font-weight:950;cursor:pointer;box-shadow:0 18px 35px rgba(0,0,0,.10);transition:.12s;background:#dcfce7" onclick="goTo('db')">
+   <div style="font-size:1.2rem;line-height:1.1">Base de datos</div>
+   <div style="font-size:.92rem;opacity:.85;font-weight:850;margin-top:6px">Editar vendidos</div>
+  </button>
+
+  <button class="menuBtn" style="border:none;border-radius:26px;padding:18px 16px;height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#111827;font-weight:950;cursor:pointer;box-shadow:0 18px 35px rgba(0,0,0,.10);transition:.12s;background:#fef9c3" onclick="goTo('io')">
+   <div style="font-size:1.2rem;line-height:1.1">Importación</div>
+   <div style="font-size:.92rem;opacity:.85;font-weight:850;margin-top:6px">Importar / exportar</div>
+  </button>
+
+  <button class="menuBtn" style="border:none;border-radius:26px;padding:18px 16px;height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#111827;font-weight:950;cursor:pointer;box-shadow:0 18px 35px rgba(0,0,0,.10);transition:.12s;background:#fce7f3" onclick="goTo('cu')">
+   <div style="font-size:1.2rem;line-height:1.1">Costo unitario</div>
+   <div style="font-size:.92rem;opacity:.85;font-weight:850;margin-top:6px">Receta por sabor</div>
+  </button>
+ </div>
+
+ <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
+</div>
+
+<!-- ADD -->
+<div class="sheet" id="addSheet">
+ <h2>Agregar sabor</h2>
+ <input id="newName" placeholder="Nombre del sabor">
+ <input id="newQty" type="number" placeholder="Cantidad inicial">
+ <input id="newCritical" type="number" placeholder="Punto crítico">
+ <button onclick="addFlavor()">Guardar</button>
+ <button class="closeBtn" onclick="closeSheets()">Cancelar</button>
+</div>
+
+<!-- CONFIG -->
+<div class="sheet" id="configSheet">
+ <h2>Configurar sabor</h2>
+ <input id="editName" placeholder="Nombre del sabor">
+ <input id="editCritical" type="number" placeholder="Punto crítico">
+
+ <div class="kpiBox" style="margin:0 0 14px">
+  <div class="t">Costo unitario (solo lectura)</div>
+  <div class="v" id="configCost">$0.00</div>
+  <div class="subhead" style="margin:8px 0 0;font-weight:900">Menú → Costo unitario para cambiarlo</div>
+ </div>
+
+ <div class="kpiBox" style="margin:0 0 14px">
+  <div class="t">Color de la tarjeta</div>
+  <div class="subhead" style="margin:8px 0 10px;font-weight:900">Elige un color pastel</div>
+  <div style="max-height:240px; overflow:auto; padding-right:4px"><div id="colorGrid" class="colorGrid" style="max-height:240px;overflow:auto;padding:6px;border-radius:14px"></div></div>
+ </div>
+
+ <button onclick="saveConfig()">Guardar</button>
+
+ <!-- ✅ ELIMINAR SABOR (con confirmación). NO borra ventas, solo lo quita de inventario y CU -->
+ <button style="background:var(--danger)" type="button" onclick="deleteFlavor()">Eliminar sabor</button>
+
+ <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
+</div>
+<!-- ====== (sigue PARTE 2) ====== -->
+<!-- =========================
+     PARTE 2 / 5
+     (Restante del HTML + inicio JS base + helpers + render tarjetas + config + delete A)
+========================= -->
+
+<!-- STATS -->
+<div class="sheet" id="statsSheet">
+ <h2>Gráficas</h2>
+
+ <div class="toggleRow">
+  <button class="pill active" id="pillVentas" onclick="setStatsMode('ventas')">Ventas</button>
+  <button class="pill" id="pillSabores" onclick="setStatsMode('cu')">Sabores (CU)</button>
+ </div>
+
+ <div id="statsVentasBlock">
+
+   <!-- ✅ NUEVO: selector de rango / semana -->
+   <div class="row3" style="margin-top:10px;grid-template-columns:1fr 1fr">
+    <div>
+     <div class="lbl">Tipo</div>
+     <select id="statsRangeType" onchange="setStatsRangeType(this.value)">
+      <option value="range">Rango (fechas)</option>
+      <option value="week">Semana (Lun–Dom)</option>
+     </select>
+    </div>
+    <div id="weekPickWrap" style="display:none">
+     <div class="lbl">Semana</div>
+     <select id="statsWeek" onchange="onWeekPickChange()"></select>
+    </div>
+   </div>
+
+
+  <div class="row3" style="margin-top:10px">
+   <div>
+    <div class="lbl">Desde</div>
+    <input type="date" id="from">
+   </div>
+   <div>
+    <div class="lbl">Hasta</div>
+    <input type="date" id="to">
+   </div>
+   <div>
+    <div class="lbl">Sabor</div>
+    <select id="statsCompare"></select>
+   </div>
+  </div>
+  <button onclick="generateChart()">Generar</button>
+
+<div class="kpi2">
+   <div class="kpiBox">
+    <div class="t">Total vendidos (rango)</div>
+    <div class="v" id="statsTotal">0</div>
+   </div>
+   <div class="kpiBox">
+    <div class="t">Total gastado (rango)</div>
+    <div class="v" id="statsSpend">$0.00</div>
+   </div>
+  </div>
+
+  <div class="top3Row" id="top3Wrap"></div>
+
+  <div class="chartScroll">
+   <div class="chart-wrap">
+    <canvas id="chart"></canvas>
+   </div>
+  </div>
+ </div>
+
+ <div id="statsCUBlock" style="display:none">
+  <div class="smallnote" style="margin:6px 0 12px">
+   Ranking por <b>costo unitario</b> (independiente de fechas). <br>
+   🥇 = más barato
+  </div>
+
+  <div class="top3Row" id="top3CUWrap"></div>
+
+  <div class="chartScroll">
+   <div class="chart-wrap" style="height:480px">
+    <canvas id="chartCU"></canvas>
+   </div>
+  </div>
+ </div>
+
+ <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
+</div>
+
+<!-- HISTORY -->
+<div class="sheet" id="historySheet">
+ <h2>Reportes</h2>
+
+ <input type="date" id="hFrom">
+ <input type="date" id="hTo">
+<button onclick="renderHistory()">Aplicar</button>
+
+ <div class="kpi2">
+  <div class="kpiBox">
+   <div class="t">Total vendidos</div>
+   <div class="v" id="hTotal">0</div>
+  </div>
+  <div class="kpiBox">
+   <div class="t">Total gastado</div>
+   <div class="v" id="hSpend">$0.00</div>
+  </div>
+ </div>
+
+ <button style="background:#111827" onclick="downloadPDF()">📄 Descargar PDF</button>
+
+ <div id="historyWrap" style="margin-top:14px"></div>
+
+ <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
+</div>
+
+<!-- DB -->
+<div class="sheet" id="editDbSheet">
+ <h2>Base de datos</h2>
+ <p class="subhead">Filtra por fecha o busca por texto</p>
+
+ <input type="date" id="dbDate" onchange="renderSalesDB()">
+ <input id="dbSearch" placeholder="Buscar producto o fecha AAAA-MM-DD" oninput="renderSalesDB()">
+
+ <button onclick="normalizeSales(true)">Normalizar</button>
+ <button style="background:var(--danger)" onclick="clearSales()">Vaciar ventas</button>
+
+ <div id="salesList" style="margin-top:14px"></div>
+
+ <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
+</div>
+
+<!-- IO -->
+<div class="sheet" id="ioSheet">
+ <h2>Importación / Exportación</h2>
+
+ <button onclick="exportData()">Exportar JSON</button>
+
+ <input id="importFile" type="file" accept=".json,application/json">
+ <button style="background:var(--success);margin-bottom:14px" onclick="triggerImport()">Importar datos</button>
+
+ <div class="smallnote">
+  Tip: importa un archivo exportado por esta misma app:
+  <b>hieli_cream_backup.json</b>
+ </div>
+
+ <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
+</div>
+
+<!-- CU -->
+<div class="sheet" id="cuSheet">
+ <h2>Costo unitario</h2>
+ <p class="subhead">Selecciona sabor, ajusta receta y guarda</p>
+
+ <select id="cuFlavor"></select>
+ <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-top:10px"><button onclick="cuAddInsumo()">＋ Agregar insumo</button><div class="row3" style="grid-template-columns:1fr 1fr;gap:12px;margin:0"><button style="background:#e0e7ff;color:#1e293b" onclick="cuOpenCatalog()">Catálogo de insumos</button><button style="background:#111827" onclick="cuSaveCost()">Guardar CU</button></div></div>
+
+ <div id="cuLista" style="margin-top:14px"></div>
+
+ <div class="kpiBox" style="text-align:center">
+  <div class="t">Costo unitario (calculado)</div>
+  <div class="v" style="font-size:2.4rem;color:#7c3aed" id="cuTotal">$0.00</div>
+ </div>
+
+ <button style="background:var(--violet);display:none" onclick="cuSaveCost()">Guardar costo unitario</button>
+ <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
+</div>
+
+<!-- CU CATALOGO -->
+<div class="sheet" id="cuCatalogSheet">
+ <h2>Catálogo de insumos</h2>
+ <p class="subhead">Guarda insumos una vez y luego elígelos en cada receta</p>
+
+ <div class="row3" style="grid-template-columns:1.4fr .8fr;gap:12px">
+  <div>
+   <div class="lbl">Nombre del insumo</div>
+   <input id="cuCatName" placeholder="Ej. Leche evaporada">
+  </div>
+  <div>
+   <div class="lbl">Costo paquete ($)</div>
+   <input id="cuCatPack" type="number" step="0.01" min="0" placeholder="0.00">
+  </div>
+ </div>
+
+ <button onclick="cuSaveCatalogItem()">Guardar insumo</button>
+
+ <div class="smallnote" style="margin-top:10px">
+  Tip: luego en cada <b>INSUMO</b> elige del catálogo para rellenar nombre y costo sin escribir.
+ </div>
+
+ <div style="margin-top:14px">
+  <div class="lbl">Insumos guardados:</div>
+  <div id="cuCatalogList" style="margin-top:10px"></div>
+ </div>
+
+ <button class="closeBtn" onclick="goTo('cu')">Volver</button>
+</div>
+
+<script>
+
+// ===== Persistencia (Android) =====
+(async function(){
+  try{
+    // 1) Pedir almacenamiento persistente (reduce riesgo de "limpieza" del navegador)
+    if(navigator.storage && navigator.storage.persist){
+      const already = await navigator.storage.persisted();
+      if(!already){ await navigator.storage.persist(); }
+    }
+
+    // 2) Detectar apertura desde archivo (content:// o file://) donde Android a veces BORRA storage al cerrar
+    const proto = (location && location.protocol) ? location.protocol : "";
+    const isFileLike = (proto === "file:" || proto === "content:" || proto === "android-app:");
+    if(isFileLike){
+      // Banner fijo arriba
+      const bar=document.createElement("div");
+      bar.id="storageWarningBar";
+      bar.style.cssText="position:sticky;top:0;z-index:99999;background:#fff3cd;color:#664d03;border-bottom:1px solid rgba(0,0,0,.08);padding:10px 12px;font-size:13px;line-height:1.25;display:flex;gap:10px;align-items:flex-start;justify-content:space-between";
+      bar.innerHTML = `
+        <div style="max-width:860px">
+          <b>⚠️ Ojo:</b> Estás abriendo la app como <b>archivo</b> (file/content). En muchos Android, al cerrarse la app el sistema puede borrar <b>LocalStorage</b> y se pierde <b>Catálogo</b> y selecciones.
+          <div style="margin-top:6px">
+            <b>Solución:</b> ábrela desde <b>Chrome</b> y usa <b>⋮ &gt; Añadir a pantalla de inicio / Instalar app</b> (PWA),
+            o súbela a un host (GitHub Pages/Netlify) y ábrela por <b>https</b>.
+          </div>
+        </div>
+        <button id="storageWarnClose" style="border:none;background:transparent;font-size:16px;line-height:1;cursor:pointer">✕</button>
+      `;
+      document.documentElement.style.scrollBehavior="smooth";
+      document.addEventListener("DOMContentLoaded", ()=>{
+        document.body.prepend(bar);
+        const btn=document.getElementById("storageWarnClose");
+        if(btn) btn.onclick=()=>bar.remove();
+      });
+    }
+  }catch(e){
+    // no-op
+  }
+})();
+
+// ===== Helpers anti-crash (escape HTML) =====
+function escapeHtml(v){
+  return String(v ?? "").replace(/[&<>"']/g, (ch)=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[ch]));
+}
+function escapeHtmlAttr(v){
+  // para atributos: además evitamos backticks
+  return escapeHtml(v).replace(/`/g,"&#96;");
+}
+
+// ===== Debug: si algo truena, mostramos un mensaje sin romper toda la app =====
+window.addEventListener("error", (ev)=>{
+  try{
+    const msg = (ev && (ev.message || ev.error && ev.error.message)) ? (ev.message || ev.error.message) : "Error desconocido";
+    console.warn("JS ERROR:", msg, ev);
+    // Guardar para diagnóstico
+    localStorage.setItem("lastError", JSON.stringify({t:new Date().toISOString(), msg}));
+    // Mostrar un aviso discreto si ya existe AppUI
+    if(window.AppUI && AppUI.toast){ AppUI.toast("⚠️ Error: " + msg); }
+  }catch(_){}
+});
+if (window.Chart && window.ChartDataLabels) { Chart.register(ChartDataLabels); }
+const jsPDF = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : null;
+let chart=null;
+let chartCu=null;
+let currentIndex=null;
+
+/* =========================
+   50 colores pastel (más vivos)
+========================= */
+const PASTELS = [
+  "#4F46E5","#4338CA","#6366F1","#818CF8",  // indigos
+  "#0EA5E9","#38BDF8","#0284C7","#06B6D4","#22D3EE", // sky/cyan
+  "#14B8A6","#2DD4BF","#0D9488","#10B981","#34D399", // teal/emerald
+  "#22C55E","#4ADE80","#16A34A","#84CC16","#A3E635", // greens/lime
+  "#F59E0B","#FBBF24","#F97316","#FB923C","#FDBA74", // amber/orange
+  "#EF4444","#F87171","#FB7185","#E11D48",           // reds/rose
+  "#EC4899","#F472B6","#DB2777","#C026D3",           // pink/fuchsia
+  "#A855F7","#D8B4FE","#8B5CF6","#7C3AED",           // purple/violet
+  "#64748B","#94A3B8","#334155","#111827",           // slate/graphite
+  "#8D6E63","#A1887F","#D2B48C","#E5D4C0",           // café/tan
+  "#60A5FA","#93C5FD","#FCA5A5","#FDE68A",           // extras suaves
+  "#A7F3D0","#BAE6FD","#E9D5FF","#FFE4E6",           // extras pastel
+  "#C7D2FE","#DDD6FE","#FBCFE8","#FEF3C7"            // extras pastel 2
+];
+
+/* DATA */
+
+/* Safe JSON parse (evita que se rompa la app si el localStorage se corrompe) */
+function safeParseJSON(str, fallback){
+  try{
+    if(str==null || str==="") return fallback;
+    return JSON.parse(str);
+  }catch(e){
+    console.warn("safeParseJSON fallo, limpiando valor corrupto:", e);
+    return fallback;
+  }
+}
+
+let inventory=safeParseJSON(localStorage.getItem("inventory"), null)||[
+ {name:"OREO",qty:10,critical:4,cost:0,color:PASTELS[7]},
+ {name:"NUTELLA",qty:10,critical:4,cost:0,color:PASTELS[1]},
+ {name:"FERRERO",qty:10,critical:4,cost:0,color:PASTELS[3]},
+ {name:"DUVALIN",qty:10,critical:4,cost:0,color:PASTELS[10]},
+ {name:"VAINILLA",qty:10,critical:4,cost:0,color:PASTELS[14]}
+];
+
+let sales=safeParseJSON(localStorage.getItem("sales"), [])||[]; // {product,date,qty,costUnit?}
+
+// ---- MIGRACION DE REGISTROS ANTIGUOS (para que Graficas/Reportes lean la base vieja) ----
+function _normStr(v){return (v==null?"":String(v)).trim();}
+function _normKeyFlavor(v){return _normStr(v).toLowerCase();}
+function _toNumber(v){const n=Number(v);return Number.isFinite(n)?n:0;}
+function _migrateSaleRow(r){
+  if(!r || typeof r!=="object") return null;
+  const product = _normStr(r.product ?? r.sabor ?? r.flavor ?? r.nombre ?? r.name ?? r.item ?? "");
+  const dateRaw = r.date ?? r.fecha ?? r.day ?? r.dia ?? r.createdAt ?? r.ts;
+  const date = _normStr(dateRaw);
+  const qty = _toNumber(r.qty ?? r.cantidad ?? r.vendidos ?? r.unidades ?? r.u ?? r.count ?? 0);
+  const costUnit = _toNumber(r.costUnit ?? r.cu ?? r.CU ?? r.costoUnitario ?? r.unitCost ?? 0);
+  if(!product || !date || !qty) {
+    // si viene parcialmente, aun asi conservar si tiene producto y cantidad
+    if(!product || !qty) return null;
+  }
+  return {
+    ...r,
+    product,
+    productKey: _normKeyFlavor(product),
+    date,
+    qty,
+    costUnit
+  };
+}
+function migrateSalesArray(arr){
+  if(!Array.isArray(arr)) return [];
+  return arr.map(_migrateSaleRow).filter(Boolean);
+}
+// re-mapea una vez en carga
+sales = migrateSalesArray(sales);
+try{ localStorage.setItem("sales", JSON.stringify(sales)); }catch(e){}
+try{
+  const _beforeLen = Array.isArray(sales)?sales.length:0;
+  sales = migrateSalesArray(sales);
+  // si detectamos registros viejos, guardamos ya migrado para que todo el sistema use el mismo formato
+  if(_beforeLen && JSON.stringify(sales).length){
+    localStorage.setItem("sales", JSON.stringify(sales));
+  }
+}catch(e){/* noop */}
+// ---- FIN MIGRACION ----
+
+/* HELPERS */
+function toTitleName(s){
+  s=(s||'').toString().trim();
+  if(!s) return '';
+  return s.toLowerCase().replace(/\b\w/g,m=>m.toUpperCase());
+}
+
+function toUpperSafe(x){return (x||"").toString().trim().toUpperCase();}
+function money(n){ const x = Number(n); if(!isFinite(x)) return '$0.00'; return '$' + x.toFixed(2); }
+
+function todayLocalISO(){
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+
+function _toISO(d){
+  // Acepta Date o string; regresa YYYY-MM-DD en horario local
+  if(!d) return "";
+  if(!(d instanceof Date)) d = new Date(d);
+  if(isNaN(d)) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+function toTitleCase(str){
+  str = String(str||'').trim();
+  if(!str) return '';
+  return str
+    .toLowerCase()
+    .split(/\s+/)
+    .map(w => w ? (w.charAt(0).toUpperCase() + w.slice(1)) : '')
+    .join(' ');
+}
+
+
+function normalizeISODate(d){
+ if(!d) return "";
+ if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+ if(/^\d{2}\/\d{2}\/\d{4}$/.test(d)){
+  const [dd,mm,yy]=d.split("/");
+  return `${yy}-${mm}-${dd}`;
+ }
+ const dd=new Date(d);
+ if(isNaN(dd)) return "";
+ const y=dd.getFullYear();
+ const m=String(dd.getMonth()+1).padStart(2,"0");
+ const day=String(dd.getDate()).padStart(2,"0");
+ return `${y}-${m}-${day}`;
+}
+
+function parseAnyDateToISO(s){
+  return normalizeISODate(s);
+}
+
+function parseAnyDateToTime(s){
+  const iso = parseAnyDateToISO(s);
+  if(!iso) return NaN;
+  const parts = iso.split('-');
+  if(parts.length!==3) return NaN;
+  const y=Number(parts[0]), m=Number(parts[1]), d=Number(parts[2]);
+  if(!y||!m||!d) return NaN;
+  return new Date(y, m-1, d).getTime();
+}
+
+function inRangeByDate(valDate, fromVal, toVal){
+  const t = parseAnyDateToTime(valDate);
+  if(Number.isNaN(t)) return false;
+  const fromT = parseAnyDateToTime(fromVal);
+  const toT = parseAnyDateToTime(toVal);
+  const minT = Number.isNaN(fromT) ? -Infinity : fromT;
+  const maxT = Number.isNaN(toT) ? Infinity : toT;
+  return t>=minT && t<=maxT;
+}
+
+const MEDAL_COLORS = { gold:'#d4af37', silver:'#c0c0c0', bronze:'#cd7f32' };
+
+// =============================
+// Fallback de graficas (sin Chart.js)
+// En Android, cuando abres el HTML desde el administrador de archivos (content://),
+// es comun que se BLOQUEEN los scripts remotos (CDN). Si Chart.js no carga, Chart
+// queda como undefined y las graficas no se renderizan.
+// Este fallback dibuja barras directamente en el <canvas> para que SIEMPRE se vea.
+
+function __safeNumber(n){
+  const x = Number(n);
+  return Number.isFinite(x) ? x : 0;
+}
+
+function __measureText(ctx, text, maxWidth){
+  // recorta con "…" si es muy largo
+  if (!maxWidth) return text;
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let s = String(text);
+  while (s.length > 1 && ctx.measureText(s + '…').width > maxWidth) s = s.slice(0, -1);
+  return s + '…';
+}
+
+function drawBarChartFallback(canvas, labels, values, colors, opts={}){
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  // --- config ---
+  const isMoney = !!opts.isMoney || opts.valuePrefix === '$';
+  const rotateDeg = (typeof opts.rotateDeg === 'number') ? opts.rotateDeg : 60;
+  const labelFont = opts.labelFont || '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+  const valueFont = opts.valueFont || '13px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+  const pad = { top: 14, right: 16, bottom: 86, left: 42, ...(opts.pad||{}) };
+  const barGap = (typeof opts.barGap==='number') ? opts.barGap : 10;
+  const radius = (typeof opts.radius==='number') ? opts.radius : 12;
+  const showValues = (opts.showValues!==false);
+
+  // Eje X: el usuario quiere "centrado" como: la ÚLTIMA letra al centro de la barra.
+  const xLabelAnchor = opts.xLabelAnchor || 'endAtBarCenter'; // 'center' | 'endAtBarCenter'
+
+  // Animación
+  const animate = !!opts.animate;
+  const duration = Math.max(120, Number(opts.duration)||420);
+  const easing = (t)=> t<0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
+
+  // tamaño real (evita blur en mobile)
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = parseFloat(canvas.style.width) || canvas.clientWidth || 520;
+  const cssH = parseFloat(canvas.style.height) || canvas.clientHeight || 420;
+  canvas.width  = Math.floor(cssW * dpr);
+  canvas.height = Math.floor(cssH * dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+
+  // fondo
+  ctx.clearRect(0,0,cssW,cssH);
+
+  // datos
+  const safeVals = (values||[]).map(v=>Number(v)||0);
+  const maxV = Math.max(1, ...safeVals);
+  const n = Math.max(0, labels.length);
+
+  // geometría barras
+  const innerW = cssW - pad.left - pad.right;
+  const innerH = cssH - pad.top - pad.bottom;
+  const totalGap = Math.max(0, (n-1) * barGap);
+  const barW = n ? Math.max(12, (innerW - totalGap) / n) : 0;
+
+  // helpers
+  function niceNum(v){
+    const dec = (typeof opts.decimals==='number') ? opts.decimals : (isMoney ? 2 : 0);
+    return isMoney ? money(v) : (dec? Number(v).toFixed(dec) : String(Math.round(v)));
+  }
+  function roundRect(x,y,w,h,r){
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.arcTo(x+w, y, x+w, y+h, rr);
+    ctx.arcTo(x+w, y+h, x, y+h, rr);
+    ctx.arcTo(x, y+h, x, y, rr);
+    ctx.arcTo(x, y, x+w, y, rr);
+    ctx.closePath();
+  }
+
+  // grid + ejes
+  ctx.strokeStyle = 'rgba(148,163,184,.22)';
+  ctx.lineWidth = 1;
+  const gridLines = 4;
+  for(let i=0;i<=gridLines;i++){
+    const y = pad.top + innerH - (innerH * i / gridLines);
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(cssW - pad.right, y);
+    ctx.stroke();
+  }
+
+  // título
+  if(opts.title){
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '900 16px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(opts.title, pad.left, 8);
+  }
+
+  // Y label
+  if(opts.yLabel){
+    ctx.save();
+    ctx.translate(14, pad.top + innerH/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillStyle = 'rgba(15,23,42,.72)';
+    ctx.font = '900 12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText(opts.yLabel, 0, 0);
+    ctx.restore();
+  }
+
+  // cache para animación por canvas
+  window.__barAnimCache = window.__barAnimCache || {};
+  const cacheKey = canvas.id || ('c_'+Math.random().toString(16).slice(2));
+  const prev = window.__barAnimCache[cacheKey] || {map:{}};
+  const prevMap = prev.map || {};
+
+  // construir from/to por etiqueta (para que anime aunque cambie el orden)
+  const toMap = {};
+  labels.forEach((lab, i)=>{ toMap[String(lab)] = safeVals[i] || 0; });
+  const fromVals = labels.map(lab => Number(prevMap[String(lab)]) || 0);
+  const toVals   = labels.map(lab => Number(toMap[String(lab)]) || 0);
+
+  // guardar estado final para próxima
+  window.__barAnimCache[cacheKey] = { map: toMap };
+
+  const startTime = performance.now ? performance.now() : Date.now();
+
+  function drawFrame(t01){
+    // recompute
+    ctx.clearRect(0,0,cssW,cssH);
+
+    // grid
+    ctx.strokeStyle = 'rgba(148,163,184,.22)';
+    ctx.lineWidth = 1;
+    for(let i=0;i<=gridLines;i++){
+      const y = pad.top + innerH - (innerH * i / gridLines);
+      ctx.beginPath();
+      ctx.moveTo(pad.left, y);
+      ctx.lineTo(cssW - pad.right, y);
+      ctx.stroke();
+    }
+
+    // título
+    if(opts.title){
+      ctx.fillStyle = '#0f172a';
+      ctx.font = '900 16px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(opts.title, pad.left, 8);
+    }
+    // yLabel
+    if(opts.yLabel){
+      ctx.save();
+      ctx.translate(14, pad.top + innerH/2);
+      ctx.rotate(-Math.PI/2);
+      ctx.fillStyle = 'rgba(15,23,42,.72)';
+      ctx.font = '900 12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.fillText(opts.yLabel, 0, 0);
+      ctx.restore();
+    }
+
+    // barras
+    const usedValueBoxes = []; // anti-amontonado (CU)
+    for(let i=0;i<n;i++){
+      const x = pad.left + i*(barW+barGap);
+      const xCenter = x + barW/2;
+
+      const v = fromVals[i] + (toVals[i]-fromVals[i]) * t01;
+      const h = (v / maxV) * innerH;
+      const y = pad.top + (innerH - h);
+
+      // barra
+      ctx.fillStyle = colors[i] || '#94a3b8';
+      roundRect(x, y, barW, h, radius);
+      ctx.fill();
+
+      // brillo metalizado TOP 3 si opts.medals
+      if(opts.medals && opts.medalsMetal && i<3){
+        const grad = ctx.createLinearGradient(x, y, x+barW, y);
+        grad.addColorStop(0, 'rgba(255,255,255,.55)');
+        grad.addColorStop(0.22,'rgba(255,255,255,.10)');
+        grad.addColorStop(0.5,'rgba(255,255,255,.22)');
+        grad.addColorStop(0.82,'rgba(0,0,0,.10)');
+        grad.addColorStop(1,'rgba(0,0,0,.18)');
+        ctx.fillStyle = grad;
+        roundRect(x, y, barW, h, radius);
+        ctx.fill();
+      }
+
+      // valores
+      if(showValues){
+        const raw = v; // valor actual (animado)
+        const txt = isMoney ? money(raw) : ((opts.decimals!=null)? Number(raw).toFixed(Number(opts.decimals)||0) : String(Math.round(raw))) + (opts.valueSuffix||'');
+        ctx.font = '900 12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+        const tw = ctx.measureText(txt).width;
+        const boxW = tw + 14;
+        const boxH = 22;
+
+        // placement
+        const placement = opts.valuePlacement || 'auto'; // 'above' | 'inside' | 'auto'
+        let by;
+        let inside;
+        if(placement==='above'){
+          inside = false;
+          by = Math.max(pad.top + 8, y - (boxH + 8));
+        } else if(placement==='inside'){
+          inside = true;
+          by = y + 10;
+          // si no cabe, lo subimos tantito pero sin salir
+          if(by + boxH > pad.top + innerH) by = (pad.top + innerH) - boxH - 6;
+          if(by < pad.top + 6) by = pad.top + 6;
+        } else {
+          // auto: si hay altura, adentro; si no, arriba
+          inside = (h >= 28);
+          by = inside ? (y + 10) : Math.max(pad.top + 8, y - (boxH + 8));
+        }
+
+        // anti-choque: si choca con otra caja, muévela un poco hacia abajo dentro de la barra; si no cabe, arriba clamp
+        let bx = xCenter - boxW/2;
+        let tries=0;
+        while(tries<10){
+          const hit = usedValueBoxes.some(b=> !(bx+boxW<b.x || bx>b.x+b.w || by+boxH<b.y || by>b.y+b.h));
+          if(!hit) break;
+          by += 10;
+          // si se sale abajo, reintenta arriba
+          if(by+boxH > pad.top+innerH){
+            by = Math.max(pad.top + 8, y - (boxH + 8));
+            break;
+          }
+          tries++;
+        }
+        usedValueBoxes.push({x:bx,y:by,w:boxW,h:boxH});
+
+        // dibujar pill
+        ctx.fillStyle = 'rgba(15,23,42,.88)';
+        ctx.beginPath();
+        const r=11;
+        ctx.moveTo(bx+r, by);
+        ctx.arcTo(bx+boxW, by, bx+boxW, by+boxH, r);
+        ctx.arcTo(bx+boxW, by+boxH, bx, by+boxH, r);
+        ctx.arcTo(bx, by+boxH, bx, by, r);
+        ctx.arcTo(bx, by, bx+boxW, by, r);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = 'white';
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+        ctx.fillText(txt, xCenter, by + boxH/2);
+      }
+
+      // etiquetas X
+      ctx.save();
+      ctx.translate(xCenter, pad.top + innerH + 6);
+      ctx.rotate(-rotateDeg * Math.PI/180);
+
+      ctx.font = '900 12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      ctx.fillStyle = 'rgba(15,23,42,.82)';
+      ctx.textBaseline = 'middle';
+
+      const label = String(labels[i]||'');
+      if(xLabelAnchor === 'endAtBarCenter'){
+        ctx.textAlign = 'right';          // última letra en el centro (x=0)
+        ctx.fillText(label, 0, 0);
+      }else{
+        ctx.textAlign = 'center';
+        ctx.fillText(label, 0, 0);
+      }
+      ctx.restore();
+    }
+  }
+
+  function tick(now){
+    const t = Math.min(1, (now - startTime) / duration);
+    drawFrame(easing(t));
+    if(t < 1){
+      (window.requestAnimationFrame || function(cb){ return setTimeout(()=>cb((performance.now?performance.now():Date.now())), 16); })(tick);
+    }
+  }
+
+  if(animate){
+    (window.requestAnimationFrame || function(cb){ return setTimeout(()=>cb((performance.now?performance.now():Date.now())), 16); })(tick);
+  }else{
+    // sin animación
+    drawFrame(1);
+  }
+}
+
+
+function roundRect(ctx, x, y, w, h, r){
+  const rr = Math.max(0, Math.min(r, w/2, h/2));
+  ctx.beginPath();
+  ctx.moveTo(x+rr, y);
+  ctx.arcTo(x+w, y, x+w, y+h, rr);
+  ctx.arcTo(x+w, y+h, x, y+h, rr);
+  ctx.arcTo(x, y+h, x, y, rr);
+  ctx.arcTo(x, y, x+w, y, rr);
+  ctx.closePath();
+}
+
+
+
+
+function getUnitCost(product){
+ // 1) Primero intenta desde inventario (costo guardado)
+ const p = inventory.find(x=>toUpperSafe(x.name)===toUpperSafe(product));
+ const invCost = p ? (Number(p.cost)||0) : 0;
+ if(invCost > 0) return invCost;
+
+ // 2) Fallback: calcular desde receta CU (aunque no hayas entrado a la pantalla CU)
+ try{
+  const recKey = "cu_recipes_v1";
+  const recipes = safeParseJSON(localStorage.getItem(recKey)||"{}", {}) || {};
+  const key = toUpperSafe(product||"");
+  const rows = recipes[key];
+  if(Array.isArray(rows) && rows.length){
+    const total = rows.reduce((s,r)=>{
+      const pack = Number(r.pack)||0;
+      const qty  = Number(r.qty)||0;
+      const yld  = Math.max(1, Number(r.yield)||1);
+      return s + (pack*qty)/yld;
+    }, 0);
+    return Number(total)||0;
+  }
+ }catch(e){}
+ return 0;
+}
+
+
+/* Guardado seguro */
+function saveSilent(){
+ try{
+  localStorage.setItem("inventory",JSON.stringify(inventory));
+  localStorage.setItem("sales",JSON.stringify(sales));
+  const ts = new Date().toISOString();
+  localStorage.setItem("lastSaved", ts);
+  updateSavedStamp();
+ }catch(e){
+  console.warn('No se pudo guardar en localStorage:',e);
+  try{ AppUI.toast('No se pudo guardar (permiso/almacenamiento). Abre en Chrome o descarga/abre desde Archivos.','warn',3200);}catch(_){ }
+ }
+}
+
+function updateSavedStamp(){
+ const el=document.getElementById("savedStamp");
+ if(!el) return;
+ let ts="";
+ try{ ts = localStorage.getItem("lastSaved")||""; }catch(e){}
+ if(!ts){ el.textContent=""; return; }
+ const d=new Date(ts);
+ if(isNaN(d.getTime())){ el.textContent=""; return; }
+ const pad=n=>String(n).padStart(2,"0");
+ const txt = `Guardado: ${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+ el.textContent=txt;
+}
+
+setInterval(saveSilent,5000);
+/* Redibujo de gráficas (con animación) */
+let __chartsDebounce=null;
+function refreshChartsAnimated(){
+  try{
+    // Animar SOLO una vez (antes se llamaba 2 veces seguidas y cancelaba la animación)
+    const statsSheetEl = document.getElementById("statsSheet");
+    if(!statsSheetEl || !statsSheetEl.classList.contains("active")) return;
+    generateChart(); // generateChart decide por __statsMode
+  }catch(e){ console.warn("refreshChartsAnimated:", e); }
+}
+function scheduleChartsAnimated(){
+  clearTimeout(__chartsDebounce);
+  __chartsDebounce=setTimeout(refreshChartsAnimated, 60);
+}
+
+
+/* Vibración: solo dentro de clicks reales */
+function vibrateSafe(pat){
+ try{
+  if(!("vibrate" in navigator)) return;
+  navigator.vibrate(pat);
+ }catch(e){}
+}
+
+/* Pop sonido suave (solo al vender, si el navegador deja) */
+let __audioCtx=null;
+function playPop(){
+ try{
+  const AC=window.AudioContext||window.webkitAudioContext;
+  if(!AC) return;
+  if(!__audioCtx) __audioCtx=new AC();
+  const ctx=__audioCtx;
+  const o=ctx.createOscillator();
+  const g=ctx.createGain();
+  o.type="sine";
+  const t=ctx.currentTime;
+  o.frequency.setValueAtTime(520,t);
+  o.frequency.exponentialRampToValueAtTime(260,t+0.07);
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(0.14,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+0.10);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(t); o.stop(t+0.11);
+ }catch(e){}
+}
+
+/* UI */
+function closeSheets(){document.querySelectorAll(".sheet").forEach(s=>s.classList.remove("active"))}
+function toggleMenu(){
+ const ms=document.getElementById("menuSheet");
+ const fab=document.getElementById("fab");
+ const open=ms.classList.contains("active");
+ closeSheets();
+ if(!open){ms.classList.add("active"); fab.classList.add("active");}
+ else fab.classList.remove("active");
+}
+
+/* ✅ openMenu DEFINIDO (por si algún botón lo llama) */
+function openMenu(){ toggleMenu(); }
+
+function goTo(where){
+ closeSheets();
+ if(where==="add") addSheet.classList.add("active");
+ if(where==="stats"){statsSheet.classList.add("active"); initStatsDefaults();}
+ if(where==="history"){historySheet.classList.add("active"); initHistoryDefaults(); renderHistory();}
+ if(where==="db"){editDbSheet.classList.add("active"); initDbDefaults(); renderSalesDB();}
+ if(where==="io") ioSheet.classList.add("active");
+ if(where==="cu"){cuSheet.classList.add("active"); cuInit();}
+}
+
+
+
+function initStatsDefaults(){
+ // Si no hay fechas seleccionadas, ponemos rango automatico segun ventas.
+ const fromEl=document.getElementById('from');
+ const toEl=document.getElementById('to');
+ if(!fromEl || !toEl) return;
+ const sales=loadSales();
+ if(!sales.length){
+  const today=new Date();
+  const iso=today.toISOString().slice(0,10);
+  fromEl.value=fromEl.value||iso;
+  toEl.value=toEl.value||iso;
+  try{ generateChart(); }catch(e){}
+  return;
+ }
+ // Tomar min/max (ISO) de los registros
+ const dates=sales.map(s=>normalizeISODate(s.date)).filter(Boolean).sort();
+ const minD=dates[0];
+ const maxD=dates[dates.length-1];
+ // Limites del input (para que el datepicker no se salga)
+ fromEl.min=minD; fromEl.max=maxD;
+ toEl.min=minD; toEl.max=maxD;
+ // Si el usuario no ha elegido, setear por defecto
+ if(!fromEl.value) fromEl.value=minD;
+ if(!toEl.value) toEl.value=maxD;
+ // Si estan invertidas, corregir
+ if(fromEl.value>toEl.value){
+  fromEl.value=minD; toEl.value=maxD;
+ }
+  // ✅ Inicializar semanas (para selector Semana 1, Semana 2...)
+  try{ initWeekPicker(); }catch(e){}
+
+ // ✅ Respetar el selector Tipo si existe
+  const rt = document.getElementById("statsRangeType");
+  if(rt){ rt.value = __statsRangeType; }
+
+ // Auto-generar (para que no salga en blanco)
+ try{ generateChart(); }catch(e){ console.warn(e); }
+}
+
+/* =========================
+   SEMANAS (Lun–Dom) para Gráficas
+   - Semana 1, Semana 2, ...
+   - Cada opción representa lunes a domingo
+========================= */
+let __statsRangeType = "range";
+
+function loadSales(){
+  // En algunas versiones no existía; esto evita que truene initStatsDefaults
+  return (sales || []);
+}
+
+function startOfWeekMondayISO(iso){
+  const t = parseAnyDateToTime(iso);
+  if(Number.isNaN(t)) return "";
+  const d = new Date(t);
+  // JS: 0=Dom ... 6=Sáb. Queremos Lun=0 ... Dom=6
+  const idx = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - idx);
+  return _toISO(d);
+}
+
+function addDaysISO(iso, days){
+  const t = parseAnyDateToTime(iso);
+  if(Number.isNaN(t)) return "";
+  const d = new Date(t);
+  d.setDate(d.getDate() + (Number(days)||0));
+  return _toISO(d);
+}
+
+function initWeekPicker(){
+  const weekSel = document.getElementById("statsWeek");
+  const fromEl = document.getElementById("from");
+  const toEl   = document.getElementById("to");
+  if(!weekSel || !fromEl || !toEl) return;
+
+  const rows = loadSales().map(s=> normalizeISODate(s.date)).filter(Boolean).sort();
+  if(!rows.length){
+    weekSel.innerHTML = "";
+    return;
+  }
+
+  const minD = rows[0];
+  const maxD = rows[rows.length-1];
+
+  const firstMon = startOfWeekMondayISO(minD);
+  const lastMon  = startOfWeekMondayISO(maxD);
+
+  // construir semanas desde firstMon hasta lastMon
+  const weeks = [];
+  let cur = firstMon;
+  let i=1;
+  while(cur && cur <= addDaysISO(lastMon, 0) && i < 600){
+    const end = addDaysISO(cur, 6);
+    weeks.push({i, mon: cur, sun: end});
+    cur = addDaysISO(cur, 7);
+    i++;
+  }
+
+  weekSel.innerHTML = weeks.map(w=>{
+    const txt = `Semana ${w.i} (${w.mon} a ${w.sun})`;
+    return `<option value="${escapeHtmlAttr(w.mon)}">${escapeHtml(txt)}</option>`;
+  }).join("");
+
+  // default: última semana (la más reciente)
+  if(weeks.length){
+    weekSel.value = weeks[weeks.length-1].mon;
+    // si el usuario está en modo semana, forzamos from/to a esa semana
+    if(__statsRangeType==="week"){
+      fromEl.value = weeks[weeks.length-1].mon;
+      toEl.value   = weeks[weeks.length-1].sun;
+    }
+  }
+}
+
+function setStatsRangeType(type){
+  __statsRangeType = (type==="week") ? "week" : "range";
+  const wrap = document.getElementById("weekPickWrap");
+  const weekSel = document.getElementById("statsWeek");
+  const fromEl = document.getElementById("from");
+  const toEl   = document.getElementById("to");
+  if(!fromEl || !toEl) return;
+
+  if(__statsRangeType==="week"){
+    if(wrap) wrap.style.display = "block";
+    // cargar semanas si aún no están
+    try{ initWeekPicker(); }catch(e){}
+    // bloquear fechas (las controla la semana)
+    fromEl.disabled = true;
+    toEl.disabled   = true;
+    onWeekPickChange(); // setea from/to y dibuja
+  }else{
+    if(wrap) wrap.style.display = "none";
+    fromEl.disabled = false;
+    toEl.disabled   = false;
+    try{ generateChart(); }catch(e){}
+  }
+}
+
+function onWeekPickChange(){
+  if(__statsRangeType!=="week") return;
+  const weekSel = document.getElementById("statsWeek");
+  const fromEl = document.getElementById("from");
+  const toEl   = document.getElementById("to");
+  if(!weekSel || !fromEl || !toEl) return;
+
+  const mon = weekSel.value || "";
+  if(!mon) return;
+  const sun = addDaysISO(mon, 6);
+
+  fromEl.value = mon;
+  toEl.value   = sun;
+
+  try{ generateChart(); }catch(e){}
+}
+
+/* RENDER INVENTORY */
+function render(){
+ const inventoryDiv=document.getElementById("inventory");
+ const compareSel=document.getElementById("statsCompare");
+ const cuSel=document.getElementById("cuFlavor");
+
+ inventoryDiv.innerHTML="";
+ if(compareSel){
+  compareSel.innerHTML = `<option value="__ALL__">Todos</option>`;
+ }
+ cuSel.innerHTML="";
+
+ inventory.forEach((p,i)=>{
+  if(compareSel){
+   compareSel.innerHTML += `<option value="${escapeHtmlAttr(p.name)}">${escapeHtml(p.name)}</option>`;
+  }
+  cuSel.innerHTML+=`<option value="${i}">${p.name}</option>`;
+
+  const strip = p.color || "#e5e7eb";
+
+  inventoryDiv.innerHTML+=`
+   <div class="card ${p.qty<=p.critical?'low':''}" data-i="${i}">
+    <div class="colorStrip" style="background:${strip}"></div>
+    <div class="cardFlash" id="fx_${i}"></div>
+
+    <div class="card-header">
+     <span>${p.name}</span>
+     <button class="gear" onclick="openConfig(${i})">⚙️</button>
+    </div>
+
+    <div class="qty">${p.qty}</div>
+
+    <div class="actions">
+     <button class="btn minus" onclick="decrease(${i}, this)">−</button>
+     <button class="btn plus" onclick="increase(${i}, this)">+</button>
+     <button class="btn sell"
+        onmousedown="sellHoldStart(${i})"
+        onmouseup="sellHoldEnd()"
+        ontouchstart="sellHoldStart(${i})"
+        ontouchend="sellHoldEnd()"
+        onclick="sell(${i}, this)">
+       VENDER
+       <div class="checkpop">✓</div>
+     </button>
+    </div>
+   </div>`;
+ });
+
+ saveSilent();
+ scheduleChartsAnimated();
+}
+
+/* Flash en la tarjeta */
+function flash(i, type){
+ const el=document.getElementById(`fx_${i}`);
+ if(!el) return;
+ el.classList.remove("show");
+ el.style.background = type==="add" ? "rgba(99,102,241,.55)" :
+                      type==="sub" ? "rgba(239,68,68,.55)" :
+                                    "rgba(34,197,94,.55)";
+ void el.offsetWidth;
+ el.classList.add("show");
+ setTimeout(()=>el.classList.remove("show"), 140);
+}
+
+function increase(i, btn){
+ vibrateSafe(12);
+ flash(i,"add");
+ inventory[i].qty++;
+ saveSilent(); render();
+}
+
+function decrease(i, btn){
+ vibrateSafe(10);
+ flash(i,"sub");
+ if(inventory[i].qty>0){inventory[i].qty--;saveSilent();render()}
+}
+
+/* VENDER + hold cantidad */
+let __holdTimer=null;
+let __holdActive=false;
+
+function sellHoldStart(i){
+ __holdActive=false;
+ clearTimeout(__holdTimer);
+ __holdTimer=setTimeout(()=>{
+  __holdActive=true;
+  sellAskQty(i);
+ }, 450);
+}
+
+function sellHoldEnd(){
+ clearTimeout(__holdTimer);
+}
+
+async function sellAskQty(i){
+ const max=inventory[i].qty||0;
+ if(max<=0) return;
+ const q = await AppUI.promptNumber({
+  title: "Vender",
+  message: `¿Cuántos hielitos quieres vender?
+Máximo: ${max}`,
+  placeholder: "Ej. 10",
+  value: 10,
+  min: 1,
+  max: max,
+  okText: "Vender",
+  cancelText: "Cancelar"
+ });
+ if(q===null) return;
+ doSell(i, q, null);
+}
+
+/* sell click normal */
+function sell(i, btn){
+ if(__holdActive) return; // evita doble
+ doSell(i, 1, btn);
+}
+
+function doSell(i, qty, btn){
+ if((inventory[i].qty||0)<=0) return;
+ if(qty>(inventory[i].qty||0)) qty=inventory[i].qty||0;
+ inventory[i].qty -= qty;
+
+ const d=todayLocalISO();
+ const p=inventory[i].name;
+ const cu = Number(inventory[i].cost)||0;
+
+ const existing=sales.find(x=>normalizeISODate(x.date)===d && toUpperSafe(x.product)===toUpperSafe(p));
+ if(existing){
+  existing.qty=(parseInt(existing.qty)||0)+qty;
+  existing.costUnit = (existing.costUnit==null) ? cu : existing.costUnit;
+ }else{
+  sales.push({product:p,date:d,qty:qty,costUnit:cu});
+ }
+
+ flash(i,"sell");
+ vibrateSafe([10,30,10]);
+ playPop();
+
+ if(btn){
+  const pop=btn.querySelector(".checkpop");
+  if(pop){
+   pop.classList.add("show");
+   setTimeout(()=>pop.classList.remove("show"), 450);
+  }
+ }
+
+ saveSilent();
+ render();
+}
+
+/* CONFIG */
+function openConfig(i){
+ currentIndex=i;
+ editName.value=inventory[i].name;
+ editCritical.value=inventory[i].critical;
+ document.getElementById("configCost").textContent=money(inventory[i].cost||0);
+ closeSheets();
+ configSheet.classList.add("active");
+
+ renderColorPicker(inventory[i].color || "#e5e7eb");
+}
+
+let __pickedColor="#e5e7eb";
+function renderColorPicker(selected){
+ __pickedColor=selected;
+ const grid=document.getElementById("colorGrid");
+ if(!grid) return;
+ grid.innerHTML = PASTELS.map(c=>{
+  const active = (String(c).toLowerCase()===String(selected).toLowerCase()) ? " active" : "";
+  return `<div class="colorDot${active}" style="background:${c}" onclick="pickColor('${c}')"></div>`;
+ }).join("");
+}
+function pickColor(c){
+ __pickedColor=c;
+ renderColorPicker(c);
+}
+
+function saveConfig(){
+ const oldName = inventory[currentIndex].name;
+ const oldKey  = toUpperSafe(oldName);
+
+ inventory[currentIndex].name = editName.value.trim();
+ inventory[currentIndex].critical = parseInt(editCritical.value)||0;
+ inventory[currentIndex].color = __pickedColor || inventory[currentIndex].color || "#e5e7eb";
+
+ const newName = inventory[currentIndex].name;
+ const newKey  = toUpperSafe(newName);
+
+ // Renombrar ventas sin perder historial
+ if(oldKey!==newKey){
+  sales = sales.map(s => toUpperSafe(s.product)===oldKey ? {...s, product:newName} : s);
+ }
+
+ // Mover receta CU
+ try{
+  const recKey="cu_recipes_v1";
+  const recipes=safeParseJSON(localStorage.getItem(recKey)||"{}", {});
+  if(oldKey && newKey && oldKey!==newKey && recipes[oldKey] && !recipes[newKey]){
+   recipes[newKey]=recipes[oldKey];
+   delete recipes[oldKey];
+   localStorage.setItem(recKey, JSON.stringify(recipes));
+  }
+ }catch(e){}
+
+ saveSilent();
+ render();
+ closeSheets();
+}
+
+/* ✅ ELIMINAR SABOR (A): no borra ventas, solo lo quita de inventario y CU */
+async function deleteFlavor(){
+ const name = inventory[currentIndex]?.name || "";
+ if(!(await AppUI.confirm(`¿Eliminar el sabor "${name}"?\n\n✅ Tus ventas y reportes NO se borran.\n❌ Se quitará del inventario y del botón de Costo unitario.`, 'Eliminar sabor', true))) return;
+
+ const key = toUpperSafe(name);
+
+ // borrar receta CU del storage por nombre
+ try{
+  const recKey="cu_recipes_v1";
+  const recipes=safeParseJSON(localStorage.getItem(recKey)||"{}", {});
+  if(recipes[key]){ delete recipes[key]; localStorage.setItem(recKey, JSON.stringify(recipes)); }
+ }catch(e){}
+
+ // quitar del inventario
+ inventory.splice(currentIndex,1);
+ currentIndex=null;
+
+ saveSilent();
+ render();
+ closeSheets();
+}
+
+/* ADD */
+function addFlavor(){
+ const name=newName.value.trim();
+ if(!name) return;
+ inventory.push({
+  name,
+  qty:Number(newQty.value)||0,
+  critical:Number(newCritical.value)||0,
+  cost:0,
+  color: PASTELS[Math.floor(Math.random()*PASTELS.length)]
+ });
+ saveSilent();
+ render();
+ closeSheets();
+}
+
+/* Defaults */
+function initHistoryDefaults(){
+ if(!hFrom.value) hFrom.value=todayLocalISO();
+ if(!hTo.value) hTo.value=todayLocalISO();
+}
+function initDbDefaults(){
+ const d=todayLocalISO();
+ if(!dbDate.value) dbDate.value=d;
+}
+
+/* ====== (sigue PARTE 3) ====== */
+</script>
+<!-- =========================
+     PARTE 3 / 5
+     (Gráficas PRO: orden mayor→menor a la izquierda + Top 3 + scroll horizontal
+      + Modo Sabores(CU) ranking más barato
+      + DB: mostrar fechas importadas aunque no sea “hoy”)
+========================= -->
+
+<script>
+/* =========================
+   MODO GRÁFICAS (Ventas / Sabores CU)
+========================= */
+let __statsMode="ventas";
+
+function setStatsMode(mode){
+ __statsMode = (mode==="cu") ? "cu" : "ventas";
+ const pv=document.getElementById("pillVentas");
+ const ps=document.getElementById("pillSabores");
+ const bV=document.getElementById("statsVentasBlock");
+ const bC=document.getElementById("statsCUBlock");
+
+ if(pv&&ps){
+  pv.classList.toggle("active", __statsMode==="ventas");
+  ps.classList.toggle("active", __statsMode==="cu");
+ }
+ if(bV&&bC){
+  bV.style.display = (__statsMode==="ventas") ? "block" : "none";
+  bC.style.display = (__statsMode==="cu") ? "block" : "none";
+ }
+ if(__statsMode==="cu") renderCUChart();
+}
+
+/* =========================
+   Canvas dinámico (scroll horizontal)
+========================= */
+function fitCanvasForBars(canvas, barCount, minWidth){
+ const wrap = canvas?.parentElement?.parentElement; // chart-wrap -> chartScroll
+ const base = (wrap?.clientWidth || 420);
+ const perBar = 34; // ancho por barra (compacto estilo app)
+ const w = Math.max(minWidth || base, barCount * perBar);
+ const h = (canvas.id==="chartCU") ? 380 : 420;
+
+ canvas.style.width = w + "px";
+ canvas.style.height = h + "px";
+
+ const dpr = window.devicePixelRatio || 1;
+ canvas.width = Math.floor(w * dpr);
+ canvas.height = Math.floor(h * dpr);
+}
+
+/* =========================
+   TOP 3 (medallas fuera de la gráfica)
+========================= */
+function renderTop3(containerId, arr, type){
+ const wrap=document.getElementById(containerId);
+ if(!wrap) return;
+
+ // Orden ya viene aplicado desde quien llama
+ const medals = ['🥇','🥈','🥉'];
+ const medalColors = ['#d4af37','#c0c0c0','#cd7f32']; // oro, plata, bronce
+ const titles = type==='cu' ? ['Más barato','2° más barato','3° más barato'] : ['Más vendido','2° más vendido','3° más vendido'];
+
+ const top = (arr||[]).slice(0,3);
+ wrap.innerHTML = top.map((it,idx)=>`
+  <div class="top3Item" style="border-top:7px solid ${medalColors[idx]};">
+    <div class="top3Medal" style="color:${medalColors[idx]};">${medals[idx]}</div>
+    <div class="top3Name">${it.name}</div>
+    <div class="top3Qty">${type==='cu' ? (titles[idx]+': '+money(it.value)) : (titles[idx]+': '+it.value)}</div>
+  </div>
+ `).join('');
+}
+
+/* =========================
+   GRÁFICAS - VENTAS
+   - Orden de mayor a menor (izquierda→derecha)
+   - Si rango 1 día: compara sabores de ese día
+   - Si varios días: suma por sabor en el rango
+========================= */
+
+
+/* =========================
+   PLUGIN: Medallas arriba (oro/plata/bronce)
+   - Se dibuja arriba de las 3 primeras barras
+========================= */
+const medalsPlugin = {
+  id: 'medalsPlugin',
+  afterDatasetsDraw(chart, args, pluginOptions) {
+    try{
+      const enabled = pluginOptions?.enabled !== false;
+      if(!enabled) return;
+      const {ctx, data} = chart;
+      const meta = chart.getDatasetMeta(0);
+      if(!meta || !meta.data) return;
+      const topN = Math.min(3, meta.data.length);
+      const medalColors = ['#d4af37','#c0c0c0','#cd7f32'];
+      ctx.save();
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.font='900 12px -apple-system,BlinkMacSystemFont,Inter,system-ui,sans-serif';
+      for(let i=0;i<topN;i++){
+        const el = meta.data[i];
+        const x = el.x;
+        // yTop: parte alta de la barra
+        const yTop = Math.min(el.y, el.base) - 34;
+        const r = 11;
+        // círculo
+        ctx.beginPath();
+        ctx.fillStyle = medalColors[i];
+        ctx.arc(x, yTop, r, 0, Math.PI*2);
+        ctx.fill();
+        // borde
+        ctx.lineWidth=2;
+        ctx.strokeStyle='rgba(15,23,42,.25)';
+        ctx.stroke();
+        // número
+        ctx.fillStyle='#0b1220';
+        ctx.fillText(String(i+1), x, yTop+0.5);
+      }
+      ctx.restore();
+    }catch(e){ /* noop */ }
+  }
+};
+function generateChart(){
+ // Si está en modo CU, no usa fechas
+ if(__statsMode==="cu"){ renderCUChart(); return; }
+
+ let from=document.getElementById("from").value;
+ let to=document.getElementById("to").value;
+ const rangeType = (typeof __statsRangeType==="string") ? __statsRangeType : "range";
+ const weekSel = document.getElementById("statsWeek");
+ const weekMon = (weekSel && weekSel.value) ? weekSel.value : "";
+ if(rangeType==="week" && weekMon){ from = weekMon; to = addDaysISO(weekMon, 6); }
+ const compareSel=document.getElementById("statsCompare");
+ const compareVal=(compareSel && compareSel.value) ? compareSel.value : "__ALL__";
+
+ // Normalizar ventas (importadas incl.)
+ const normalized=(sales||[]).map((s,__id)=>({
+  __id,
+  product:(s.product||"").toString(),
+  date:normalizeISODate(s.date)||"",
+  qty:Math.max(1,parseInt(s.qty)||1),
+  costUnit: (s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0)
+ })).filter(x=>x.date);
+
+
+ const filtered = normalized.filter(s=> inRangeByDate(s.date, from, to));
+
+ // ===== MODO: Semana (Lun–Dom) =====
+ if(rangeType==="week" && from && to){
+  const labels = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+  const data = [0,0,0,0,0,0,0];
+
+  // subset según sabor
+  let subset = filtered;
+  if(compareVal && compareVal!=="__ALL__"){
+    const pickUpper = toUpperSafe(compareVal);
+    subset = filtered.filter(s=> toUpperSafe(s.product)===pickUpper);
+  }
+
+  subset.forEach(s=>{
+    const t = parseAnyDateToTime(s.date);
+    if(Number.isNaN(t)) return;
+    const d = new Date(t);
+    const idx = (d.getDay()+6)%7; // Lun=0 ... Dom=6
+    data[idx] = (data[idx]||0) + (Number(s.qty)||0);
+  });
+
+  const totalVendidos = data.reduce((a,b)=>a+b,0);
+  const totalGastado  = subset.reduce((a,b)=> a + (Number(b.qty)||0)*(Number(b.costUnit)||0), 0);
+
+  document.getElementById("statsTotal").textContent = totalVendidos;
+  document.getElementById("statsSpend").textContent = money(totalGastado);
+
+  // Top3 no aplica en modo semana (porque el eje X son días)
+  const topWrap=document.getElementById("top3Wrap");
+  if(topWrap){ topWrap.innerHTML=""; topWrap.style.display="none"; }
+
+  // Color
+  let baseColor = PASTELS[0];
+  if(compareVal && compareVal!=="__ALL__"){
+    const pickUpper = toUpperSafe(compareVal);
+    const pickedInv = inventory.find(x=>toUpperSafe(x.name)===pickUpper);
+    baseColor = (pickedInv && pickedInv.color) ? pickedInv.color : PASTELS[0];
+  }else{
+    baseColor = PASTELS[0];
+  }
+  const colors = labels.map(()=>baseColor);
+
+  const canvas=document.getElementById("chart");
+  fitCanvasForBars(canvas, labels.length, 520);
+
+  const weekText = (weekSel && weekSel.options && weekSel.selectedIndex>=0) ? weekSel.options[weekSel.selectedIndex].text : "";
+  const titleSuffix = weekText ? (" • " + weekText) : ` • ${from} a ${to}`;
+  const titleFlavor = (compareVal && compareVal!=="__ALL__") ? toTitleCase(compareVal) : "TOTAL";
+  drawBarChartFallback(canvas, labels, data, colors, {
+    title: `Ventas por día • ${titleFlavor}${titleSuffix}`,
+    valueSuffix: "",
+    yLabel: "Vendidos",
+    valuePlacement: "above",
+    medals: false,
+    rotateDeg: 0,
+    xLabelAnchor: "center",
+    animate: true,
+    duration: 520
+  });
+  return;
+ }
+
+ // ===== MODO: 1 sabor (comparar días) =====
+ if(compareVal && compareVal!=="__ALL__"){
+  const pickUpper=toUpperSafe(compareVal);
+  const only=filtered.filter(s=> toUpperSafe(s.product)===pickUpper);
+
+  // agrupar por día
+  const byDay=new Map();
+  only.forEach(s=>{
+   const d=s.date;
+   byDay.set(d, (byDay.get(d)||0) + s.qty);
+  });
+  const days=[...byDay.entries()].sort((a,b)=> a[0].localeCompare(b[0]));
+  const labels = days.map(([d])=>d);
+  const data   = days.map(([,q])=>q);
+
+  const totalVendidos = data.reduce((a,b)=>a+b,0);
+  const totalGastado  = only.reduce((a,b)=> a + (b.qty*(Number(b.costUnit)||0)),0);
+
+  document.getElementById("statsTotal").textContent=totalVendidos;
+  document.getElementById("statsSpend").textContent=money(totalGastado);
+
+  // Top3 en modo 1 sabor no aplica (para no confundir)
+  const topWrap=document.getElementById("top3Wrap");
+  if(topWrap){ topWrap.innerHTML=""; topWrap.style.display="none"; }
+
+  const pickedInv = inventory.find(x=>toUpperSafe(x.name)===pickUpper);
+  const baseColor = (pickedInv && pickedInv.color) ? pickedInv.color : PASTELS[0];
+  const colors = labels.map(()=> baseColor);
+
+  const canvas=document.getElementById("chart");
+  fitCanvasForBars(canvas, labels.length, 520);
+
+  drawBarChartFallback(canvas, labels, data, colors, {
+    title: `Ventas por día • ${toTitleCase(compareVal)}`,
+    valueSuffix: "",
+    yLabel: "Vendidos",
+    valuePlacement: "above",
+    medals: false,
+    rotateDeg: 55,
+    xLabelAnchor: "endAtBarCenter",
+    animate: true,
+    duration: 520
+  });
+  return;
+ }
+
+ // ===== MODO: Todos (comparar sabores) =====
+ const topWrap=document.getElementById("top3Wrap");
+ if(topWrap){ topWrap.style.display="grid"; }
+
+ const map=new Map(); // key=productUpper -> {name, qty, spend}
+ filtered.forEach(s=>{
+  const key=toUpperSafe(s.product);
+  const name=toTitleCase((s.product||"").toString().trim()) || "SIN NOMBRE";
+  const o=map.get(key)||{name, qty:0, spend:0};
+  o.qty += s.qty;
+  o.spend += s.qty*(Number(s.costUnit)||0);
+  map.set(key,o);
+ });
+
+ const arr=[...map.values()].sort((a,b)=> b.qty-a.qty || a.name.localeCompare(b.name,"es"));
+
+ const labels = arr.map(x=>x.name);
+ const data   = arr.map(x=>x.qty);
+
+ const totalVendidos = arr.reduce((a,b)=>a+b.qty,0);
+ const totalGastado  = arr.reduce((a,b)=>a+b.spend,0);
+ document.getElementById("statsTotal").textContent=totalVendidos;
+ document.getElementById("statsSpend").textContent=money(totalGastado);
+
+ renderTop3("top3Wrap", arr.map(x=>({name:x.name,value:x.qty})), "ventas");
+
+ const colors = labels.map((name,idx)=>{
+  const p=inventory.find(x=>toUpperSafe(x.name)===toUpperSafe(name));
+  return (p && p.color) ? p.color : (PASTELS[idx % PASTELS.length]);
+ });
+
+ // Top 3 con medallas (planas)
+ const medal=[ '#d4af37', '#c0c0c0', '#cd7f32' ];
+ for(let i=0;i<3 && i<colors.length;i++) colors[i]=medal[i];
+
+ const canvas=document.getElementById("chart");
+ fitCanvasForBars(canvas, labels.length, 520);
+
+ drawBarChartFallback(canvas, labels, data, colors, {
+  title: "Ventas",
+  valueSuffix: "",
+  yLabel: "Vendidos",
+  valuePlacement: "above",
+  medals: true,
+  rotateDeg: 55,
+  xLabelAnchor: "endAtBarCenter",
+  animate: true,
+  duration: 420
+ });
+}
+
+/* =========================
+   GRÁFICAS - SABORES (CU)
+   - Ranking por costo unitario (más barato primero)
+   - No depende de fechas
+========================= */
+function renderCUChart(){
+ const list = (inventory||[]).map(p=>({
+  name:p.name,
+  value:Number(p.cost)||0,
+  color:p.color || PASTELS[0]
+ })).sort((a,b)=> a.value-b.value || a.name.localeCompare(b.name,"es"));
+
+ renderTop3("top3CUWrap", list, "cu");
+
+ const labels=list.map(x=>x.name);
+ const data=list.map(x=>Number(x.value||0));
+ const colors=list.map(x=>x.color);
+
+ // Colores Top 3 (CU) (oro/plata/bronce)
+ const medal=['#d4af37','#c0c0c0','#cd7f32'];
+ for(let k=0;k<3 && k<colors.length;k++){
+  if((data[k]||0)>0) colors[k]=medal[k];
+ }
+
+const canvas=document.getElementById("chartCU");
+ fitCanvasForBars(canvas, labels.length, 520);
+
+ if(chartCu) chartCu.destroy();
+
+// Canvas nativo SIEMPRE (Android/content:// a prueba de fallos)
+drawBarChartFallback(canvas, labels, data, colors, {
+  title: "Sabores (CU)",
+  valuePrefix: "$",
+  yLabel: "Costo unitario",
+  valuePlacement: "inside",
+  decimals: 2,
+  rotateDeg: 55,
+  xLabelAnchor: "endAtBarCenter",
+  animate: true,
+  duration: 420
+});
+return;
+
+}
+
+/* =========================
+   BASE DE DATOS (muestra fechas importadas)
+   - Si el filtro no encuentra, enseña "fechas disponibles"
+========================= */
+function renderSalesDB(){
+ const q=(document.getElementById("dbSearch").value||"").toUpperCase();
+ const f=normalizeISODate(document.getElementById("dbDate").value||"");
+
+ const normalized=(sales||[]).map((s,__id)=>({
+  __id,
+  product:toUpperSafe(s.product),
+  displayName:(s.product||"").toString().trim() || "SIN NOMBRE",
+  date:normalizeISODate(s.date)||"",
+  qty:Math.max(1,parseInt(s.qty)||1),
+  costUnit:(s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0)
+ })).filter(r=>r.date);
+
+ const rows=normalized.filter(r=>
+  (!f || r.date===f) &&
+  (!q || r.product.includes(q) || r.date.includes(q))
+ ).sort((a,b)=>a.date.localeCompare(b.date) || a.product.localeCompare(b.product));
+
+ const wrap=document.getElementById("salesList");
+
+ if(rows.length===0){
+  // Fechas disponibles (para que no “se oculten”)
+  const dates=[...new Set(normalized.map(x=>x.date))].sort();
+  const chips = dates.slice(-10).reverse().map(d=>`
+    <button style="width:auto;padding:10px 14px;border-radius:999px;border:1px solid #e5e7eb;background:#f8fafc;font-weight:950;cursor:pointer"
+      onclick="document.getElementById('dbDate').value='${d}'; renderSalesDB();">
+      ${d}
+    </button>
+  `).join("");
+
+  wrap.innerHTML=`
+    <div class="smallnote">
+      No hay registros para ese filtro.<br>
+      ${dates.length ? `<div style="margin-top:10px;font-weight:950">Fechas disponibles (toca una):</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">${chips}</div>` : ""}
+    </div>`;
+  return;
+ }
+
+ wrap.innerHTML=rows.map((r,i)=>`
+  <div class="tableCard">
+   <div class="row3">
+    <div>
+     <div class="lbl">FECHA</div>
+     <input type="date" id="dbD_${i}" value="${r.date}">
+    </div>
+    <div>
+     <div class="lbl">PRODUCTO</div>
+     <select id="dbP_${i}">
+      ${inventory.map(p=>`<option ${toUpperSafe(p.name)===r.product?"selected":""}>${p.name}</option>`).join("")}
+     </select>
+    </div>
+    <div>
+     <div class="lbl">VENDIDOS</div>
+     <input type="number" id="dbQ_${i}" value="${r.qty}">
+    </div>
+   </div>
+
+   <div style="display:flex;gap:10px;margin-top:12px">
+    <button type="button" onclick="dbSave(${i})">Guardar</button>
+    <button type="button" style="background:var(--danger)" type="button" onclick="dbDelete(${i})">Borrar</button>
+   </div>
+
+   <div class="smallnote" style="margin-top:10px">
+    CU histórico: <b>${money(r.costUnit)}</b>
+   </div>
+  </div>
+ `).join("");
+
+ window.__dbRows=rows;
+}
+
+async function dbSave(i){
+  if(!(await AppUI.confirm("¿Guardar cambios en este registro?", 'Guardar', false))) return;
+
+  const r=window.__dbRows[i];
+  if(!r) return;
+  const id = r.__id;
+
+  const newDate = document.getElementById(`dbD_${i}`).value;
+  const newProd = document.getElementById(`dbP_${i}`).value;
+  const newQty  = parseInt(document.getElementById(`dbQ_${i}`).value)||0;
+
+  // Si ponen 0 o negativo, lo tratamos como borrado
+  if(newQty<=0){
+    if(id!=null && id>=0 && id < sales.length){
+      sales.splice(id,1);
+    }
+  }else{
+    const payload = {product:newProd, date:newDate, qty:newQty, costUnit:r.costUnit};
+    if(id!=null && id>=0 && id < sales.length){
+      sales[id] = payload;
+    }else{
+      // fallback: agrega
+      sales.push(payload);
+    }
+  }
+
+  saveSilent();
+  renderSalesDB();
+}
+
+async function dbDelete(i){
+  if(!(await AppUI.confirm("¿Borrar este registro?", 'Borrar', true))) return;
+
+  const r=window.__dbRows[i];
+  if(!r) return;
+  const id = r.__id;
+
+  if(id!=null && id>=0 && id < sales.length){
+    sales.splice(id,1);
+  }
+
+  saveSilent();
+  renderSalesDB();
+}
+
+/* =========================
+   HOOKS al abrir STATS
+========================= */
+(function(){
+ // defaults de fechas en gráficas
+ const f=document.getElementById("from");
+ const t=document.getElementById("to");
+ if(f && !f.value) f.value=todayLocalISO();
+ if(t && !t.value) t.value=todayLocalISO();
+})();
+
+/* ====== (sigue PARTE 4) ====== */
+</script>
+<!-- =========================
+     PARTE 4 / 5
+     (Costo Unitario PRO + Importar / Exportar TODO + fixes CU en vivo)
+========================= -->
+
+<script>
+/* =========================
+   COSTO UNITARIO (RECETAS POR SABOR)
+   - Actualiza total EN VIVO al escribir
+   - Guarda receta por nombre
+   - Mantiene CU histórico en ventas
+========================= */
+
+const CU_CATALOG_KEY="cu_catalog_v1";
+
+function cuGetCatalog(){
+  try{ return JSON.parse(localStorage.getItem(CU_CATALOG_KEY))||[]; }
+  catch(e){ return []; }
+}
+function cuSetCatalog(arr){
+  localStorage.setItem(CU_CATALOG_KEY, JSON.stringify(Array.isArray(arr)?arr:[]));
+}
+function cuNormalizeCatalog(arr){
+  const seen=new Set();
+  const out=[];
+  (arr||[]).forEach(it=>{
+    if(!it) return;
+    const name=toTitleCase((it.name||"").toString()).trim();
+    const pack=Number(it.pack)||0;
+    if(!name) return;
+    const key=name.toLowerCase();
+    if(seen.has(key)) return;
+    seen.add(key);
+    out.push({name, pack});
+  });
+  out.sort((a,b)=>a.name.localeCompare(b.name,'es'));
+  return out;
+}
+function cuRenderCatalog(){
+  const wrap=document.getElementById("cuCatalogList");
+  const arr=cuNormalizeCatalog(cuGetCatalog());
+  cuSetCatalog(arr);
+  if(!wrap) return;
+  if(!arr.length){
+    wrap.innerHTML='<div class="smallnote">No hay insumos guardados todavía.</div>';
+    return;
+  }
+  wrap.innerHTML=arr.map((it,idx)=>`
+    <div class="tableCard" style="display:flex;gap:12px;align-items:center;justify-content:space-between">
+      <div style="font-weight:950">
+        ${escapeHtml(it.name)}<div class="subhead" style="margin:4px 0 0;font-weight:900">${money(it.pack)} / paquete</div>
+      </div>
+      <button style="width:auto;min-width:120px;background:var(--danger)" onclick="cuDeleteCatalog(${idx})">Eliminar</button>
+    </div>
+  `).join("");
+}
+function cuOpenCatalog(){
+  closeSheets();
+  const sh=document.getElementById("cuCatalogSheet");
+  if(sh) sh.classList.add("active");
+  cuRenderCatalog();
+}
+function cuSaveCatalogItem(){
+  const nameEl=document.getElementById("cuCatName");
+  const packEl=document.getElementById("cuCatPack");
+  const name=toTitleCase((nameEl?.value||"").trim());
+  const pack=Number(packEl?.value)||0;
+  if(!name){ AppUI.toast("Pon el nombre del insumo"); return; }
+  const arr=cuNormalizeCatalog([...cuGetCatalog(), {name, pack}]);
+  cuSetCatalog(arr);
+  if(nameEl) nameEl.value="";
+  if(packEl) packEl.value="";
+  cuRenderCatalog();
+  AppUI.toast("✅ Insumo guardado en catálogo");
+}
+async function cuDeleteCatalog(idx){
+  if(!(await AppUI.confirm("¿Eliminar este insumo del catálogo?", "Eliminar", true))) return;
+  const arr=cuNormalizeCatalog(cuGetCatalog());
+  arr.splice(idx,1);
+  cuSetCatalog(arr);
+  cuRenderCatalog();
+  // Si hay filas usando ese catálogo, no las borro; solo se quedan con nombre/costo ya escrito.
+}
+function cuCatalogOptionsHTML(selected){
+  const arr=cuNormalizeCatalog(cuGetCatalog());
+  const sel=(selected||"");
+  const opts = ['<option value="">— Elegir del catálogo —</option>']
+    .concat(arr.map(it=>`<option value="${escapeHtmlAttr(it.name)}"${it.name===sel?' selected':''}>${escapeHtml(it.name)}</option>`));
+  return opts.join("");
+}
+
+function cuCatalogDatalistOptionsHTML(){
+ const catalog=cuNormalizeCatalog(cuGetCatalog());
+ return catalog.map(it=>`<option value="${escapeHtmlAttr(it.name)}"></option>`).join("");
+}
+
+function cuPickName(i, val){
+ const v=(val||"").toString().trim();
+ const catalog=cuNormalizeCatalog(cuGetCatalog());
+ const map=new Map(catalog.map(it=>[toUpperSafe(it.name), it]));
+ const hit=map.get(toUpperSafe(v));
+ if(hit){
+  cuRows[i].name = hit.name;
+  cuRows[i].pack = hit.pack;
+  cuRows[i].cat  = hit.key; // store key so we can keep track
+ }else{
+  cuRows[i].name = v;
+  cuRows[i].cat  = "";
+ }
+ cuCalc();
+}
+
+function cuPickCatalog(rowIdx, catName){
+  const arr=cuNormalizeCatalog(cuGetCatalog());
+  const it=arr.find(x=>x.name===catName);
+  if(!cuRows[rowIdx]) return;
+  cuRows[rowIdx].cat = catName || "";
+  if(it){
+    cuRows[rowIdx].name = it.name;
+    cuRows[rowIdx].pack = Number(it.pack)||0;
+  }
+  cuRender();
+}
+
+const CU_RECIPES_KEY="cu_recipes_v1";
+let cuRows=[];
+
+function cuGetRecipes(){
+ try{ return JSON.parse(localStorage.getItem(CU_RECIPES_KEY))||{}; }
+ catch(e){ return {}; }
+}
+function cuSetRecipes(obj){
+ localStorage.setItem(CU_RECIPES_KEY, JSON.stringify(obj||{}));
+}
+
+function cuKeyForIndex(idx){
+ const n=(inventory[idx]?.name||"").toString().trim();
+ return n ? toUpperSafe(n) : ("IDX_"+idx);
+}
+
+function cuLoadForIndex(idx){
+ const rec=cuGetRecipes();
+ const key=cuKeyForIndex(idx);
+ const saved=rec[key];
+
+ if(Array.isArray(saved) && saved.length){
+  cuRows=saved.map(r=>({
+   cat:(r.cat||"").toString(),
+   name:(r.name||"").toString(),
+   pack:Number(r.pack)||0,
+   qty:Number(r.qty)||0,
+   yield:Math.max(1, Number(r.yield)||1)
+  }));
+ }else{
+  cuRows=[];
+ }
+}
+
+function cuSaveRecipeForIndex(idx){
+ const rec=cuGetRecipes();
+ const key=cuKeyForIndex(idx);
+ rec[key]=(cuRows||[]).map(r=>({
+  cat:(r.cat||"").toString(),
+  name:(r.name||"").toString(),
+  pack:Number(r.pack)||0,
+  qty:Number(r.qty)||0,
+  yield:Math.max(1, Number(r.yield)||1)
+ }));
+ cuSetRecipes(rec);
+}
+
+function cuPerInsumo(r){
+ const pack=Number(r.pack)||0;
+ const qty=Number(r.qty)||0;
+ const yld=Math.max(1, Number(r.yield)||1);
+ return (pack*qty)/yld;
+}
+
+function cuInit(){
+ const sel=document.getElementById("cuFlavor");
+ const idx=parseInt(sel.value);
+ if(!isNaN(idx)) cuLoadForIndex(idx);
+ else cuRows=[];
+ cuRender();
+
+ sel.onchange=()=>{
+  const i=parseInt(sel.value);
+  if(!isNaN(i)) cuLoadForIndex(i);
+  else cuRows=[];
+  cuRender();
+ };
+}
+
+function cuAddInsumo(){
+ const cat=cuNormalizeCatalog(cuGetCatalog());
+ // por defecto no selecciona nada; tú eliges del catálogo
+ cuRows.push({cat:"",name:"",pack:0,qty:0,yield:1});
+ cuRender();
+}
+
+async function cuRemoveInsumo(i){
+ if(!(await AppUI.confirm("¿Quitar este insumo?", 'Eliminar sabor', true))) return;
+ cuRows.splice(i,1);
+ cuRender();
+}
+
+function cuRender(){
+ const list=document.getElementById("cuLista");
+ const catalog=cuNormalizeCatalog(cuGetCatalog());
+
+ if(!cuRows.length){
+  list.innerHTML=`<div class="smallnote">Este sabor no tiene receta guardada. Agrega insumos y guarda.</div>`;
+  document.getElementById("cuTotal").textContent="$0.00";
+  return;
+ }
+
+ list.innerHTML=cuRows.map((r,i)=>`
+  <div class="tableCard">
+   <div class="lbl">INSUMO ${i+1}</div>
+
+   
+   
+   <div style="margin-top:8px">
+    <div class="lbl">INSUMO</div>
+    <select onchange="cuPickCatalog(${i}, this.value)">
+      ${cuCatalogOptionsHTML(r.name||"")}
+    </select>
+    <div class="smallnote" style="margin-top:-6px">Tip: agrega insumos en <b>Catálogo</b> y luego selecciónalos aquí.</div>
+   </div>
+
+
+<div class="row3" style="margin-top:10px">
+    <div>
+     <div class="lbl">COSTO PAQUETE ($)</div>
+     <input type="number" step="0.01" min="0" value="${Number(r.pack)||0}"
+      oninput="cuRows[${i}].pack=this.value; cuRows[${i}].cat=''; cuCalc()">
+    </div>
+    <div>
+     <div class="lbl">CANTIDAD USADA</div>
+     <input type="number" step="0.01" min="0" value="${Number(r.qty)||0}"
+      oninput="cuRows[${i}].qty=this.value; cuCalc()">
+    </div>
+    <div>
+     <div class="lbl">RINDE (HIELITOS)</div>
+     <input type="number" step="1" min="1" value="${Math.max(1,Number(r.yield)||1)}"
+      oninput="cuRows[${i}].yield=this.value; cuCalc()">
+    </div>
+   </div>
+
+   <div style="margin-top:10px">
+    <div class="lbl">$/INSUMO (AUTOMÁTICO)</div>
+    <input class="cuPer" data-i="${i}" readonly value="${money(cuPerInsumo(r))}"
+      style="background:#eef2ff;color:#1e40af;font-weight:950">
+   </div>
+
+   <button style="margin-top:12px;background:var(--danger)" onclick="cuRemoveInsumo(${i})">Quitar insumo</button>
+  </div>
+ `).join("");
+
+ cuCalc();
+}
+
+function cuCalc(){
+ // actualizar $/INSUMO por cada fila
+ (cuRows||[]).forEach((r,i)=>{
+  const v=cuPerInsumo(r);
+  const el=document.querySelector('.cuPer[data-i="'+i+'"]');
+  if(el) el.value = money(v);
+ });
+
+ // total
+ const total=(cuRows||[]).reduce((s,r)=>s+cuPerInsumo(r),0);
+ document.getElementById("cuTotal").textContent=money(total);
+
+ // ✅ autosave de insumos por sabor (sin forzar el CU al inventario)
+ try{
+  const idx=parseInt(document.getElementById("cuFlavor").value);
+  if(!isNaN(idx)) cuSaveRecipeForIndex(idx);
+ }catch(e){}
+}
+
+
+function cuSaveCost(){
+ const idx=parseInt(document.getElementById("cuFlavor").value);
+ if(isNaN(idx) || !inventory[idx]) return;
+
+ // guardar receta
+ cuSaveRecipeForIndex(idx);
+
+ // guardar costo unitario calculado
+ const total=(cuRows||[]).reduce((s,r)=>s+cuPerInsumo(r),0);
+ inventory[idx].cost=Number(total)||0;
+
+ saveSilent();
+ render();
+
+ // refrescar en config si está el mismo
+ if(currentIndex===idx){
+  const el=document.getElementById("configCost");
+  if(el) el.textContent=money(inventory[idx].cost||0);
+ }
+
+ AppUI.toast(String("✅ Costo unitario guardado"));
+}
+
+/* =========================
+   NORMALIZAR / LIMPIAR (DB)
+========================= */
+function normalizeSales(showAlert=false){
+ const map=new Map();
+ (sales||[]).forEach(s=>{
+  const date=normalizeISODate(s.date)||todayLocalISO();
+  const product=toUpperSafe(s.product);
+  const qty=Math.max(1, parseInt(s.qty)||1);
+  const costUnit = (s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0);
+  const key=date+"||"+product;
+  const prev=map.get(key)||{qty:0,costUnit};
+  map.set(key,{qty:prev.qty+qty,costUnit:prev.costUnit});
+ });
+ sales=[...map.entries()].map(([key,v])=>{
+  const [date,product]=key.split("||");
+  return {product,date,qty:v.qty,costUnit:v.costUnit};
+ });
+ saveSilent();
+ if(showAlert) AppUI.toast(String("✅ Normalizado"));
+}
+
+async function clearSales(){
+ if(!(await AppUI.confirm("¿Seguro que quieres borrar TODAS las ventas?", 'Eliminar sabor', true))) return;
+ sales=[];
+ saveSilent();
+ renderSalesDB();
+}
+
+/* =========================
+   IMPORTAR / EXPORTAR (TODO)
+   - inventory (incluye color + cost)
+   - sales (incluye costUnit)
+   - recetas CU
+========================= */
+function exportData(){
+ saveSilent();
+ const payload={
+  inventory,
+  sales,
+  cu_recipes: cuGetRecipes(),
+  cu_catalog: cuGetCatalog()
+ };
+ const blob=new Blob([JSON.stringify(payload)],{type:"application/json"});
+ const a=document.createElement("a");
+ a.href=URL.createObjectURL(blob);
+ a.download="hieli_cream_backup.json";
+ a.click();
+}
+
+function triggerImport(){
+ const input=document.getElementById("importFile");
+ if(!input.files || !input.files[0]){ AppUI.toast(String("Selecciona un archivo .json")); return; }
+ const file=input.files[0];
+
+ const r=new FileReader();
+ r.onerror=()=>AppUI.toast(String("Error leyendo archivo"));
+ r.onload=()=>{
+  try{
+   const d=JSON.parse(r.result);
+
+   if(d.inventory){
+    inventory=(d.inventory||[]).map(p=>({
+     name:(p.name||"").toString().trim()||"SIN NOMBRE",
+     qty:Number(p.qty)||0,
+     critical:Number(p.critical)||0,
+     cost:Number(p.cost)||0,
+     color:p.color || PASTELS[Math.floor(Math.random()*PASTELS.length)]
+    }));
+   }
+
+   if(d.sales){
+    sales=(d.sales||[]).map(s=>({
+     product:(s.product||"").toString().trim(),
+     date:normalizeISODate(s.date)||todayLocalISO(),
+     qty:Math.max(1, parseInt(s.qty)||1),
+     costUnit:(s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0)
+    }));
+   }
+
+   if(d.cu_recipes){
+    localStorage.setItem(CU_RECIPES_KEY, JSON.stringify(d.cu_recipes));
+   }
+
+
+   // ✅ Importar también el CATÁLOGO de insumos CU (para que el desplegable no se pierda)
+   const cat = d.cu_catalog || d.cuCatalog || d.cu_catalogo || d.cu_catalogue || d.cuCatalogo;
+   if(cat){
+    try{ localStorage.setItem(CU_CATALOG_KEY, JSON.stringify(Array.isArray(cat)?cat:[])); }catch(e){}
+   }
+   saveSilent();
+   render();
+   AppUI.toast(String("✅ Importado correctamente"));
+  }catch(err){
+   AppUI.alert("No se pudo importar: " + (err?.message || err), {title:"Error"});
+  }
+ };
+ r.readAsText(file);
+}
+
+/* ====== (sigue PARTE 5) ====== */
+</script>
+<!-- =========================
+     PARTE 5 / 5
+     (Reportes pro + PDF carta + gráfica abajo sin estirarse + arranque final)
+========================= -->
+
+<script>
+/* =========================
+   REPORTES + PDF (PRO)
+   - Mantiene tu estilo (tarjetas limpias)
+   - PDF tamaño carta, si no cabe: otra página
+   - Gráfica al final sin estirarse
+========================= */
+
+function renderHistory(){
+ const from = (hFrom.value||todayLocalISO());
+ const to   = (hTo.value||todayLocalISO());
+
+ const rows=(sales||[]).map(s=>({
+  product: toUpperSafe(s.product),
+  name: (s.product||"").toString().trim() || "SIN NOMBRE",
+  date: normalizeISODate(s.date)||"",
+  qty: Math.max(1, parseInt(s.qty)||1),
+  costUnit: (s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0)
+ })).filter(r=>r.date)
+   .filter(r=>((!from || r.date>=from) && (!to || r.date<=to)));
+
+ // agrupar por día + producto
+ const grouped=new Map();
+ rows.forEach(r=>{
+  const key=r.date+"||"+r.product;
+  const prev=grouped.get(key)||{date:r.date,name:r.name,qty:0,costUnit:r.costUnit};
+  prev.qty += r.qty;
+  // CU histórico: conservar el que trae el registro
+  prev.costUnit = Number(prev.costUnit)||0;
+  grouped.set(key, prev);
+ });
+
+ const arr=[...grouped.values()]
+  .sort((a,b)=> a.date.localeCompare(b.date) || a.name.localeCompare(b.name,"es"));
+
+ const total=arr.reduce((a,b)=>a+b.qty,0);
+ const gasto=arr.reduce((a,b)=>a+(b.qty*(Number(b.costUnit)||0)),0);
+
+ hTotal.textContent=total;
+ hSpend.textContent=money(gasto);
+
+ // Sumatoria por sabor (para que se vea pro)
+ const byFlavor=new Map();
+ arr.forEach(r=>{
+  const k=toUpperSafe(r.name);
+  const prev=byFlavor.get(k)||{name:r.name,qty:0,spent:0,costUnit:Number(r.costUnit)||0};
+  prev.qty += r.qty;
+  prev.spent += r.qty*(Number(r.costUnit)||0);
+  prev.costUnit = Number(r.costUnit)||0;
+  byFlavor.set(k,prev);
+ });
+ const sumArr=[...byFlavor.values()].sort((a,b)=> b.qty-a.qty || a.name.localeCompare(b.name,"es"));
+
+ historyWrap.innerHTML = `
+  <div class="card">
+   <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start">
+    <div>
+     <div style="font-weight:1000;font-size:1.2rem">Reporte</div>
+     <div class="smallnote">Rango: <b>${from}</b> → <b>${to}</b></div>
+    </div>
+    <div style="text-align:right">
+     <div class="smallnote">Vendidos</div>
+     <div style="font-weight:1000;font-size:2rem">${total}</div>
+     <div class="smallnote" style="margin-top:4px">Gastado</div>
+     <div style="font-weight:1000;font-size:2rem">${money(gasto)}</div>
+    </div>
+   </div>
+  </div>
+
+  <div class="card">
+   <div style="font-weight:1000;margin-bottom:10px">Sumatoria por sabor</div>
+   <div style="overflow:auto">
+    <table style="width:100%;border-collapse:collapse">
+     <thead>
+      <tr style="text-align:left;color:#64748b;font-weight:900;font-size:12px">
+       <th style="padding:10px 6px;border-bottom:1px solid #e5e7eb">Sabor</th>
+       <th style="padding:10px 6px;border-bottom:1px solid #e5e7eb;text-align:right">Vendidos</th>
+       <th style="padding:10px 6px;border-bottom:1px solid #e5e7eb;text-align:right">CU</th>
+       <th style="padding:10px 6px;border-bottom:1px solid #e5e7eb;text-align:right">Gastado</th>
+      </tr>
+     </thead>
+     <tbody>
+      ${
+       sumArr.length ? sumArr.map(r=>`
+        <tr>
+         <td style="padding:10px 6px;border-bottom:1px solid #f1f5f9;font-weight:950">${r.name}</td>
+         <td style="padding:10px 6px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:900">${r.qty}</td>
+         <td style="padding:10px 6px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:900">${money(r.costUnit)}</td>
+         <td style="padding:10px 6px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:900">${money(r.spent)}</td>
+        </tr>
+       `).join("") : `<tr><td colspan="4" style="padding:12px;color:#64748b">No hay ventas en ese rango.</td></tr>`
+      }
+     </tbody>
+    </table>
+   </div>
+  </div>
+
+  <div class="card">
+   <div style="font-weight:1000;margin-bottom:10px">Detalle</div>
+   ${
+    arr.length ? arr.map(r=>`
+     <div class="reportCard">
+      <b>${r.name}</b><br>
+      <span class="subhead">${r.date}</span><br><br>
+      Vendidos: <b>${r.qty}</b><br>
+      Costo unitario: <b>${money(r.costUnit)}</b><br>
+      Gastado: <b>${money(r.qty*r.costUnit)}</b>
+     </div>
+    `).join("") : `<div class="smallnote">No hay registros.</div>`
+   }
+  </div>
+ `;
+}
+
+/* PDF carta + gráfica abajo sin deformar */
+function downloadPDF(){
+  try{
+    const from = (hFrom.value||todayLocalISO());
+    const to   = (hTo.value||todayLocalISO());
+
+  // ✅ Reporte/PDF SIEMPRE es de VENTAS (del rango del reporte)
+
+    // ----- Datos base (mismo criterio que reportes/gráficas) -----
+    const rows=(sales||[]).map(s=>({
+      name:(s.product||"").toString().trim()||"SIN NOMBRE",
+      date:normalizeISODate(s.date)||"",
+      qty:Math.max(1,parseInt(s.qty)||1),
+      costUnit:(s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0)
+    }))
+    .filter(r=>r.date)
+    .filter(r=>((!from || r.date>=from) && (!to || r.date<=to)));
+
+    // Agrupar por fecha+sabor (para el detalle)
+    const grouped=new Map();
+    rows.forEach(r=>{
+      const key=r.date+"||"+toUpperSafe(r.name);
+      const prev=grouped.get(key)||{date:r.date,name:r.name,qty:0,costUnit:r.costUnit};
+      prev.qty += r.qty;
+      // mantener CU del sabor (si hay mezcla, dejamos el más reciente distinto de 0)
+      if((Number(r.costUnit)||0)>0) prev.costUnit = Number(r.costUnit)||0;
+      grouped.set(key,prev);
+    });
+    const detail=[...grouped.values()].sort((a,b)=> a.date.localeCompare(b.date) || a.name.localeCompare(b.name,"es"));
+
+    // Resumen por sabor (totalizado del rango, unificando mayúsculas/minúsculas)
+    const resumenMap=new Map();
+    rows.forEach(r=>{
+      const k=toUpperSafe(r.name);
+      const prev=resumenMap.get(k)||{name:r.name,qty:0,costUnit:(Number(r.costUnit)||0)};
+      prev.qty += r.qty;
+      if((Number(r.costUnit)||0)>0) prev.costUnit = Number(r.costUnit)||0;
+      resumenMap.set(k,prev);
+    });
+    const resumen=[...resumenMap.values()]
+      .map(x=>({name:toTitleName(x.name), qty:x.qty, costUnit:Number(x.costUnit)||0, gastado:(x.qty*(Number(x.costUnit)||0))}))
+      .sort((a,b)=> b.qty-a.qty || a.name.localeCompare(b.name,"es"));
+
+    const totalVendidos = rows.reduce((a,b)=>a+(b.qty||0),0);
+    const totalGastado  = rows.reduce((a,b)=>a+(b.qty*(Number(b.costUnit)||0)),0);
+    const totalSabores  = resumen.length;
+
+    // ----- Gráfica del REPORTE: SIEMPRE VENTAS por sabor (del rango elegido) -----
+    const labels = resumen.map(r=>r.name);
+    const values = resumen.map(r=>Number(r.qty)||0);
+
+    // ----- PDF (estilo más corporativo) -----
+    const doc=new jsPDF({unit:"pt", format:"letter"}); // 612x792
+    const W=612, H=792;
+    const mx=44;
+    let y=0;
+
+    const COLOR_NAVY=[15,23,42];
+    const COLOR_BLUE=[30,64,175];
+    const COLOR_MUTED=[100,116,139];
+    const COLOR_LINE=[226,232,240];
+
+    function ensure(hNeed){
+      if(y + hNeed > H-56){
+        doc.addPage();
+        header();
+        // Coloca el cursor por DEBAJO de la cabecera para que no se sobreponga
+        y = 120;
+      }
+    }
+function header(){
+      // Franja superior
+      doc.setFillColor(...COLOR_BLUE);
+      doc.rect(0,0,W,92,'F');
+
+      // Logo / marca
+      doc.setFont('helvetica','bold');
+      doc.setTextColor(255,255,255);
+      doc.setFontSize(34);
+      doc.text('HIELI CREAM', mx, 46);
+
+      // Título + fechas (separado para que NO se encime)
+      doc.setFontSize(18);
+      doc.text('REPORTE', mx, 70);
+
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(11);
+      doc.text(_toISO(new Date()), mx, 82);
+
+      // Rango en una sola línea o dividido si es muy largo
+      doc.setFontSize(11);
+      const fromTxt = (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) ? from : _toISO(new Date());
+      const toTxt = (to && /^\d{4}-\d{2}-\d{2}$/.test(to)) ? to : fromTxt;
+      const rangoTxt = `Rango: ${fromTxt} — ${toTxt}`;
+      const rangoLines = doc.splitTextToSize(rangoTxt, W - (mx*2) - 110);
+      doc.text(rangoLines, mx, 108); // justo debajo de la franja
+
+      // Top sabores en la franja (derecha) — máximo 3, sin estorbar
+      const tops = labels.slice(0,3);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(12);
+      doc.text('Top:', W-mx-80, 34, {align:'right'});
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(11);
+      tops.forEach((s, i)=>{
+        doc.text(String(s), W-mx, 46 + (i*12), {align:'right'});
+      });
+
+      // Separador
+      doc.setDrawColor(255,255,255);
+      doc.setLineWidth(1);
+      doc.line(mx, 92, W-mx, 92);
+
+      // Reset
+      doc.setTextColor(15,23,42);
+      doc.setLineWidth(0.7);
+    }
+
+    function card(x, yTop, w, h, title, value){
+      doc.setFillColor(248,250,252);
+      doc.setDrawColor(...COLOR_LINE);
+      doc.roundedRect(x, yTop, w, h, 12, 12, 'FD');
+      doc.setTextColor(...COLOR_MUTED);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(10);
+      doc.text(title, x+14, yTop+22);
+      doc.setTextColor(...COLOR_NAVY);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(18);
+      doc.text(value, x+14, yTop+48);
+    }
+
+    function sectionTitle(txt){
+      ensure(28);
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(12);
+      doc.setTextColor(...COLOR_NAVY);
+      doc.text(txt, mx, y);
+      y+=10;
+      doc.setDrawColor(...COLOR_LINE);
+      doc.line(mx, y, W-mx, y);
+      y+=16;
+    }
+
+    function tableHeader(cols){
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(10);
+      doc.setTextColor(...COLOR_MUTED);
+      cols();
+      doc.setTextColor(...COLOR_NAVY);
+      y+=12;
+      doc.setDrawColor(241,245,249);
+      doc.line(mx, y, W-mx, y);
+      y+=14;
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(10);
+    }
+
+    function drawResumen(){
+      sectionTitle('RESUMEN POR SABOR');
+      tableHeader(()=>{
+        doc.text('Sabor', mx, y);
+        doc.text('Vendidos', W-210, y, {align:'right'});
+        doc.text('CU', W-130, y, {align:'right'});
+        doc.text('Gastado', W-mx, y, {align:'right'});
+      });
+
+      resumen.forEach(r=>{
+        ensure(18);
+        doc.text(String(r.name).slice(0,28), mx, y);
+        doc.text(String(r.qty), W-210, y, {align:'right'});
+        doc.text(money(r.costUnit), W-130, y, {align:'right'});
+        doc.text(money(r.gastado), W-mx, y, {align:'right'});
+        y+=14;
+      });
+      y+=10;
+    }
+
+    function drawDetalle(){
+      sectionTitle('DETALLE (FECHA + SABOR)');
+      tableHeader(()=>{
+        doc.text('Fecha', mx, y);
+        doc.text('Sabor', mx+120, y);
+        doc.text('Vendidos', W-160, y, {align:'right'});
+        doc.text('CU', W-mx, y, {align:'right'});
+      });
+
+      detail.forEach(r=>{
+        ensure(18);
+        doc.text(String(r.date), mx, y);
+        doc.text(String(toTitleName(r.name)).slice(0,26), mx+120, y);
+        doc.text(String(r.qty), W-160, y, {align:'right'});
+        doc.text(money(Number(r.costUnit)||0), W-mx, y, {align:'right'});
+        y+=14;
+      });
+      y+=10;
+    }
+
+    function drawChart(){
+      const canvas = document.getElementById("chart");
+      if(!canvas) return;
+
+      sectionTitle('GRÁFICA');
+
+      const maxW = W - mx*2;
+      const maxH = 260;
+      ensure(maxH+30);
+
+      const img = canvas.toDataURL("image/png", 1.0);
+      const cW = canvas.width || 1200;
+      const cH = canvas.height || 600;
+      const ratio = cW / cH;
+
+      let drawW = maxW;
+      let drawH = drawW / ratio;
+      if(drawH > maxH){
+        drawH = maxH;
+        drawW = drawH * ratio;
+      }
+      const x = mx + (maxW - drawW)/2;
+      doc.addImage(img, "PNG", x, y, drawW, drawH);
+      y += drawH + 8;
+
+      doc.setFont('helvetica','normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...COLOR_MUTED);
+      doc.text('Generado desde Inventario Hieli Cream PRO', mx, y);
+      doc.setTextColor(...COLOR_NAVY);
+      y+=12;
+    }
+
+    // Render
+    header();
+    y = 120;
+
+    // tarjetas
+    const gap=12;
+    const w=(W-mx*2 - gap*2)/3;
+    card(mx, y, w, 64, 'Total vendidos', String(totalVendidos));
+    card(mx+w+gap, y, w, 64, 'Total gastado', money(totalGastado));
+    card(mx+(w+gap)*2, y, w, 64, 'Sabores en rango', String(totalSabores));
+    y += 88;
+
+    drawResumen();
+    drawDetalle();
+    drawChart();
+
+    // ----- Descarga robusta (file:// / content://) -----
+    const filename = `reporte_hieli_${from}_a_${to}.pdf`;
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
+
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=filename;
+    a.style.display='none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    // fallback: si el navegador bloquea el click
+    setTimeout(()=>{
+      URL.revokeObjectURL(url);
+    }, 4000);
+
+    AppUI.toast('Reporte listo ✅');
+
+  }catch(e){
+    AppUI.alert('No se pudo generar el PDF: ' + (e.message||e), {title:'Error'});
+  }
+}
+
+
+/* =========================
+   INICIO
+========================= */
+render();
+updateSavedStamp();
+(function(){
+ // defaults fechas de reportes
+ if(!hFrom.value) hFrom.value=todayLocalISO();
+ if(!hTo.value) hTo.value=todayLocalISO();
+ // defaults gráficas
+ const f=document.getElementById("from");
+ const t=document.getElementById("to");
+ if(f && !f.value) f.value=todayLocalISO();
+ if(t && !t.value) t.value=todayLocalISO();
+ // pintar modo ventas por default
+ setStatsMode("ventas");
+})();
+
+
+// ===== App Modal + Toast helpers =====
+const AppUI = (()=>{
+  let el = null;
+  let listenersBound = false;
+  let resolver = null;
+  let mode = 'alert'; // alert | confirm | prompt
+
+  function ensure(){
+    if(el) return;
+    el = {
+      overlay: document.getElementById('appModal'),
+      title: document.getElementById('appModalTitle'),
+      msg: document.getElementById('appModalMsg'),
+      input: document.getElementById('appModalInput'),
+      ok: document.getElementById('appModalOk'),
+      cancel: document.getElementById('appModalCancel'),
+      x: document.getElementById('appModalX'),
+      toast: document.getElementById('appToast')
+    };
+
+    // Si el HTML del modal aún no existe (por ejemplo, por orden), reintenta después
+    if(!el.overlay || !el.ok || !el.cancel) {
+      el = null;
+      return;
+    }
+
+    if(!listenersBound){
+      listenersBound = true;
+
+      function close(){
+        if(!el) return;
+        el.overlay.setAttribute('aria-hidden','true');
+        document.body.style.overflow = '';
+        resolver = null;
+      }
+
+      function ok(){
+        if(!resolver) return close();
+        if(mode==='prompt') resolver(el.input.value);
+        else if(mode==='confirm') resolver(true);
+        else resolver(true);
+        close();
+      }
+
+      function cancel(){
+        if(!resolver) return close();
+        if(mode==='prompt') resolver(null);
+        else if(mode==='confirm') resolver(false);
+        else resolver(false);
+        close();
+      }
+
+      // close on backdrop click
+      el.overlay.addEventListener('click', (e)=>{ if(e.target===el.overlay) cancel(); });
+      el.x && el.x.addEventListener('click', cancel);
+      el.cancel.addEventListener('click', cancel);
+      el.ok.addEventListener('click', ok);
+      el.input && el.input.addEventListener('keydown', (e)=>{
+        if(e.key==='Enter'){ e.preventDefault(); ok(); }
+        if(e.key==='Escape'){ e.preventDefault(); cancel(); }
+      });
+      document.addEventListener('keydown', (e)=>{
+        if(el && el.overlay.getAttribute('aria-hidden')==='false' && e.key==='Escape') cancel();
+      });
+
+      // expone close internamente
+      ensure.close = close
+    }
+  }
+
+  function open({title='Mensaje', message='', kind='alert', okText='Aceptar', cancelText='Cancelar', dangerOk=false, showInput=false, inputValue='', inputPlaceholder='', inputMode='numeric'}={}){
+    ensure();
+    if(!el){
+      // fallback extremo si no se pudo montar el modal
+      if(kind==='confirm') return Promise.resolve(window.confirm(message));
+      if(kind==='prompt') return Promise.resolve(window.prompt(message, inputValue||''));
+      window.alert(message);
+      return Promise.resolve(true);
+    }
+
+    mode = kind;
+    el.title.textContent = title;
+    el.msg.textContent = message;
+
+    el.ok.textContent = okText;
+    el.cancel.textContent = cancelText;
+
+    el.ok.classList.toggle('danger', !!dangerOk);
+    el.ok.classList.toggle('ok', !dangerOk);
+
+    if(el.input){
+      el.input.style.display = showInput ? 'block' : 'none';
+      el.input.value = inputValue ?? '';
+      el.input.placeholder = inputPlaceholder || '';
+      el.input.setAttribute('inputmode', inputMode || 'numeric');
+    }
+
+    el.overlay.setAttribute('aria-hidden','false');
+    document.body.style.overflow = 'hidden';
+
+    // auto focus
+    setTimeout(()=>{
+      const target = (showInput && el.input) ? el.input : el.ok;
+      target && target.focus();
+      if(showInput && el.input) el.input.select();
+    }, 0);
+
+    return new Promise((resolve)=>{ resolver = resolve; });
+  }
+
+  function toast(message, ms=1400){
+    ensure();
+    if(!el || !el.toast) return;
+    el.toast.textContent = message;
+    el.toast.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(()=>el.toast.classList.remove('show'), ms);
+  }
+
+  return {
+    toast,
+    alert: (message, {title='Aviso'}={})=>open({title, message, kind:'alert', okText:'OK', cancelText:'', showInput:false}).then(()=>true),
+    confirm: (message, {title='Confirmar', danger=false}={})=>open({title, message, kind:'confirm', okText:'Sí', cancelText:'No', dangerOk:danger}),
+    promptNumber: (message, {title='Cantidad', placeholder='', value='', min=0, max=999999, okText='Aceptar', cancelText='Cancelar'}={})=>{
+      // Compatibilidad: si llamas promptNumber({title,message,...})
+      if(message && typeof message==='object'){
+        const o = message;
+        message = o.message ?? '';
+        // Si message viene como objeto {text,max} lo convertimos a string
+        if(message && typeof message==='object'){
+          const t = message.text ?? '';
+          const mx = message.max;
+          message = (mx!==undefined && mx!==null && String(mx)!=='') ? `${t} (Máximo: ${mx})` : `${t}`;
+        }
+        title = o.title ?? title;
+        placeholder = o.placeholder ?? placeholder;
+        value = o.value ?? value;
+        min = o.min ?? min;
+        max = o.max ?? max;
+        okText = o.okText ?? okText;
+        cancelText = o.cancelText ?? cancelText;
+      }
+      return open({title, message, kind:'prompt', okText, cancelText, showInput:true, inputValue:String(value??''), inputPlaceholder:placeholder, inputMode:'numeric'})
+        .then(v=>{
+          if(v===null) return null;
+          const n = Number(String(v).replace(/[^0-9.]/g,''));
+          if(!Number.isFinite(n)) return NaN;
+          const nn = Math.floor(n);
+          if(nn < min) return min;
+          if(nn > max) return max;
+          return nn;
+        });
+    }
+  };
+})();
+
+</script>
+
+
+
+<!-- ===== App Modal (reemplaza prompt/confirm/alert) ===== -->
+<div id="appModal" class="modal-overlay" aria-hidden="true">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="appModalTitle">
+    <div class="modal-head">
+      <h3 id="appModalTitle" class="modal-title">Mensaje</h3>
+      <button class="modal-close" id="appModalX" aria-label="Cerrar">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="appModalMsg" class="modal-msg"></div>
+      <input id="appModalInput" class="modal-input" type="text" inputmode="numeric" style="display:none" />
+    </div>
+    <div class="modal-actions">
+      <button id="appModalCancel" class="modal-btn cancel">Cancelar</button>
+      <button id="appModalOk" class="modal-btn ok">Aceptar</button>
+    </div>
+  </div>
+</div>
+<div id="appToast" class="toast" aria-live="polite"></div>
+
+</body>
+</html>
