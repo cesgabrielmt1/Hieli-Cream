@@ -2544,87 +2544,20 @@ async function clearSales(){
    - sales (incluye costUnit)
    - recetas CU
 ========================= */
-
-/* ===========================
-   KODULAR / APP INVENTOR BRIDGE
-   Permite exportar archivos (JSON / PDF) desde WebViewer sin depender de descargas del navegador.
-   En Kodular: usa el evento WebViewStringChange para recibir el JSON con {type, filename, mime, base64}.
-   =========================== */
-function __hasHostBridge(){
-  try{
-    return !!(window.AppInventor && typeof window.AppInventor.setWebViewString === "function");
-  }catch(e){ return false; }
-}
-function __sendToHost(payloadObj){
-  // payloadObj: {type:"file", filename:"x.json", mime:"application/json", base64:"..."}
-  try{
-    if(!__hasHostBridge()) return false;
-    window.AppInventor.setWebViewString(JSON.stringify(payloadObj));
-    return true;
-  }catch(e){ return false; }
-}
-function __b64FromUtf8(str){
-  // utf8 -> base64 seguro
-  return btoa(unescape(encodeURIComponent(str)));
-}
-function __isAndroidWebView(){
-  const ua = navigator.userAgent || "";
-  return /Android/i.test(ua) && /wv|Version\//i.test(ua);
-}
-
-function __b64FromBlob(blob){
-  return new Promise((resolve,reject)=>{
-    try{
-      const reader = new FileReader();
-      reader.onload = () => {
-        const res = String(reader.result || "");
-        const base64 = res.includes(",") ? res.split(",")[1] : "";
-        resolve(base64);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    }catch(e){ reject(e); }
-  });
-}
-
-
 function exportData(){
-// Export Backup JSON - compatible con navegadores y WebView (Kodular/AppInventor)
-  const payload = {
-    meta: { app:"Inventario Hieli Cream PRO", exportedAt: new Date().toISOString(), version: "1.0" },
-    sabores: (typeof sabores !== "undefined") ? sabores : [],
-    inventario: (typeof inventario !== "undefined") ? inventario : {},
-    ventas: (typeof ventas !== "undefined") ? ventas : [],
-    costos: (typeof costos !== "undefined") ? costos : {},
-    ajustes: (typeof ajustes !== "undefined") ? ajustes : {},
-  };
-  const data = JSON.stringify(payload, null, 2);
-  const filename = "hieli_cream_backup.json";
-  // 1) Intentar copiar al portapapeles (lo más confiable en WebView)
-  try{
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(data);
-      __showToast("✅ Backup copiado al portapapeles");
-    }
-  }catch(e){}
-
-  // 2) Mostrar modal con el JSON para copiar/guardar manualmente
-  __showTextExportModal("Backup JSON", data, filename);
-
-  // 3) Intentar abrir como archivo (en WebView suele abrir el visor/descarga)
-  try{
-    const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(data);
-    const w = window.open(dataUri, "_blank");
-    if(!w) window.location.href = dataUri;
-  }catch(e){
-    try{
-      const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(data);
-      window.location.href = dataUri;
-    }catch(_e){}
-  }
-} 
-
-
+ saveSilent();
+ const payload={
+  inventory,
+  sales,
+  cu_recipes: cuGetRecipes(),
+  cu_catalog: cuGetCatalog()
+ };
+ const blob=new Blob([JSON.stringify(payload, null, 2)],{type:"application/json"});
+ const url=URL.createObjectURL(blob);
+ // En WebView (Kodular) suele fallar el download directo; mejor abrimos el archivo para que el usuario elija Guardar/Compartir.
+ window.open(url, "_blank");
+ setTimeout(()=>{ try{ URL.revokeObjectURL(url); }catch(e){} }, 4000);
+}
 
 function triggerImport(){
  const input=document.getElementById("importFile");
@@ -2798,7 +2731,7 @@ function renderHistory(){
 }
 
 /* PDF carta + gráfica abajo sin deformar */
-async function downloadPDF(){
+function downloadPDF(){
   try{
     const from = (hFrom.value||todayLocalISO());
     const to   = (hTo.value||todayLocalISO());
@@ -3044,46 +2977,25 @@ function header(){
     drawDetalle();
     drawChart();
 
-    // ----- Export (Navegador o Kodular/App Inventor) -----
-    const filename = `Reporte_${new Date().toISOString().slice(0,10)}.pdf`;
-    const pdfData = doc.output('arraybuffer');
-    const blob = new Blob([pdfData], { type: "application/pdf" });
+    // ----- Descarga robusta (file:// / content://) -----
+    const filename = `reporte_hieli_${from}_a_${to}.pdf`;
+    const blob = doc.output('blob');
+    const url = URL.createObjectURL(blob);
 
-    
+    // En WebView (Kodular) el download directo suele no funcionar; abrimos el PDF para que el usuario elija Guardar/Compartir.
+    // Si "Use External Browser" está activado en Kodular, se abrirá en Chrome y podrás compartir/guardar.
+    window.open(url, "_blank");
 
-  // Export PDF - compatible con navegadores y WebView
-  const filename = `reporte_hieli_${new Date().toISOString().slice(0,10)}.pdf`;
+    setTimeout(()=>{ try{ URL.revokeObjectURL(url); }catch(e){} }, 4000);
+    setTimeout(()=>{
+      URL.revokeObjectURL(url);
+    }, 4000);
 
-  // Si hay bridge de AppInventor/Kodular, mandamos base64 (opcional, requiere bloques)
-  try{
-    if(__hasHostBridge && __hasHostBridge()){
-      const base64 = btoa(String.fromCharCode.apply(null, new Uint8Array(blob)));
-      __sendToHost({type:"file", filename, mime:"application/pdf", base64});
-      __showToast("📤 PDF enviado a la app (Kodular).");
-      return;
-    }
-  }catch(e){}
+    AppUI.toast('Reporte listo ✅');
 
-  // Sin bridge: abrir el PDF en el visor (lo más confiable en WebView)
-  try{
-    // jsPDF soporta datauristring
-    const dataUri = doc.output("datauristring");
-    const w = window.open(dataUri, "_blank");
-    if(!w) window.location.href = dataUri;
-    __showToast("📄 PDF abierto (usa Compartir/Guardar).");
   }catch(e){
-    // fallback blob url
-    try{
-      const url = URL.createObjectURL(blob);
-      const w = window.open(url, "_blank");
-      if(!w) window.location.href = url;
-      __showToast("📄 PDF listo.");
-      setTimeout(()=>{ try{ URL.revokeObjectURL(url);}catch(_){} }, 60000);
-    }catch(_e){
-      __showToast("❌ No se pudo abrir el PDF en WebView. Activa 'Use External Browser' en WebViewer.");
-    }
+    AppUI.alert('No se pudo generar el PDF: ' + (e.message||e), {title:'Error'});
   }
-
 }
 
 
@@ -3290,78 +3202,6 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js");
   });
 }
-
-// ===== Helpers extra para exportar en WebView (Kodular/AppInventor) =====
-function __showToast(msg){
-  try{
-    if(window.AppUI && typeof AppUI.toast === "function"){ AppUI.toast(msg); return; }
-  }catch(e){}
-  try{ console.log(msg); }catch(e){}
-}
-
-function __showTextExportModal(title, text, filename){
-  try{
-    let wrap = document.getElementById("__exportModalWrap");
-    if(!wrap){
-      wrap = document.createElement("div");
-      wrap.id="__exportModalWrap";
-      wrap.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:14px;";
-      wrap.innerHTML = `
-        <div style="width:min(720px,100%);background:#0b1220;color:#fff;border-radius:16px;box-shadow:0 20px 80px rgba(0,0,0,.55);overflow:hidden;">
-          <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.12);">
-            <div>
-              <div id="__exportTitle" style="font-weight:800;font-size:16px;"></div>
-              <div id="__exportHint" style="opacity:.75;font-size:12px;margin-top:2px;"></div>
-            </div>
-            <button id="__exportClose" style="border:0;background:rgba(255,255,255,.12);color:#fff;border-radius:10px;padding:8px 10px;font-weight:700;">Cerrar</button>
-          </div>
-          <div style="padding:12px 14px;">
-            <textarea id="__exportText" style="width:100%;height:52vh;min-height:240px;background:#050a14;color:#e5e7eb;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.35;"></textarea>
-            <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;">
-              <button id="__exportCopy" style="border:0;background:#6366f1;color:#fff;border-radius:12px;padding:10px 12px;font-weight:800;">Copiar</button>
-              <button id="__exportOpen" style="border:0;background:rgba(255,255,255,.12);color:#fff;border-radius:12px;padding:10px 12px;font-weight:800;">Abrir como archivo</button>
-            </div>
-            <div style="opacity:.7;font-size:12px;margin-top:10px;">
-              Tip: En Android WebView, a veces no “descarga” directo. Lo más confiable es <b>Copiar</b> y pegar en Notas/Drive, o usar <b>Abrir</b> para que el sistema te deje Guardar/Compartir.
-            </div>
-          </div>
-        </div>`;
-      document.body.appendChild(wrap);
-
-      wrap.addEventListener("click",(e)=>{ if(e.target===wrap) wrap.style.display="none"; });
-      wrap.querySelector("#__exportClose").onclick=()=>wrap.style.display="none";
-      wrap.querySelector("#__exportCopy").onclick=async ()=>{
-        const t = wrap.querySelector("#__exportText").value;
-        try{
-          if(navigator.clipboard && navigator.clipboard.writeText){
-            await navigator.clipboard.writeText(t);
-            __showToast("✅ Copiado");
-          }else{
-            wrap.querySelector("#__exportText").select();
-            document.execCommand("copy");
-            __showToast("✅ Copiado");
-          }
-        }catch(e){ __showToast("⚠️ No se pudo copiar"); }
-      };
-      wrap.querySelector("#__exportOpen").onclick=()=>{
-        const t = wrap.querySelector("#__exportText").value;
-        const dataUri = "data:application/json;charset=utf-8," + encodeURIComponent(t);
-        try{
-          const w = window.open(dataUri,"_blank");
-          if(!w) window.location.href=dataUri;
-        }catch(e){ window.location.href=dataUri; }
-      };
-    }
-    wrap.style.display="flex";
-    wrap.querySelector("#__exportTitle").textContent = title || "Exportar";
-    wrap.querySelector("#__exportHint").textContent = filename ? ("Archivo: " + filename) : "";
-    wrap.querySelector("#__exportText").value = text || "";
-    wrap.querySelector("#__exportText").scrollTop = 0;
-  }catch(e){
-    try{ if(navigator.clipboard) navigator.clipboard.writeText(text||""); }catch(_){}
-  }
-}
-
 </script>
 </body>
 </html>
