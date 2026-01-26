@@ -2600,6 +2600,15 @@ function exportData() {
 
     // 3) Intentamos descargar con <a download>
     const filename = `HieliCream_Backup_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
+    // 3) Si estás en Kodular/App Inventor, mandamos el JSON por WebViewString para que la APP lo guarde/comparta
+    try{
+      if (window.AppInventor && typeof window.AppInventor.setWebViewString === "function") {
+        // formato: EXPORT_JSON::filename::json
+        window.AppInventor.setWebViewString("EXPORT_JSON::" + filename + "::" + jsonStr);
+        toast("📤 Envié el JSON a la app. Si no aparece nada, revisa los bloques WebViewer.WebViewStringChanged.");
+      }
+    }catch(e){}
+
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;
