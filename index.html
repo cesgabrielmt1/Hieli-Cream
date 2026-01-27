@@ -2604,7 +2604,10 @@ function exportData(){
     }catch(e){}
 
     // 2) Intentar descarga como "octet-stream" (más compatible que application/json)
-    const blob = new Blob([jsonStr], {type:"application/octet-stream"});
+        // Intento extra: data: URL (suele funcionar mejor en WebView para JSON)
+    if(__downloadTextDataURI(jsonStr, filename, 'application/json')) return;
+
+const blob = new Blob([jsonStr], {type:"application/octet-stream"});
     const attempted = __downloadBlob(blob, "hieli_cream_backup.json");
 
     // En muchos WebView el click no da error aunque bloquee; damos fallback inmediato si no vemos cambio
@@ -2639,7 +2642,9 @@ function exportData(){
     toast("❌ No se pudo exportar JSON en este WebView.");
   }catch(err){
     console.error(err);
-    toast("❌ Error exportando JSON: " + (err?.message || err));
+    
+    try{ setBusy(false); }catch(e){}
+toast("❌ Error exportando JSON: " + (err?.message || err));
   }
 }
 
@@ -3110,6 +3115,9 @@ ${periodTxt}
 
 async function sharePDF(){
   try{
+      setBusy(true);
+      await nextFrame();
+
     const { blob, fname, shareText } = await buildPDFBlob();
     const file = new File([blob], fname, {type:"application/pdf"});
 
@@ -3122,6 +3130,8 @@ async function sharePDF(){
 
     // Si estás en WebView Kodular/AppInventor: manda el PDF a la app para compartir
     const reader = new FileReader();
+    reader.onloadend = ()=>{ try{ setBusy(false); }catch(e){} };
+    reader.onloadend = ()=>{ try{ setBusy(false); }catch(e){} };
     reader.onload = () => {
       const b64 = (reader.result||"").toString().split(",")[1] || "";
       if(false && __sendToHost("SHARE_PDF::"+b64+"\nTEXT::"+encodeURIComponent(shareText))){
@@ -3137,12 +3147,17 @@ async function sharePDF(){
 
   }catch(err){
     console.error(err);
-    toast("❌ No se pudo compartir");
+    
+    try{ setBusy(false); }catch(e){}
+toast("❌ No se pudo compartir");
   }
 }
 
 async function downloadPDF(){
   try{
+      setBusy(true);
+      await nextFrame();
+
     const { blob, fname } = await buildPDFBlob();
 
     // Si es WebView de Kodular/AppInventor, manda el PDF a la app
@@ -3161,7 +3176,9 @@ async function downloadPDF(){
 
   }catch(err){
     console.error(err);
-    toast("❌ No se pudo generar el PDF");
+    
+    try{ setBusy(false); }catch(e){}
+toast("❌ No se pudo generar el PDF");
   }
 }
 
@@ -3335,6 +3352,22 @@ function __downloadBlob(blob, filename){
   }
 }
 
+function __downloadTextDataURI(text, filename, mime="application/json"){
+  try{
+    const a = document.createElement('a');
+    a.href = 'data:' + mime + ';charset=utf-8,' + encodeURIComponent(text);
+    a.download = filename || 'data.json';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
+
 function toast(message, ms=1400){
     ensure();
     if(!el || !el.toast) return;
@@ -3409,6 +3442,23 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js");
   });
 }
+
+
+function setBusy(on){
+  const el = document.getElementById('busyOverlay');
+  if(!el) return;
+  el.style.display = on ? 'flex' : 'none';
+}
+async function nextFrame(){ return new Promise(r=>requestAnimationFrame(()=>r())); }
+
 </script>
+
+<div id="busyOverlay" style="position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:99999;">
+  <div style="background:rgba(255,255,255,.92);padding:18px 16px;border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.25);max-width:280px;text-align:center;">
+    <div style="font-weight:800;font-size:16px;color:#0f172a;margin-bottom:8px;">Generando archivo…</div>
+    <div style="font-size:13px;color:#475569;line-height:1.35;">No cierres la app. Esto puede tardar unos segundos.</div>
+  </div>
+</div>
+
 </body>
 </html>
