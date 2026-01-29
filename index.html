@@ -9,8 +9,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Inventario Hieli Cream PRO</title>
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#6366f1">
 
 <!-- Librerías -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -349,6 +347,14 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
 
 </style>
+
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#6366f1">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
 </head>
 
 <body>
@@ -400,6 +406,35 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
    <div style="font-size:1.2rem;line-height:1.1">Costo unitario</div>
    <div style="font-size:.92rem;opacity:.85;font-weight:850;margin-top:6px">Receta por sabor</div>
   </button>
+
+  <button class="menuBtn" style="border:none;border-radius:26px;padding:18px 16px;height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#111827;font-weight:950;cursor:pointer;box-shadow:0 18px 35px rgba(0,0,0,.10);transition:.12s;background:#e0f2fe" onclick="goTo('compras')">
+   <div style="font-size:1.2rem;line-height:1.1">Compras</div>
+   <div style="font-size:.92rem;opacity:.85;font-weight:850;margin-top:6px">OC por críticos</div>
+  </button>
+ </div>
+
+ <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
+</div>
+
+<!-- COMPRAS (OC por críticos) -->
+<div class="sheet" id="comprasSheet">
+ <h2>Compras</h2>
+ <p class="subhead">Solo aparecen los sabores en nivel crítico</p>
+
+ <div class="kpiBox" style="margin:0 0 14px">
+  <div class="t">TOTAL A COMPRAR</div>
+  <div class="v" id="comprasTotal" style="font-size:2rem;color:var(--info)">$0.00</div>
+  <div class="subhead" style="margin:6px 0 0;font-weight:900">Marca con X lo que ya tienes para que cuente $0</div>
+ </div>
+
+ <div class="tableCard">
+  <div class="lbl" style="margin-bottom:10px">SABORES A REALIZAR</div>
+  <div id="comprasSabores"></div>
+ </div>
+
+ <div class="tableCard" style="margin-top:12px">
+  <div class="lbl" style="margin-bottom:10px">INSUMOS</div>
+  <div id="comprasInsumos"></div>
  </div>
 
  <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
@@ -548,8 +583,6 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 
  <button style="background:#111827" onclick="downloadPDF()">📄 Descargar PDF</button>
 
- <button style="background:#25D366" onclick="sharePDF()">💬 Enviar por WhatsApp</button>
-
  <div id="historyWrap" style="margin-top:14px"></div>
 
  <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
@@ -638,45 +671,6 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 </div>
 
 <script>
-
-// ===== Persistencia (Android) =====
-(async function(){
-  try{
-    // 1) Pedir almacenamiento persistente (reduce riesgo de "limpieza" del navegador)
-    if(navigator.storage && navigator.storage.persist){
-      const already = await navigator.storage.persisted();
-      if(!already){ await navigator.storage.persist(); }
-    }
-
-    // 2) Detectar apertura desde archivo (content:// o file://) donde Android a veces BORRA storage al cerrar
-    const proto = (location && location.protocol) ? location.protocol : "";
-    const isFileLike = (proto === "file:" || proto === "content:" || proto === "android-app:");
-    if(isFileLike){
-      // Banner fijo arriba
-      const bar=document.createElement("div");
-      bar.id="storageWarningBar";
-      bar.style.cssText="position:sticky;top:0;z-index:99999;background:#fff3cd;color:#664d03;border-bottom:1px solid rgba(0,0,0,.08);padding:10px 12px;font-size:13px;line-height:1.25;display:flex;gap:10px;align-items:flex-start;justify-content:space-between";
-      bar.innerHTML = `
-        <div style="max-width:860px">
-          <b>⚠️ Ojo:</b> Estás abriendo la app como <b>archivo</b> (file/content). En muchos Android, al cerrarse la app el sistema puede borrar <b>LocalStorage</b> y se pierde <b>Catálogo</b> y selecciones.
-          <div style="margin-top:6px">
-            <b>Solución:</b> ábrela desde <b>Chrome</b> y usa <b>⋮ &gt; Añadir a pantalla de inicio / Instalar app</b> (PWA),
-            o súbela a un host (GitHub Pages/Netlify) y ábrela por <b>https</b>.
-          </div>
-        </div>
-        <button id="storageWarnClose" style="border:none;background:transparent;font-size:16px;line-height:1;cursor:pointer">✕</button>
-      `;
-      document.documentElement.style.scrollBehavior="smooth";
-      document.addEventListener("DOMContentLoaded", ()=>{
-        document.body.prepend(bar);
-        const btn=document.getElementById("storageWarnClose");
-        if(btn) btn.onclick=()=>bar.remove();
-      });
-    }
-  }catch(e){
-    // no-op
-  }
-})();
 
 // ===== Helpers anti-crash (escape HTML) =====
 function escapeHtml(v){
@@ -797,6 +791,34 @@ function toTitleName(s){
 }
 
 function toUpperSafe(x){return (x||"").toString().trim().toUpperCase();}
+// Normaliza llaves (quita acentos + espacios dobles) para que Vainilla/vainílla/Vainilla  coincidan
+function cuNormKey(x){
+  try{
+    return (x||"").toString().trim()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/\s+/g,' ')
+      .toUpperCase();
+  }catch(e){
+    return toUpperSafe(x);
+  }
+}
+// Mapa para convertir nombres "parecidos" al nombre exacto del catálogo (evita que el <select> se resetee)
+function cuBuildCatalogKeyMap(){
+  const map = {};
+  try{
+    const arr = cuNormalizeCatalog(cuGetCatalog());
+    arr.forEach(it=>{
+      const k = cuNormKey(it.name);
+      if(k) map[k] = it.name;
+    });
+  }catch(e){}
+  return map;
+}
+function cuCanonFromCatalog(name, keyMap){
+  const k = cuNormKey(name);
+  return (keyMap && k && keyMap[k]) ? keyMap[k] : (name||"");
+}
+
 function money(n){ const x = Number(n); if(!isFinite(x)) return '$0.00'; return '$' + x.toFixed(2); }
 
 function todayLocalISO(){
@@ -1211,7 +1233,15 @@ function saveSilent(){
  try{
   localStorage.setItem("inventory",JSON.stringify(inventory));
   localStorage.setItem("sales",JSON.stringify(sales));
-  const ts = new Date().toISOString();
+    // UI/drafts para no perder selección (CU/Compras) al salir
+  try{
+    const ui={
+      tab: (window.AppUI && AppUI.currentSheet) ? AppUI.currentSheet() : (document.querySelector(".sheet.active")?.id||""),
+      cuFlavor: document.getElementById("cuFlavor") ? String(document.getElementById("cuFlavor").value||"") : ""
+    };
+    localStorage.setItem("ui_state_v1", JSON.stringify(ui));
+  }catch(_){}
+const ts = new Date().toISOString();
   localStorage.setItem("lastSaved", ts);
   updateSavedStamp();
  }catch(e){
@@ -1233,7 +1263,43 @@ function updateSavedStamp(){
  el.textContent=txt;
 }
 
-setInterval(saveSilent,5000);
+// Autosave agresivo: guarda cada cambio (para que no se borre nada al salir)
+let __autosaveTimer=null;
+function autosaveSoon(){
+  clearTimeout(__autosaveTimer);
+  __autosaveTimer=setTimeout(()=>{
+    try{ cuAutoSaveDraftNow(); }catch(e){}
+    try{ saveSilent(); }catch(e){}
+  }, 250);
+}
+function cuAutoSaveDraftNow(){
+  // guarda la receta del sabor seleccionado aunque no presiones "Guardar CU"
+  const sel=document.getElementById("cuFlavor");
+  if(!sel) return;
+  const idx=parseInt(sel.value);
+  if(isNaN(idx) || !inventory[idx]) return;
+  try{ cuSaveRecipeForIndex(idx); }catch(e){}
+}
+
+// Eventos globales
+document.addEventListener("input", autosaveSoon, true);
+document.addEventListener("change", autosaveSoon, true);
+document.addEventListener("click", (ev)=>{
+  const t=ev.target;
+  if(!t) return;
+  // botones, toggles, +/-, vender, guardar, etc.
+  if(t.tagName==="BUTTON" || t.closest("button")) autosaveSoon();
+}, true);
+
+// Antes de salir: guardado inmediato
+window.addEventListener("beforeunload", ()=>{
+  try{ cuAutoSaveDraftNow(); }catch(e){}
+  try{ saveSilent(); }catch(e){}
+});
+
+// respaldo adicional por si algo falla
+setInterval(saveSilent,2000);
+
 /* Redibujo de gráficas (con animación) */
 let __chartsDebounce=null;
 function refreshChartsAnimated(){
@@ -1302,6 +1368,238 @@ function goTo(where){
  if(where==="db"){editDbSheet.classList.add("active"); initDbDefaults(); renderSalesDB();}
  if(where==="io") ioSheet.classList.add("active");
  if(where==="cu"){cuSheet.classList.add("active"); cuInit();}
+ if(where==="compras"){comprasSheet.classList.add("active"); renderCompras();}
+}
+
+/* =========================
+   COMPRAS (OC por críticos)
+   - 3 partes: Total, Sabores críticos, Insumos
+   - Se basa en recetas CU (cu_recipes_v1) y catálogo CU (cu_catalog_v1)
+   - Guarda: compras_plan_v1 (litros por sabor) y compras_have_v1 ("ya tengo")
+========================= */
+
+function comprasGetPlan(){
+  return safeParseJSON(localStorage.getItem('compras_plan_v1')||"{}", {}) || {};
+}
+function comprasSetPlan(obj){
+  try{ localStorage.setItem('compras_plan_v1', JSON.stringify(obj||{})); }catch(e){}
+}
+function comprasGetHave(){
+  return safeParseJSON(localStorage.getItem('compras_have_v1')||"{}", {}) || {};
+}
+function comprasSetHave(obj){
+  try{ localStorage.setItem('compras_have_v1', JSON.stringify(obj||{})); }catch(e){}
+}
+
+function comprasPiecesPerLiter(flavorName){
+  // ✅ "Piezas por 1L" (hielitos que salen por litro) tomando la receta CU del sabor.
+  // Regla:
+  // 1) Si existe insumo "LECHE" en la receta, usamos su "rinde" (yield) como piezas por litro (lo que tú configuraste).
+  // 2) Si no, usamos el MENOR yield positivo de la receta (evita agarrar rendimientos grandes tipo 36).
+  // 3) Fallback: 9.
+  try{
+    const recipes = safeParseJSON(localStorage.getItem('cu_recipes_v1')||"{}", {}) || {};
+    const key = toUpperSafe(flavorName||"");
+    const rows = recipes[key];
+    if(Array.isArray(rows) && rows.length){
+      // 1) Preferir "LECHE" exacto
+      let leche = rows.find(r => toUpperSafe((r.name||"").toString().trim()) === "LECHE" && Number(r.yield)>0);
+      if(leche) return Number(leche.yield)||9;
+
+      // 1b) Si no hay exacto, buscar que contenga "LECHE" pero NO sea "LECHERA"
+      leche = rows.find(r => {
+        const n = toUpperSafe((r.name||"").toString().trim());
+        return n.includes("LECHE") && !n.includes("LECHERA") && Number(r.yield)>0;
+      });
+      if(leche) return Number(leche.yield)||9;
+
+      // 2) Menor yield positivo
+      const yields = rows.map(r=>Number(r.yield)||0).filter(v=>v>0);
+      if(yields.length){
+        const mn = yields.reduce((a,b)=>Math.min(a,b), yields[0]);
+        if(mn>0) return mn;
+      }
+    }
+  }catch(e){}
+  return 9;
+}
+
+function comprasSanitizeLitros(v){
+  let n = Number(v);
+  if(!isFinite(n) || n<0) n=0;
+  // Solo .5 o enteros: redondear al 0.5 más cercano
+  n = Math.round(n*2)/2;
+  // Evitar 0.0 como -0
+  if(Math.abs(n) < 1e-9) n = 0;
+  return n;
+}
+
+function renderCompras(){
+  const wrapSab = document.getElementById('comprasSabores');
+  const wrapIns = document.getElementById('comprasInsumos');
+  const totalEl = document.getElementById('comprasTotal');
+  if(!wrapSab || !wrapIns || !totalEl) return;
+
+  const críticos = (inventory||[])
+    .filter(p=> Number(p.critical)>0 && Number(p.qty) <= Number(p.critical))
+    .sort((a,b)=> (Number(a.qty)-Number(b.qty)) || a.name.localeCompare(b.name));
+
+  const plan = comprasGetPlan();
+
+  if(!críticos.length){
+    wrapSab.innerHTML = `<div class="smallnote">No hay sabores en punto crítico ahorita ✅</div>`;
+    wrapIns.innerHTML = `<div class="smallnote">Selecciona litros cuando haya críticos para calcular insumos.</div>`;
+    totalEl.textContent = '$0.00';
+    return;
+  }
+
+  wrapSab.innerHTML = críticos.map(p=>{
+    const key = toUpperSafe(p.name);
+    const val = comprasSanitizeLitros(plan[key] ?? 0);
+    return `
+      <div class="tableCard comprasFlavorRow" style="display:grid;grid-template-columns:1fr 120px 70px;align-items:center;gap:10px">
+        <div style="font-weight:950;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.name)}</div>
+        <input class="comprasLitrosInput" type="number" inputmode="decimal" step="0.5" min="0" value="${val}"
+          style="width:120px;margin:0"
+          oninput="comprasOnLitrosChange('${escapeHtmlAttr(p.name)}', this.value)">
+        <div class="subhead" style="margin:0;font-weight:900;font-size:.82rem;letter-spacing:.08em;text-align:right">LITROS</div>
+      </div>
+    `;
+  }).join('');
+
+  // pinta insumos + total
+  const calc = comprasComputeInsumos();
+  totalEl.textContent = money(calc.total);
+  wrapIns.innerHTML = comprasRenderInsumosTable(calc.items);
+}
+
+function comprasOnLitrosChange(flavorName, raw){
+  const key = toUpperSafe(flavorName||"");
+  const plan = comprasGetPlan();
+  const n = comprasSanitizeLitros(raw);
+  if(n<=0){ delete plan[key]; }
+  else plan[key]=n;
+  comprasSetPlan(plan);
+  saveSilent();
+  // re-render solo la parte de abajo
+  try{
+    const calc = comprasComputeInsumos();
+    const totalEl = document.getElementById('comprasTotal');
+    const wrapIns = document.getElementById('comprasInsumos');
+    if(totalEl) totalEl.textContent = money(calc.total);
+    if(wrapIns) wrapIns.innerHTML = comprasRenderInsumosTable(calc.items);
+  }catch(e){ console.warn('comprasOnLitrosChange',e); }
+}
+
+function comprasToggleHave(insumoName){
+  const key = toUpperSafe(insumoName||"");
+  if(!key) return;
+  const have = comprasGetHave();
+  have[key] = !have[key];
+  comprasSetHave(have);
+  saveSilent();
+  // refrescar tabla + total
+  const calc = comprasComputeInsumos();
+  const totalEl = document.getElementById('comprasTotal');
+  const wrapIns = document.getElementById('comprasInsumos');
+  if(totalEl) totalEl.textContent = money(calc.total);
+  if(wrapIns) wrapIns.innerHTML = comprasRenderInsumosTable(calc.items);
+}
+
+function comprasComputeInsumos(){
+  const plan = comprasGetPlan();
+  const recipes = safeParseJSON(localStorage.getItem('cu_recipes_v1')||"{}", {}) || {};
+  const catalog = cuNormalizeCatalog(cuGetCatalog());
+  const catMap = new Map(catalog.map(it=>[toUpperSafe(it.name), it]));
+
+  // acumuladores por insumo
+  const acc = new Map();
+
+  // Solo sabores críticos (para evitar que se mezclen sabores no críticos guardados en plan)
+  const críticosSet = new Set((inventory||[])
+    .filter(p=> Number(p.critical)>0 && Number(p.qty) <= Number(p.critical))
+    .map(p=>toUpperSafe(p.name)));
+
+  Object.keys(plan||{}).forEach(k=>{
+    if(!críticosSet.has(toUpperSafe(k))) return;
+    const litros = comprasSanitizeLitros(plan[k]);
+    if(litros<=0) return;
+
+    const basePieces = comprasPiecesPerLiter(k);
+    const piezas = Math.ceil(basePieces * litros);
+    const rows = recipes[toUpperSafe(k)] || [];
+    if(!Array.isArray(rows)) return;
+
+    rows.forEach(r=>{
+      const name = (r.name||"").toString().trim();
+      if(!name) return;
+      const keyN = toUpperSafe(name);
+      const qty = Number(r.qty)||0; // (se conserva por compatibilidad)
+      const yld = Math.max(1, Number(r.yield)||1);
+      const packFallback = Number(r.pack)||0;
+
+      // ✅ Compra basada en rendimiento (rinde = hielitos por 1 unidad del insumo)
+      // Ej: Evaporada rinde 36 -> si haces 27 hielitos: 27/36 = 0.75 => compras 1
+      const needFrac = (piezas) / yld;
+      if(needFrac<=0) return;
+
+      const prev = acc.get(keyN) || {name: toTitleCase(name), needFrac:0, pack:0};
+      prev.needFrac += needFrac;
+
+      // costo paquete: preferir catálogo CU, si no, lo de la receta
+      const cat = catMap.get(keyN);
+      const pack = cat ? (Number(cat.pack)||0) : packFallback;
+      if(pack>0) prev.pack = pack;
+      acc.set(keyN, prev);
+    });
+  });
+
+  const have = comprasGetHave();
+  const items = Array.from(acc.values()).map(it=>{
+    const qtyBuy = Math.max(0, Math.ceil(it.needFrac));
+    const keyN = toUpperSafe(it.name);
+    const unit = Number(it.pack)||0;
+    const hasIt = !!have[keyN];
+    const total = hasIt ? 0 : (qtyBuy * unit);
+    return {name: it.name, qty: qtyBuy, unit, total, hasIt};
+  }).filter(x=>x.qty>0 || x.unit>0);
+
+  items.sort((a,b)=> (b.total-a.total) || a.name.localeCompare(b.name));
+  const total = items.reduce((s,it)=>s + (Number(it.total)||0), 0);
+  return {items, total};
+}
+
+function comprasRenderInsumosTable(items){
+  const arr = items||[];
+  if(!arr.length){
+    return `<div class="smallnote">Pon litros en los sabores críticos para ver insumos.</div>`;
+  }
+  // encabezados
+  const head = `
+    <div class="row3" style="grid-template-columns:1.2fr .6fr .7fr .25fr;gap:12px;margin-bottom:10px">
+      <div class="lbl" style="margin:0">INSUMO</div>
+      <div class="lbl" style="margin:0;text-align:center">CANTIDAD</div>
+      <div class="lbl" style="margin:0;text-align:right">COSTO</div>
+      <div></div>
+    </div>
+  `;
+  const rows = arr.map(it=>{
+    const btnStyle = it.hasIt ? 'background:#94a3b8' : 'background:#f43f5e';
+    const costTxt = it.hasIt ? '$0.00' : money(it.total);
+    const sub = it.unit>0 ? `<div class="smallnote" style="margin-top:4px">${money(it.unit)} c/u</div>` : '';
+    return `
+      <div class="row3" style="grid-template-columns:1.2fr .6fr .7fr .25fr;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(15,23,42,.08)">
+        <div style="font-weight:950">${escapeHtml(it.name)}${sub}</div>
+        <div style="text-align:center;font-weight:950;color:var(--text)">${it.qty}</div>
+        <div style="text-align:right;font-weight:1000;color:${it.hasIt ? '#94a3b8' : 'var(--primary)'}">${costTxt}</div>
+        <button type="button" onclick="comprasToggleHave('${escapeHtmlAttr(it.name)}')"
+          style="width:44px;height:44px;min-width:44px;max-width:44px;border-radius:16px;border:none;color:white;font-weight:1000;${btnStyle};padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 20px rgba(0,0,0,.18)">
+          X
+        </button>
+      </div>
+    `;
+  }).join('');
+  return head + rows;
 }
 
 
@@ -2291,9 +2589,16 @@ async function cuDeleteCatalog(idx){
 }
 function cuCatalogOptionsHTML(selected){
   const arr=cuNormalizeCatalog(cuGetCatalog());
-  const sel=(selected||"");
+  const selRaw=(selected||"");
+  const selKey=cuNormKey(selRaw);
+
+  // Si el seleccionado NO está en el catálogo, lo mantenemos visible (para no regresar a "Elegir...")
+  const exists = arr.some(it=>cuNormKey(it.name)===selKey);
+
   const opts = ['<option value="">— Elegir del catálogo —</option>']
-    .concat(arr.map(it=>`<option value="${escapeHtmlAttr(it.name)}"${it.name===sel?' selected':''}>${escapeHtml(it.name)}</option>`));
+    .concat(!selRaw || exists ? [] : [`<option value="${escapeHtmlAttr(selRaw)}" selected>${escapeHtml(selRaw)} (no está en catálogo)</option>`])
+    .concat(arr.map(it=>`<option value="${escapeHtmlAttr(it.name)}"${cuNormKey(it.name)===selKey?' selected':''}>${escapeHtml(it.name)}</option>`));
+
   return opts.join("");
 }
 
@@ -2341,20 +2646,75 @@ function cuSetRecipes(obj){
  localStorage.setItem(CU_RECIPES_KEY, JSON.stringify(obj||{}));
 }
 
+// --- MERGE helpers (para importar sin borrar catálogos / CU) ---
+function mergeCuCatalog(existing, incoming){
+  const a = cuNormalizeCatalog(existing||[]);
+  const b = cuNormalizeCatalog(incoming||[]);
+  const map = new Map();
+  a.forEach(it=>map.set((it.name||"").toLowerCase(), {name:it.name, pack:Number(it.pack)||0}));
+  b.forEach(it=>{
+    const k = (it.name||"").toLowerCase();
+    if(!k) return;
+    if(!map.has(k)){
+      map.set(k, {name:it.name, pack:Number(it.pack)||0});
+    }else{
+      const cur = map.get(k);
+      const packB = Number(it.pack)||0;
+      if(packB > (Number(cur.pack)||0)){
+        map.set(k, {name:cur.name||it.name, pack:packB});
+      }
+    }
+  });
+  return Array.from(map.values()).sort((x,y)=>x.name.localeCompare(y.name,'es'));
+}
+
+function mergeCuRecipes(existing, incoming){
+  const out = {...(existing||{})};
+  const inc = (incoming && typeof incoming==="object") ? incoming : {};
+  Object.keys(inc).forEach(k=>{
+    const key = toUpperSafe(k);
+    const b = inc[k];
+    const a = out[key];
+    // Si no existe en local, agrega
+    if(a==null){ out[key]=b; return; }
+    // Si ambos son arrays (recetas), quédate con el más grande
+    if(Array.isArray(a) && Array.isArray(b)){
+      if(b.length > a.length) out[key]=b;
+      return;
+    }
+    // Si tipos raros, prioriza el que "tenga más info"
+    try{
+      const sa = JSON.stringify(a||"").length;
+      const sb = JSON.stringify(b||"").length;
+      if(sb > sa) out[key]=b;
+    }catch(_){}
+  });
+  return out;
+}
+// --- /MERGE helpers ---
+
 function cuKeyForIndex(idx){
- const n=(inventory[idx]?.name||"").toString().trim();
- return n ? toUpperSafe(n) : ("IDX_"+idx);
+ return toUpperSafe(inventory[idx]?.name||"");
 }
 
 function cuLoadForIndex(idx){
  const rec=cuGetRecipes();
+
+ // llave principal (igual que siempre)
  const key=cuKeyForIndex(idx);
- const saved=rec[key];
+
+ // ✅ Si no existe EXACTA, intenta por normalización (quita acentos/espacios)
+ let saved=rec[key];
+ if(!(Array.isArray(saved) && saved.length)){
+   const target = cuNormKey(inventory?.[idx]?.name||"");
+   const foundKey = Object.keys(rec||{}).find(k=>cuNormKey(k)===target);
+   if(foundKey) saved = rec[foundKey];
+ }
 
  if(Array.isArray(saved) && saved.length){
   cuRows=saved.map(r=>({
-   cat:(r.cat||"").toString(),
-   name:(r.name||"").toString(),
+   cat:(r.cat||r.name||"").toString(),
+   name:(r.name||r.cat||"").toString(),
    pack:Number(r.pack)||0,
    qty:Number(r.qty)||0,
    yield:Math.max(1, Number(r.yield)||1)
@@ -2366,6 +2726,7 @@ function cuLoadForIndex(idx){
 
 function cuSaveRecipeForIndex(idx){
  const rec=cuGetRecipes();
+ const __keyMap = cuBuildCatalogKeyMap();
  const key=cuKeyForIndex(idx);
  rec[key]=(cuRows||[]).map(r=>({
   cat:(r.cat||"").toString(),
@@ -2386,6 +2747,11 @@ function cuPerInsumo(r){
 
 function cuInit(){
  const sel=document.getElementById("cuFlavor");
+ // restaurar selección guardada
+ try{
+  const ui=JSON.parse(localStorage.getItem("ui_state_v1")||"{}")||{};
+  if(ui.cuFlavor!=null && ui.cuFlavor!=="" ) sel.value=String(ui.cuFlavor);
+ }catch(_){ }
  const idx=parseInt(sel.value);
  if(!isNaN(idx)) cuLoadForIndex(idx);
  else cuRows=[];
@@ -2431,7 +2797,7 @@ function cuRender(){
    <div style="margin-top:8px">
     <div class="lbl">INSUMO</div>
     <select onchange="cuPickCatalog(${i}, this.value)">
-      ${cuCatalogOptionsHTML(r.name||"")}
+      ${cuCatalogOptionsHTML((r.cat||r.name||""))}
     </select>
     <div class="smallnote" style="margin-top:-6px">Tip: agrega insumos en <b>Catálogo</b> y luego selecciónalos aquí.</div>
    </div>
@@ -2479,14 +2845,7 @@ function cuCalc(){
  // total
  const total=(cuRows||[]).reduce((s,r)=>s+cuPerInsumo(r),0);
  document.getElementById("cuTotal").textContent=money(total);
-
- // ✅ autosave de insumos por sabor (sin forzar el CU al inventario)
- try{
-  const idx=parseInt(document.getElementById("cuFlavor").value);
-  if(!isNaN(idx)) cuSaveRecipeForIndex(idx);
- }catch(e){}
 }
-
 
 function cuSaveCost(){
  const idx=parseInt(document.getElementById("cuFlavor").value);
@@ -2546,108 +2905,24 @@ async function clearSales(){
    - sales (incluye costUnit)
    - recetas CU
 ========================= */
-
-function saveAll(){
-  // Exporta TODO lo necesario para restaurar la app al 100%
-  const CU_RECIPES_KEY = (typeof window.CU_RECIPES_KEY==="string") ? window.CU_RECIPES_KEY : "cu_recipes_v1";
-  const CU_CATALOG_KEY2 = (typeof window.CU_CATALOG_KEY==="string") ? window.CU_CATALOG_KEY : "cu_catalog_v1";
-  let cu_recipes = {};
-  let cu_catalog = [];
-  try{ cu_recipes = safeParseJSON(localStorage.getItem(CU_RECIPES_KEY)||"{}", {}) || {}; }catch(e){ cu_recipes = {}; }
-  try{ cu_catalog = safeParseJSON(localStorage.getItem(CU_CATALOG_KEY2)||"[]", []) || []; }catch(e){ cu_catalog = []; }
-
-  return {
-    inventory: Array.isArray(inventory)?inventory:[],
-    sales: Array.isArray(sales)?sales:[],
-    cu_recipes,
-    cu_catalog
-  };
-}
-
-
-function __tryShareFile(filename, mime, blob, textFallback){
-  try{
-    if(navigator && navigator.canShare && navigator.share){
-      const file = new File([blob], filename, {type:mime});
-      if(navigator.canShare({files:[file]})){
-        return navigator.share({files:[file], title: filename, text: "Respaldo Hieli Cream"});
-      }
-    }
-  }catch(e){}
-  // Some WebViews support share without canShare(files)
-  try{
-    if(navigator && navigator.share){
-      return navigator.share({title: filename, text: (textFallback||"Respaldo Hieli Cream")});
-    }
-  }catch(e){}
-  return null;
-}
-
 function exportData(){
-  try{
-    const state = saveAll();
-    const payload = {
-      app: "Inventario Hieli Cream PRO",
-      exportedAt: new Date().toISOString(),
-      ...state
-    };
-    const jsonStr = JSON.stringify(payload, null, 2);
-
-    // 1) Intentar COMPARTIR (mejor para WebView/Kodular)
-    try{
-      const blobShare = new Blob([jsonStr], {type:"application/json"});
-      const p = __tryShareFile("hieli_cream_backup.json", "application/json", blobShare, "Respaldo JSON listo");
-      if(p){
-        toast("📤 Abriendo compartir…");
-        return;
-      }
-    }catch(e){}
-
-    // 2) Intentar descarga como "octet-stream" (más compatible que application/json)
-        // Intento extra: data: URL (suele funcionar mejor en WebView para JSON)
-    if(__downloadTextDataURI(jsonStr, filename, 'application/json')) return;
-
-const blob = new Blob([jsonStr], {type:"application/octet-stream"});
-    const attempted = __downloadBlob(blob, "hieli_cream_backup.json");
-
-    // En muchos WebView el click no da error aunque bloquee; damos fallback inmediato si no vemos cambio
-    if(attempted){
-      toast("⬇️ Intentando descargar JSON…");
-      // fallback: abrir en nueva pestaña como archivo
-      setTimeout(()=>{
-        try{
-          const url = URL.createObjectURL(blob);
-          window.open(url, "_blank");
-          setTimeout(()=>{ try{URL.revokeObjectURL(url)}catch(e){} }, 2000);
-        }catch(e){}
-      }, 450);
-      return;
-    }
-
-    // 3) Fallback: abrir como texto (usuario puede compartir/guardar)
-    try{
-      const url = "data:text/plain;charset=utf-8," + encodeURIComponent(jsonStr);
-      window.open(url, "_blank");
-      toast("✅ Abrí el JSON. Si no descarga, comparte/guarda desde ahí.");
-      return;
-    }catch(e){}
-
-    // 4) Último: copiar al portapapeles
-    try{
-      navigator.clipboard.writeText(jsonStr);
-      toast("📋 Copiado. Pégalo en un archivo .json");
-      return;
-    }catch(e){}
-
-    toast("❌ No se pudo exportar JSON en este WebView.");
-  }catch(err){
-    console.error(err);
-    
-    try{ setBusy(false); }catch(e){}
-toast("❌ Error exportando JSON: " + (err?.message || err));
+ saveSilent();
+ const payload={
+  inventory,
+  sales,
+  cu_catalog: cuGetCatalog(),
+  cu_recipes: cuGetRecipes(),
+  compras: {
+    plan: comprasGetPlan(),
+    have: comprasGetHave()
   }
+ };
+ const blob=new Blob([JSON.stringify(payload)],{type:"application/json"});
+const a=document.createElement("a");
+ a.href=URL.createObjectURL(blob);
+ a.download="hieli_cream_backup.json";
+ a.click();
 }
-
 
 function triggerImport(){
  const input=document.getElementById("importFile");
@@ -2658,7 +2933,15 @@ function triggerImport(){
  r.onerror=()=>AppUI.toast(String("Error leyendo archivo"));
  r.onload=()=>{
   try{
-   const d=JSON.parse(r.result);
+   const d0 = JSON.parse(r.result);
+    // ✅ Normaliza: si te pasan directamente el objeto o si viene envuelto
+    const d = (d0 && typeof d0==="object") ? d0 : {};
+    // ✅ Robustez: acepta distintos nombres de llave para recetas CU
+    const recipesPayload = (d.cu_recipes ?? d.cuRecipes ?? d.recipes ?? d.cu_recipes_v1 ?? null);
+
+    // ✅ Compras (plan + marcado de "ya tengo")
+    const comprasPayload = (d.compras ?? d.purchases ?? d.shopping ?? d.purchase ?? d.compras_v1 ?? null);
+
 
    if(d.inventory){
     inventory=(d.inventory||[]).map(p=>({
@@ -2679,18 +2962,197 @@ function triggerImport(){
     }));
    }
 
-   if(d.cu_recipes){
-    localStorage.setItem(CU_RECIPES_KEY, JSON.stringify(d.cu_recipes));
-   }
+   // ✅ Catálogo de insumos (CU) -> NO se borra al importar: se MERGEA
+const incomingCatalog = (d.cu_catalog ?? d.cuCatalog ?? d.cu_catalog_v1 ?? d.cuCatalog_v1 ?? null);
+if(Array.isArray(incomingCatalog)){
+  try{
+    cuSetCatalog( mergeCuCatalog(cuGetCatalog(), incomingCatalog) );
+  }catch(_){}
+}
+
+// ✅ Recetas CU -> NO se borra: se MERGEA (por sabor) + NORMALIZA para que se vea en pantalla CU
+// Acepta varios formatos de JSON y los convierte al formato interno:
+// { "VAINILLA":[{cat,name,pack,qty,yield}, ...], ... }
+function _cuNormRow(r){
+  if(!r || typeof r!=="object") return null;
+  const name = (r.name ?? r.insumo ?? r.ingrediente ?? r.nombre ?? "").toString().trim();
+  const cat  = (r.cat ?? r.catalog ?? r.categoria ?? r.catName ?? "").toString().trim();
+  const pack = Number(r.pack ?? r.costo ?? r.cost ?? r.precio ?? r.price ?? 0) || 0;
+  const qty  = Number(r.qty  ?? r.cantidad ?? r.amount ?? r.usado ?? r.uso ?? 0) || 0;
+  const yld  = Number(r.yield ?? r.rinde ?? r.rendimiento ?? r.piezas ?? 0) || 0;
+  if(!name && !cat && !pack && !qty && !yld) return null;
+  return {cat, name: (name || cat || "INSUMO"), pack, qty, yield: Math.max(1, yld||1)};
+}
+
+function _normalizeCuRecipesPayload(payload){
+ const __keyMap = cuBuildCatalogKeyMap();
+
+  const out = {};
+  try{
+    // ✅ Caso 0: si viene como ARRAY (formatos viejos / alternos)
+    // Ej: [{flavor:"Vainilla", rows:[...]}] o [{key:"VAINILLA", data:[...]}]
+    if(Array.isArray(payload)){
+      payload.forEach(item=>{
+        if(!item || typeof item!=="object") return;
+        const rawKey = (item.flavor ?? item.sabor ?? item.name ?? item.product ?? item.key ?? item.id ?? "");
+        const key = cuNormKey(rawKey);
+        let rows = item.rows ?? item.receta ?? item.insumos ?? item.items ?? item.data ?? item.value ?? null;
+        if(rows && typeof rows==="object" && !Array.isArray(rows)){
+          const vals = Object.values(rows).filter(x=>x && typeof x==="object");
+          if(vals.length) rows = vals;
+        }
+        if(Array.isArray(rows)){
+          const normRows = rows.map(_cuNormRow).filter(Boolean);
+          if(normRows.length) out[key] = normRows;
+        }
+      });
+      // si ya pudimos normalizar por array, regresamos
+      if(Object.keys(out).length) for(const k in out){
+  if(!Array.isArray(out[k])) continue;
+  out[k] = out[k].map(r=>{
+    const cc = cuCanonFromCatalog(r.cat||r.name||"", __keyMap);
+    return {cat:cc, name:cc, pack:Number(r.pack)||0, qty:Number(r.qty)||0, yield:Math.max(1, Number(r.yield)||1)};
+  });
+}
+return out;
+    }
+
+    // ✅ Caso 0.1: si las llaves vienen como índices "0","1",... conviértelas a nombre del sabor del inventario
+    if(payload && typeof payload==="object" && !Array.isArray(payload)){
+      Object.keys(payload).forEach(k=>{
+        if(/^[0-9]+$/.test(String(k)) && inventory && inventory[Number(k)]){
+          const flavorKey = cuNormKey(inventory[Number(k)]?.name||"");
+          const v = payload[k];
+          let rows = null;
+          if(Array.isArray(v)) rows = v;
+          else if(v && typeof v==="object"){
+            rows = v.rows ?? v.receta ?? v.insumos ?? v.items ?? v.data ?? null;
+            if(rows && typeof rows==="object" && !Array.isArray(rows)){
+              const vals = Object.values(rows).filter(x=>x && typeof x==="object");
+              if(vals.length) rows = vals;
+            }
+          }
+          if(Array.isArray(rows)){
+            const normRows = rows.map(_cuNormRow).filter(Boolean);
+            if(normRows.length) out[flavorKey] = normRows;
+          }
+        }
+      });
+      if(Object.keys(out).length) for(const k in out){
+  if(!Array.isArray(out[k])) continue;
+  out[k] = out[k].map(r=>{
+    const cc = cuCanonFromCatalog(r.cat||r.name||"", __keyMap);
+    return {cat:cc, name:cc, pack:Number(r.pack)||0, qty:Number(r.qty)||0, yield:Math.max(1, Number(r.yield)||1)};
+  });
+}
+return out;
+    }
+  }catch(e){}
+
+  try{
+    // Caso A: objeto { "Vainilla":[...], "Oreo":{rows:[...]} }
+    if(payload && typeof payload==="object" && !Array.isArray(payload)){
+      Object.keys(payload).forEach(k=>{
+        const key = cuNormKey(k);
+        const v = payload[k];
+        let rows = null;
+        if(Array.isArray(v)) rows = v;
+        else if(v && typeof v==="object"){
+          rows = v.rows ?? v.receta ?? v.insumos ?? v.items ?? v.data ?? null;
+        // Si rows viene como objeto (no array), conviértelo a array
+        if(rows && typeof rows==="object" && !Array.isArray(rows)){
+          const vals = Object.values(rows).filter(x=>x && typeof x==="object");
+          if(vals.length) rows = vals;
+        }
+        }
+        // fallback: si viene como objeto {0:{...},1:{...}} (no array)
+        if(!rows && v && typeof v==='object' && !Array.isArray(v)){
+          const vals = Object.values(v).filter(x=>x && typeof x==='object');
+          if(vals.length) rows = vals;
+        }
+
+        if(Array.isArray(rows)){
+          const normRows = rows.map(_cuNormRow).filter(Boolean);
+          if(normRows.length) out[key] = normRows;
+        }
+      });
+      for(const k in out){
+  if(!Array.isArray(out[k])) continue;
+  out[k] = out[k].map(r=>{
+    const cc = cuCanonFromCatalog(r.cat||r.name||"", __keyMap);
+    return {cat:cc, name:cc, pack:Number(r.pack)||0, qty:Number(r.qty)||0, yield:Math.max(1, Number(r.yield)||1)};
+  });
+}
+return out;
+    }
+    // Caso B: arreglo [{sabor/name/product, rows:[...]}]
+    if(Array.isArray(payload)){
+      payload.forEach(e=>{
+        if(!e) return;
+        const key = cuNormKey(e.product ?? e.name ?? e.nombre ?? e.sabor ?? e.flavor ?? "");
+        const rows = e.rows ?? e.receta ?? e.insumos ?? e.items ?? e.data ?? null;
+        if(key && Array.isArray(rows)){
+          const normRows = rows.map(_cuNormRow).filter(Boolean);
+          if(normRows.length) out[key] = normRows;
+        }
+      });
+      for(const k in out){
+  if(!Array.isArray(out[k])) continue;
+  out[k] = out[k].map(r=>{
+    const cc = cuCanonFromCatalog(r.cat||r.name||"", __keyMap);
+    return {cat:cc, name:cc, pack:Number(r.pack)||0, qty:Number(r.qty)||0, yield:Math.max(1, Number(r.yield)||1)};
+  });
+}
+return out;
+    }
+  }catch(e){}
+  for(const k in out){
+  if(!Array.isArray(out[k])) continue;
+  out[k] = out[k].map(r=>{
+    const cc = cuCanonFromCatalog(r.cat||r.name||"", __keyMap);
+    return {cat:cc, name:cc, pack:Number(r.pack)||0, qty:Number(r.qty)||0, yield:Math.max(1, Number(r.yield)||1)};
+  });
+}
+return out;
+}
+
+if(recipesPayload){
+  try{
+    const normalized = _normalizeCuRecipesPayload(recipesPayload);
+    const incoming = (normalized && Object.keys(normalized).length) ? normalized : (recipesPayload||{});
+    cuSetRecipes( mergeCuRecipes(cuGetRecipes(), incoming) );
+  }catch(_){}
+}
 
 
-   // ✅ Importar también el CATÁLOGO de insumos CU (para que el desplegable no se pierda)
-   const cat = d.cu_catalog || d.cuCatalog || d.cu_catalogo || d.cu_catalogue || d.cuCatalogo;
-   if(cat){
-    try{ localStorage.setItem(CU_CATALOG_KEY, JSON.stringify(Array.isArray(cat)?cat:[])); }catch(e){}
-   }
+if(comprasPayload && typeof comprasPayload === 'object'){
+      try{
+        if(comprasPayload.plan) localStorage.setItem('compras_plan_v1', JSON.stringify(comprasPayload.plan));
+        if(comprasPayload.have) localStorage.setItem('compras_have_v1', JSON.stringify(comprasPayload.have));
+      }catch(_){ }
+    }
+
    saveSilent();
    render();
+
+   // ✅ Forzar recarga de CU tras importar (para que Vainilla y demás aparezcan)
+   try{
+     setTimeout(()=>{
+       const sel=document.getElementById("cuFlavor");
+       if(!sel) return;
+       // si no hay valor válido, cae al primero
+       let idx=parseInt(sel.value);
+       if(isNaN(idx) || !inventory[idx]){
+         sel.value = inventory.length ? "0" : "";
+         idx=parseInt(sel.value);
+       }
+       if(!isNaN(idx)){
+         cuLoadForIndex(idx);
+         cuRender();
+       }
+     },0);
+   }catch(_){}
+
    AppUI.toast(String("✅ Importado correctamente"));
   }catch(err){
    AppUI.alert("No se pudo importar: " + (err?.message || err), {title:"Error"});
@@ -2719,7 +3181,7 @@ function renderHistory(){
  const to   = (hTo.value||todayLocalISO());
 
  const rows=(sales||[]).map(s=>({
-  product: toUpperSafe(s.product),
+  product: cuNormKey(s.product),
   name: (s.product||"").toString().trim() || "SIN NOMBRE",
   date: normalizeISODate(s.date)||"",
   qty: Math.max(1, parseInt(s.qty)||1),
@@ -2750,7 +3212,7 @@ function renderHistory(){
  // Sumatoria por sabor (para que se vea pro)
  const byFlavor=new Map();
  arr.forEach(r=>{
-  const k=toUpperSafe(r.name);
+  const k=cuNormKey(r.name);
   const prev=byFlavor.get(k)||{name:r.name,qty:0,spent:0,costUnit:Number(r.costUnit)||0};
   prev.qty += r.qty;
   prev.spent += r.qty*(Number(r.costUnit)||0);
@@ -2821,11 +3283,8 @@ function renderHistory(){
 }
 
 /* PDF carta + gráfica abajo sin deformar */
-async function buildPDFBlob(){
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({unit:"pt", format:"a4"});
-
-try{
+function downloadPDF(){
+  try{
     const from = (hFrom.value||todayLocalISO());
     const to   = (hTo.value||todayLocalISO());
 
@@ -2844,7 +3303,7 @@ try{
     // Agrupar por fecha+sabor (para el detalle)
     const grouped=new Map();
     rows.forEach(r=>{
-      const key=r.date+"||"+toUpperSafe(r.name);
+      const key=r.date+"||"+cuNormKey(r.name);
       const prev=grouped.get(key)||{date:r.date,name:r.name,qty:0,costUnit:r.costUnit};
       prev.qty += r.qty;
       // mantener CU del sabor (si hay mezcla, dejamos el más reciente distinto de 0)
@@ -2856,7 +3315,7 @@ try{
     // Resumen por sabor (totalizado del rango, unificando mayúsculas/minúsculas)
     const resumenMap=new Map();
     rows.forEach(r=>{
-      const k=toUpperSafe(r.name);
+      const k=cuNormKey(r.name);
       const prev=resumenMap.get(k)||{name:r.name,qty:0,costUnit:(Number(r.costUnit)||0)};
       prev.qty += r.qty;
       if((Number(r.costUnit)||0)>0) prev.costUnit = Number(r.costUnit)||0;
@@ -3093,93 +3552,6 @@ function header(){
   }catch(e){
     AppUI.alert('No se pudo generar el PDF: ' + (e.message||e), {title:'Error'});
   }
-
-  // Nombre
-  const from = (document.getElementById("hFrom")?.value)||"";
-  const to   = (document.getElementById("hTo")?.value)||"";
-  const fname = `reporte_hieli_${from||"inicio"}_a_${to||"hoy"}.pdf`;
-
-  // Texto para compartir
-  const total = (document.getElementById("hTotal")?.textContent||"0").trim();
-  const spend = (document.getElementById("hSpend")?.textContent||"$0.00").trim();
-  const periodTxt = (from||to) ? `Periodo: ${from||"—"} a ${to||"—"}` : "Periodo: (sin filtro)";
-  const shareText =
-`📊 *Inventario Hieli Cream PRO*
-${periodTxt}
-🍧 Vendidos: ${total}
-💸 Gastado: ${spend}`;
-
-  const blob = doc.output("blob");
-  return { blob, fname, shareText };
-}
-
-async function sharePDF(){
-  try{
-      setBusy(true);
-      await nextFrame();
-
-    const { blob, fname, shareText } = await buildPDFBlob();
-    const file = new File([blob], fname, {type:"application/pdf"});
-
-    // Web Share (Android): abre selector (WhatsApp, etc.) con texto + PDF
-    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-      await navigator.share({ title:"Reporte Hieli PRO", text: shareText, files:[file] });
-      toast("✅ Compartido");
-      return;
-    }
-
-    // Si estás en WebView Kodular/AppInventor: manda el PDF a la app para compartir
-    const reader = new FileReader();
-    reader.onloadend = ()=>{ try{ setBusy(false); }catch(e){} };
-    reader.onloadend = ()=>{ try{ setBusy(false); }catch(e){} };
-    reader.onload = () => {
-      const b64 = (reader.result||"").toString().split(",")[1] || "";
-      if(false && __sendToHost("SHARE_PDF::"+b64+"\nTEXT::"+encodeURIComponent(shareText))){
-        toast("✅ Listo. Compártelo desde la app (SHARE_PDF).");
-      }else{
-        // Fallback: abre WhatsApp solo con texto (sin archivo)
-        const url = "https://wa.me/?text=" + encodeURIComponent(shareText);
-        window.open(url, "_blank");
-        toast("ℹ️ Abrí WhatsApp con el texto (sin PDF).");
-      }
-    };
-    reader.readAsDataURL(blob);
-
-  }catch(err){
-    console.error(err);
-    
-    try{ setBusy(false); }catch(e){}
-toast("❌ No se pudo compartir");
-  }
-}
-
-async function downloadPDF(){
-  try{
-      setBusy(true);
-      await nextFrame();
-
-    const { blob, fname } = await buildPDFBlob();
-
-    // Si es WebView de Kodular/AppInventor, manda el PDF a la app
-    const reader = new FileReader();
-    reader.onload = () => {
-      const b64 = (reader.result||"").toString().split(",")[1] || "";
-      if(false && __sendToHost("EXPORT_PDF::"+b64)){
-        toast("✅ PDF listo. En la app guárdalo/compártelo (EXPORT_PDF).");
-      }else{
-        const ok = __downloadBlob(blob, fname);
-        if(ok) toast("✅ PDF descargado");
-        else { try{ const url = URL.createObjectURL(blob); window.open(url, "_blank"); toast("✅ PDF listo (abrí el archivo)"); }catch(e){ toast("❌ Tu WebView bloqueó la descarga"); } }
-      }
-    };
-    reader.readAsDataURL(blob);
-
-  }catch(err){
-    console.error(err);
-    
-    try{ setBusy(false); }catch(e){}
-toast("❌ No se pudo generar el PDF");
-  }
 }
 
 
@@ -3312,63 +3684,7 @@ const AppUI = (()=>{
     return new Promise((resolve)=>{ resolver = resolve; });
   }
 
-  
-/* ===== WebView bridge (Kodular/App Inventor) ===== */
-function __sendToHost(message){
-  try{
-    if(window.AppInventor && typeof window.AppInventor.setWebViewString==="function"){
-      window.AppInventor.setWebViewString(message); return true;
-    }
-    if(window.Kodular && typeof window.Kodular.setWebViewString==="function"){
-      window.Kodular.setWebViewString(message); return true;
-    }
-  }catch(e){}
-  return false;
-}
-function __downloadBlob(blob, filename){
-  try{
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.target = "_blank";
-    a.rel = "noopener";
-    a.style.display = "none";
-    document.body.appendChild(a);
-    // Disparar click de forma compatible
-    try{
-      a.dispatchEvent(new MouseEvent("click", {bubbles:true, cancelable:true, view:window}));
-    }catch(e){
-      a.click();
-    }
-    setTimeout(()=>{
-      try{ document.body.removeChild(a);}catch(e){}
-      try{ URL.revokeObjectURL(url);}catch(e){}
-    }, 2000);
-    return true;
-  }catch(e){
-    console.warn("downloadBlob fallo:", e);
-    return false;
-  }
-}
-
-function __downloadTextDataURI(text, filename, mime="application/json"){
-  try{
-    const a = document.createElement('a');
-    a.href = 'data:' + mime + ';charset=utf-8,' + encodeURIComponent(text);
-    a.download = filename || 'data.json';
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    return true;
-  }catch(e){
-    return false;
-  }
-}
-
-
-function toast(message, ms=1400){
+  function toast(message, ms=1400){
     ensure();
     if(!el || !el.toast) return;
     el.toast.textContent = message;
@@ -3436,29 +3752,17 @@ function toast(message, ms=1400){
   </div>
 </div>
 <div id="appToast" class="toast" aria-live="polite"></div>
+
+
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js");
+    navigator.serviceWorker.register("./sw.js").catch(console.error);
   });
 }
-
-
-function setBusy(on){
-  const el = document.getElementById('busyOverlay');
-  if(!el) return;
-  el.style.display = on ? 'flex' : 'none';
-}
-async function nextFrame(){ return new Promise(r=>requestAnimationFrame(()=>r())); }
-
 </script>
-
-<div id="busyOverlay" style="position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:99999;">
-  <div style="background:rgba(255,255,255,.92);padding:18px 16px;border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.25);max-width:280px;text-align:center;">
-    <div style="font-weight:800;font-size:16px;color:#0f172a;margin-bottom:8px;">Generando archivo…</div>
-    <div style="font-size:13px;color:#475569;line-height:1.35;">No cierres la app. Esto puede tardar unos segundos.</div>
-  </div>
-</div>
 
 </body>
 </html>
+
+// WARNING: exportData no encontrada automáticamente
