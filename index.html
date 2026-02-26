@@ -39,7 +39,7 @@ body{
 }
 
 h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
-.subhead{color:var(--muted);font-weight:800;margin:0 0 18px}
+.subhead{display:none;}
 
 /* INVENTARIO */
 .inventory{display:grid;gap:18px}
@@ -155,7 +155,7 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
  box-shadow:0 25px 45px rgba(0,0,0,.35);
  transition:.25s;
 }
-.main-fab.active{transform:rotate(45deg)}
+.main-fab.active{transform:scale(0.98)}
 
 /* SHEETS */
 .sheet{
@@ -194,19 +194,26 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 .sheet button + button{margin-top:12px}
 
 /* KPI */
-.kpi2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 14px}
+.kpi2{display:grid;grid-template-columns: repeat(2, 1fr);gap:10px;margin:10px 0 14px}
 .kpiBox{
  padding:14px 16px;
  border-radius:18px;
  background:#f8fafc;
  border:1px solid #e5e7eb;
-}
+min-height:92px;}
 .kpiBox .t{color:var(--muted);font-weight:950;font-size:.82rem}
 .kpiBox .v{font-size:1.25rem;font-weight:1000;margin-top:6px}
 
 /* GRÁFICA SCROLL */
 .chartScroll{overflow-x:auto;padding-bottom:10px}
-.chart-wrap{height:520px;min-width:420px}
+.chart-wrap{
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(248,250,252,.96), rgba(241,245,249,.92));
+  border: 1px solid rgba(148,163,184,.14);
+  padding: 18px 16px 12px !important;
+  height: 420px !important;
+  width: 100% !important;
+}
 
 .savedStamp{margin:16px 0 10px;text-align:center;font-size:12px;color:rgba(100,116,139,.75);}
 
@@ -229,7 +236,7 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
  box-shadow:0 18px 32px rgba(0,0,0,.08);
 }
 .reportCard + .reportCard{margin-top:16px}
-.reportCard .subhead{margin:6px 0 0}
+.reportCard .subhead{display:none;}
 
 .row3{
  display:grid;
@@ -237,6 +244,16 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
  gap:10px;
  align-items:end;
 }
+  
+/* Filters grid (Tipo / Sabor / Semana / Desde / Hasta) */
+.filtersGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;}
+.filtersGrid .fItem select,
+.filtersGrid .fItem input{width:100%;} 
+@media (max-width:420px){
+  .filtersGrid{gap:10px;}
+}
+.row2{display:grid;grid-template-columns: repeat(3, 1fr);gap:12px;margin-top:10px;}
+
 .lbl{color:var(--muted);font-weight:950;font-size:.8rem;margin-bottom:6px}
 
 /* TOP 3 */
@@ -245,7 +262,7 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
  flex:1;
  background:#f8fafc;
  border:1px solid #e5e7eb;
- border-radius:16px;
+ border-radius:14px;
  padding:12px;
  text-align:center;
 }
@@ -316,7 +333,7 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 .modal-input{
   width:100%;
   padding:14px 14px;
-  border-radius:16px;
+  border-radius:14px;
   border:1px solid rgba(148,163,184,.35);
   background:rgba(248,250,252,.9);
   outline:none;
@@ -324,7 +341,7 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 }
 .modal-input:focus{border-color:rgba(99,102,241,.55);box-shadow:0 0 0 4px rgba(99,102,241,.15)}
 .modal-actions{display:flex;gap:12px;justify-content:flex-end;padding:0 18px 18px;}
-.modal-btn{border:none;border-radius:16px;padding:12px 14px;font-weight:900;cursor:pointer;min-width:120px}
+.modal-btn{border:none;border-radius:14px;padding:12px 14px;font-weight:900;cursor:pointer;min-width:120px}
 .modal-btn.cancel{background:rgba(148,163,184,.18);color:var(--text)}
 .modal-btn.ok{background:var(--primary);color:white}
 .modal-btn.danger{background:var(--danger);color:white}
@@ -335,7 +352,7 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
   background:rgba(15,23,42,.92);
   color:white;
   padding:12px 14px;
-  border-radius:16px;
+  border-radius:14px;
   box-shadow:0 12px 34px rgba(2,6,23,.35);
   z-index:9998;
   opacity:0;pointer-events:none;
@@ -345,6 +362,914 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
   font-weight:800;
 }
 .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+
+
+/* =========================
+   VISUAL ONLY: Rediseño PREMIUM (glass + glow crítico + botones sólidos)
+   (Sin tocar lógica)
+========================= */
+
+/* Fondo más moderno y suave */
+:root{
+  --bg: radial-gradient(1200px 800px at 20% 0%, rgba(99,102,241,.14), transparent 55%),
+        radial-gradient(1000px 700px at 80% 12%, rgba(34,197,94,.10), transparent 52%),
+        linear-gradient(180deg,#f8fafc,#eef2ff);
+  --glass: rgba(255,255,255,.82);
+}
+
+/* Cards: glass real */
+.card{
+  background: var(--glass);
+  border: 1px solid rgba(148,163,184,.22);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow:
+    0 24px 50px rgba(2,6,23,.12),
+    inset 0 1px 0 rgba(255,255,255,.55);
+  transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease, background .14s ease;
+}
+.card:active{
+  transform: translateY(1px) scale(.998);
+  box-shadow:
+    0 18px 36px rgba(2,6,23,.14),
+    inset 0 1px 0 rgba(255,255,255,.55);
+}
+
+/* Glow rojo cuando está en crítico (manteniendo tu idea de "se ilumina") */
+.card.low{
+  border-color: rgba(239,68,68,.70);
+  background:
+    radial-gradient(900px 240px at 20% 10%, rgba(239,68,68,.18), transparent 55%),
+    radial-gradient(700px 220px at 90% 20%, rgba(239,68,68,.10), transparent 60%),
+    var(--glass);
+  box-shadow:
+    0 26px 58px rgba(2,6,23,.14),
+    0 0 0 1px rgba(239,68,68,.25),
+    0 0 34px rgba(239,68,68,.28),
+    inset 0 1px 0 rgba(255,255,255,.55);
+}
+
+/* Título y texto más "premium" */
+h1{letter-spacing:.02em}
+.subhead{display:none;}
+
+/* Cantidad: más nítida */
+.qty{
+  text-shadow: 0 10px 26px rgba(2,6,23,.10);
+}
+
+/* Color strip más "material" */
+.colorStrip{
+  opacity: .92;
+  box-shadow: 0 14px 28px rgba(2,6,23,.18);
+}
+
+/* Botones sólidos, limpios, modernos */
+.btn{
+  box-shadow: 0 18px 34px rgba(2,6,23,.12);
+  position: relative;
+  overflow: hidden;
+}
+.btn::after{
+  content:"";
+  position:absolute; inset:-40%;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.35), transparent 55%);
+  opacity: .0;
+  transform: rotate(10deg);
+  transition: opacity .14s ease;
+  pointer-events:none;
+}
+.btn:active::after{opacity:1}
+
+/* Ajuste de tonos (más "modernos") */
+.minus{background: #ef4444;}
+.plus{background: #4f46e5;}
+.sell{background: #22c55e;}
+
+/* Micro-animación de pulsación (solo visual) */
+@keyframes pressPop{
+  0%{transform: scale(1)}
+  50%{transform: scale(.985)}
+  100%{transform: scale(1)}
+}
+.btn:active{animation: pressPop .14s ease}
+
+/* Flash más elegante */
+.cardFlash.show{opacity:.14}
+
+/* FAB más premium */
+.main-fab{
+  box-shadow: 0 22px 48px rgba(2,6,23,.32);
+  border: 1px solid rgba(255,255,255,.25);
+}
+
+/* Sheets: glass arriba también */
+.sheet{
+  background: rgba(255,255,255,.92);
+  border: 1px solid rgba(148,163,184,.20);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 -18px 60px rgba(2,6,23,.18);
+}
+
+/* Inputs más finos */
+.sheet input,.sheet select{
+  background: rgba(248,250,252,.92);
+  border: 1px solid rgba(148,163,184,.28);
+}
+.sheet input:focus,.sheet select:focus{
+  outline:none;
+  border-color: rgba(99,102,241,.55);
+  box-shadow: 0 0 0 4px rgba(99,102,241,.14);
+}
+
+/* Reduce “brillo” de engrane y lo integra */
+.gear{
+  opacity:.72;
+  filter: drop-shadow(0 10px 18px rgba(2,6,23,.10));
+}
+.gear:active{opacity:.9}
+
+
+/* =========================
+   MENU REDESIGN (visual only)
+========================= */
+.menuGrid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:18px;
+  padding:18px 18px 10px;
+}
+
+
+.menuBtn{
+  appearance:none;
+  border:0;
+  width:100%;
+  min-height:132px;
+  padding:14px 12px 12px;
+  border-radius:28px;
+  background:rgba(255,255,255,.92);
+  box-shadow:0 18px 44px rgba(15,23,42,.10);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  gap:10px;
+  position:relative;
+  overflow:hidden;
+  transform:translateZ(0);
+}
+
+.menuBtn:active{
+  transform:translateY(1px) scale(.99);
+  box-shadow:0 10px 24px rgba(15,23,42,.12);
+}
+
+.menuBtn:active{
+  transform: scale(.97);
+  box-shadow: 0 8px 18px rgba(2,6,23,.12);
+}
+
+.menuBtn:active{ transform: translateY(1px) scale(.988); }
+
+/* Colores pastel modernos por botón (mismo orden que tu menú) */
+
+
+
+
+
+
+
+
+/* Ripple + Tap feedback (para que SI se note al tocar en Android) */
+.tapFX{ transform: translateY(1px) scale(.985)!important; }
+.ripple{
+  position:absolute;
+  border-radius:999px;
+  transform: scale(0);
+  opacity:.28;
+  background: #ffffff;
+  pointer-events:none;
+  animation: rippleAnim .45s ease-out;
+  mix-blend-mode: overlay;
+}
+@keyframes rippleAnim{
+  to{ transform: scale(1); opacity:0; }
+}
+
+/* HUD de +1 / -1 (solo UI) */
+.deltaHUD{
+  position:absolute;
+  left:22px;
+  bottom:78px;
+  font-weight:1000;
+  letter-spacing:.02em;
+  font-size:1.05rem;
+  opacity:0;
+  transform: translateY(8px);
+  pointer-events:none;
+  text-shadow: 0 14px 30px rgba(2,6,23,.22);
+}
+.deltaHUD.show{ animation: hudPop .75s cubic-bezier(.2,.9,.2,1);
+opacity:1;
+  transform: translateY(0);
+  transition: opacity .18s ease, transform .18s ease;
+}
+.deltaHUD.hide{
+  opacity:0;
+  transform: translateY(-10px);
+  transition: opacity .28s ease, transform .28s ease;
+}
+
+
+/* =========================
+   PATCH v3: HUD arriba-derecha + más visible + vibración + menú legible
+========================= */
+
+/* HUD de +1/-1: arriba a la derecha, más visible */
+.card .deltaHUD{
+  left:auto;
+  bottom:auto;
+  top:64px;   /* ajusta altura relativa al nombre */
+  right:28px;
+  z-index:5;
+  font-size:1.25rem;
+  padding:6px 10px;
+  border-radius:999px;
+  background: rgba(255,255,255,.88);
+  border:1px solid rgba(148,163,184,.25);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 16px 34px rgba(2,6,23,.16);
+}
+.card.low .deltaHUD{
+  border-color: rgba(239,68,68,.28);
+}
+
+/* Hacemos la animación más notoria */
+.deltaHUD.show{ animation: hudPop .75s cubic-bezier(.2,.9,.2,1);
+opacity:1;
+  transform: translateY(0) scale(1);
+  transition: opacity .14s ease, transform .14s ease;
+}
+.deltaHUD{
+  transform: translateY(8px) scale(.96);
+}
+
+/* Menú: que NO se pierda el texto */
+.menuBtn{
+  background: rgba(255,255,255,.90) !important;
+  border: 1px solid rgba(148,163,184,.28) !important;
+  box-shadow:
+    0 22px 44px rgba(2,6,23,.14),
+    inset 0 1px 0 rgba(255,255,255,.65) !important;
+}
+
+
+
+
+
+
+
+
+.menuBtn > div:first-child,
+.menuBtn b,
+.menuBtn strong{
+  color:#0f172a !important;
+  text-shadow: 0 10px 22px rgba(2,6,23,.12);
+}
+.menuBtn small, .menuBtn .muted{
+  color:#334155 !important;
+  opacity:.92 !important;
+  text-shadow: 0 10px 22px rgba(2,6,23,.10);
+}
+
+/* Si el sheet estaba muy blanco, damos un poquito más de contraste */
+.sheet{
+  background: rgba(255,255,255,.94);
+}
+
+
+/* PATCH v4: menú subtítulos visibles (evita que queden blancos) */
+.menuBtn *{ filter:none !important; }
+.menuBtn div{ color:#0f172a !important; }
+.menuBtn div:nth-child(2){
+  color:#334155 !important;
+  opacity:1 !important;
+  font-weight:800 !important;
+}
+.menuBtn .muted, .menuBtn small, .menuBtn span{
+  color:#334155 !important;
+  opacity:1 !important;
+}
+
+
+/* PATCH v4: HUD más visible */
+.card .deltaHUD{
+  top:58px;
+  right:22px;
+  font-size:1.35rem;
+  padding:8px 12px;
+  border-radius:999px;
+}
+
+
+/* PATCH v6: HUD más notorio (pop) */
+@keyframes hudPop{
+  0%{transform: translateY(10px) scale(.88); opacity:0}
+  70%{transform: translateY(-14px) scale(1); opacity:1}
+  100%{transform: translateY(0) scale(1); opacity:1}
+}
+.deltaHUD.show{ animation: hudPop .75s cubic-bezier(.2,.9,.2,1); }
+
+
+/* PATCH v7: HUD siempre visible (tinte por signo) */
+.deltaHUD{
+  background: rgba(255,255,255,.92);
+}
+
+
+/* PATCH v9: Título premium */
+h1{
+  letter-spacing:-0.6px;
+  line-height:1.02;
+}
+h1 .brand{
+  background: linear-gradient(90deg,#4f46e5,#8b5cf6,#06b6d4);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.subhead{display:none;}
+
+
+/* PATCH v9: FAB premium con ícono */
+.main-fab{
+  width:64px;
+  height:64px;
+  border-radius:999px;
+  background: rgba(99,102,241,.92);
+  border: 1px solid rgba(255,255,255,.26);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 24px 54px rgba(2,6,23,.30);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+}
+.main-fab .fabIcon{
+  width:28px;
+  height:28px;
+  display:block;
+  filter: drop-shadow(0 14px 24px rgba(2,6,23,.28));
+}
+.main-fab .fabHint{
+  position:absolute;
+  right:78px;
+  bottom:18px;
+  background: rgba(15,23,42,.92);
+  color:white;
+  padding:8px 10px;
+  border-radius:999px;
+  font-weight:900;
+  font-size:.9rem;
+  letter-spacing:.02em;
+  opacity:0;
+  transform: translateX(8px);
+  pointer-events:none;
+  box-shadow: 0 20px 50px rgba(2,6,23,.35);
+}
+.main-fab:active .fabHint{
+  opacity:1;
+  transform: translateX(0);
+  transition: opacity .12s ease, transform .12s ease;
+}
+
+
+/* =========================
+   PATCH v10: Título Ultra Premium
+========================= */
+
+.titleWrap{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  margin-bottom:8px;
+align-items:center;text-align:center;}
+
+.titleTop{
+  font-size:1.05rem;
+  letter-spacing:8px;
+  font-weight:600;
+  color:#475569;
+  opacity:.9;
+}
+
+.titleBrand{
+  font-size:2.6rem;
+  font-weight:1000;
+  letter-spacing:-1px;
+  line-height:1;
+  background: linear-gradient(90deg,#5b5ce6,#7c3aed,#06b6d4);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 25px 60px rgba(2,6,23,.25);
+}
+
+
+/* =========================
+   PATCH v11: Menú en CARDS (icon arriba + texto abajo) - consistente
+========================= */
+.menuGrid{
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap:12px;
+  margin-top:14px;
+}
+.menuBtn{
+  border:none;
+  border-radius:30px;
+  padding:16px 14px 14px;
+  height:128px;
+  display:flex;
+  flex-direction:column;
+  justify-content:flex-start;
+  align-items:center;
+  text-align:center;
+  position:relative;
+  overflow:hidden;
+  cursor:pointer;
+
+  background: rgba(255,255,255,.92);
+  border: 1px solid rgba(148,163,184,.28);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow:
+    0 22px 44px rgba(2,6,23,.14),
+    inset 0 1px 0 rgba(255,255,255,.70);
+  transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+}
+.menuBtn:active{ transform: translateY(1px) scale(.988); }
+
+.menuBtn .mIcon{
+  width:58px;
+  height:58px;
+  border-radius:20px;
+  display:grid;
+  place-items:center;
+  font-size:28px;
+  line-height:1;
+  color:#0f172a;
+  box-shadow:inset 0 0 0 1px rgba(15,23,42,.06);
+}
+.menuBtn .mIcon svg{
+  width:26px;
+  height:26px;
+  stroke: rgba(15,23,42,.92);
+  stroke-width:2.2;
+  fill:none;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  opacity:.95;
+}
+
+.menuBtn .mTitle{
+  font-weight:800;
+  font-size:18px;
+  letter-spacing:-.02em;
+  color:#0f172a;
+  text-align:center;
+  line-height:1.05;
+}
+.menuBtn .mSub{
+  margin-top:2px;
+  font-weight:700;
+  font-size:14px;
+  color:rgba(15,23,42,.62);
+  text-align:center;
+  line-height:1.12;
+}
+
+/* Pasteles modernos por botón (mismo orden del menú) */
+
+
+
+
+
+
+
+
+/* color del cuadrito del ícono */
+.menuGrid .menuBtn:nth-child(1) .mIcon{ background: rgba(124,58,237,.18); }
+.menuGrid .menuBtn:nth-child(2) .mIcon{ background: rgba(59,130,246,.18); }
+.menuGrid .menuBtn:nth-child(3) .mIcon{ background: rgba(239,68,68,.16); }
+.menuGrid .menuBtn:nth-child(4) .mIcon{ background: rgba(34,197,94,.16); }
+.menuGrid .menuBtn:nth-child(5) .mIcon{ background: rgba(245,158,11,.16); }
+.menuGrid .menuBtn:nth-child(6) .mIcon{ background: rgba(236,72,153,.15); }
+.menuGrid .menuBtn:nth-child(7) .mIcon{ background: rgba(14,165,233,.16); }
+
+
+/* PATCH v12: quitar degradado menú - estilo limpio premium */
+.menuBtn{
+  background: rgba(255,255,255,.95) !important;
+  border: 1px solid rgba(148,163,184,.25);
+  box-shadow:
+    0 18px 40px rgba(2,6,23,.10),
+    inset 0 1px 0 rgba(255,255,255,.8);
+}
+
+.menuBtn:hover{
+  border-color: rgba(99,102,241,.35);
+}
+
+
+/* =========================
+   PATCH v15: Menú cards RECTANGULARES (no ovaladas)
+========================= */
+.menuGrid{
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.menuBtn{
+  border-radius: 18px !important;   /* esquinas redondeadas suaves */
+  height: 172px !important;         /* más alto para evitar forma de “bolita” */
+  padding: 18px 14px 16px !important;
+  background: rgba(255,255,255,.96) !important;
+  border: 1px solid rgba(148,163,184,.22) !important;
+  box-shadow: 0 14px 30px rgba(2,6,23,.10), inset 0 1px 0 rgba(255,255,255,.85) !important;
+}
+.menuBtn .mIcon{
+  border-radius: 14px !important;
+  width: 46px !important;
+  height: 46px !important;
+  margin: 2px 0 12px !important;
+}
+.menuBtn .mTitle{ font-size: 1.10rem !important; }
+.menuBtn .mSub{ font-size: .96rem !important; }
+
+/* Si tu sheet aplica estilos redondos a botones, lo neutralizamos */
+.sheet .menuBtn{ border-radius: 18px !important; }
+
+
+/* =========================
+   PATCH v16: Ajuste espacio inferior y gráficas
+========================= */
+.sheet{
+  padding-bottom: 14px !important;
+}
+
+.closeBtn, .cerrarBtn{
+  margin-top: 18px !important;
+}
+
+.chartWrap, .chartContainer{
+  padding-bottom: 10px !important;
+}
+
+
+
+/* =========================
+   PATCH v17: Top3 CU apilado + menos espacio abajo
+========================= */
+.top3Stack{
+  flex-direction:column;
+  gap:14px;
+}
+.top3Stack .top3Item{
+  flex:unset;
+  width:100%;
+  padding:16px 16px 14px;
+  border-radius:18px;
+  background: rgba(255,255,255,.96);
+  border: 1px solid rgba(148,163,184,.22);
+  box-shadow: 0 12px 26px rgba(2,6,23,.08);
+}
+.top3Stack .top3Medal{ font-size:26px; }
+.top3Stack .top3Name{ font-size:1.15rem; }
+.top3Stack .top3Qty{ font-size:1.05rem; }
+
+/* Chart: evita “hueco” gigante en móviles */
+@media (max-width: 520px){
+  .chart-wrap{ height: 360px !important; }
+  .chart-wrap[style*="height:480px"]{ height: 360px !important; }
+  .chartScroll{ padding-bottom: 6px !important; }
+  .sheet{ padding-bottom: 12px !important; }
+  .closeBtn{ margin-top: 12px !important; }
+}
+
+
+/* =========================
+   PATCH v18: Labels visibles sin scroll + botón cerrar abajo sin tapar
+========================= */
+
+/* Botón cerrar más delgado y verdaderamente "sticky" */
+.closeBtn{
+  height: 56px !important;
+  border-radius: 999px !important;
+  margin-top: 10px !important;
+}
+
+/* Barra fija abajo (si existe footer) */
+.sheetFooter, .sheet-footer{
+  position: sticky;
+  bottom: 10px;
+  z-index: 40;
+  padding-top: 10px;
+  background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.92) 45%, rgba(255,255,255,.98) 100%);
+}
+
+/* Dale espacio al contenido para que el botón no tape etiquetas */
+.sheet{
+  padding-bottom: 88px !important; /* espacio para labels + botón */
+}
+
+/* Charts: más compactos en móvil para que quepan y se vean nombres */
+@media (max-width: 520px){
+  .chart-wrap{ height: 320px !important; }
+  canvas{
+  display:block;
+  margin:0;
+}
+}
+
+
+/* =========================
+   PATCH v19: Podio Top3 compacto (oro arriba, plata izq, bronce der)
+========================= */
+.top3Podium{
+  display:grid !important;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    "gold gold"
+    "silver bronze";
+  gap: 12px;
+  align-items: stretch;
+}
+.top3Podium .top3Item{ width:100%; }
+.top3Podium .rank1{ grid-area: gold; }
+.top3Podium .rank2{ grid-area: silver; }
+.top3Podium .rank3{ grid-area: bronze; }
+
+.top3Podium .top3Item{
+  padding: 14px 14px 12px;
+  border-radius: 18px;
+}
+.top3Podium .rank1 .top3Name{ font-size: 1.18rem; }
+.top3Podium .rank2 .top3Name,
+.top3Podium .rank3 .top3Name{ font-size: 1.05rem; }
+
+@media (max-width:520px){
+  .top3Podium{ gap: 10px; }
+}
+
+
+/* =========================
+   PATCH v21: Título visible arriba de la gráfica + barras más delgadas + sin min-width forzado
+========================= */
+.chartHeading{
+  margin: 10px 4px 8px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: .2px;
+}
+.chartScroll{ overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+.chart-wrap{
+  width: 100% !important;
+  min-width: 0 !important;
+  padding-top: 18px !important; /* evita que se “coma” el título */
+  height: 420px !important;
+}
+@media (max-width:520px){
+  .chart-wrap{ height: 360px !important; }
+}
+
+
+/* =========================
+   PATCH v26: Gráficas estilo EXACTO (layout y tablero) inspirado en tu imagen
+========================= */
+
+/* Section title like "Ventas" */
+.chartSectionTitle{
+  margin: 18px 6px 10px;
+  font-weight: 950;
+  font-size: 2.15rem;
+  letter-spacing: .2px;
+  color: #0b1220;
+}
+
+/* Podium board background */
+.podiumBoard{
+  margin: 10px 0 14px;
+  padding: 16px 14px;
+  border-radius: 26px;
+  background: radial-gradient(1200px 420px at 50% 45%, rgba(99,102,241,.14), rgba(14,165,233,.10), rgba(255,255,255,.82));
+  border: 1px solid rgba(148,163,184,.20);
+  box-shadow: 0 20px 40px rgba(2,6,23,.10);
+  backdrop-filter: blur(10px);
+}
+
+/* Podium row: silver left, gold center elevated, bronze right */
+.podiumRow{
+  display:grid;
+  grid-template-columns: 1fr 1.15fr 1fr;
+  gap: 10px;
+  align-items: end;
+}
+
+/* Each podium card */
+.podiumCard{
+  position: relative;
+  border-radius: 22px;
+  background: rgba(255,255,255,.88);
+  border: 1px solid rgba(148,163,184,.22);
+  box-shadow: 0 14px 26px rgba(2,6,23,.10);
+  padding: 18px 12px 14px;
+  text-align:center;
+  min-height: 92px;
+}
+.podiumCard.gold{ min-height: 118px; transform: translateY(-8px); background: rgba(255,255,255,.92); }
+.podiumCard .podiumName{ font-weight: 950; font-size: 1.35rem; color:#0b1220; line-height:1.1; }
+.podiumCard .podiumMeta{ margin-top:6px; font-weight: 800; color:#64748b; font-size: 1.05rem; }
+
+/* Medal badge */
+.podiumMedal{
+  position:absolute;
+  top:-18px;
+  left:50%;
+  transform: translateX(-50%);
+  width: 54px;
+  height: 54px;
+  display:grid;
+  place-items:center;
+  font-weight: 950;
+  color:#0b1220;
+  border-radius: 999px;
+  box-shadow: 0 12px 22px rgba(2,6,23,.16);
+  border: 1px solid rgba(255,255,255,.6);
+}
+.podiumMedal.gold{ background: radial-gradient(circle at 30% 30%, #fff1a6, #f6c14b 55%, #e7a21b); }
+.podiumMedal.silver{ background: radial-gradient(circle at 30% 30%, #f1f5f9, #cbd5e1 58%, #94a3b8); }
+.podiumMedal.bronze{ background: radial-gradient(circle at 30% 30%, #ffd0b2, #f28c3b 55%, #c56a1f); }
+.podiumMedal span{
+  background: rgba(15,23,42,.10);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 1.05rem;
+}
+
+/* Chart container card */
+.chartPanel{
+  margin: 8px 0 18px;
+  padding: 14px;
+  border-radius: 26px;
+  background: rgba(255,255,255,.92);
+  border: 1px solid rgba(148,163,184,.20);
+  box-shadow: 0 18px 40px rgba(2,6,23,.10);
+  backdrop-filter: blur(10px);
+}
+.chartScroll{
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+.chart-wrap{
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(248,250,252,.96), rgba(241,245,249,.92));
+  border: 1px solid rgba(148,163,184,.14);
+  padding: 18px 16px 12px !important;
+  height: 420px !important;
+  width: max-content !important;
+  min-width: 100% !important;
+}
+
+/* Reduce close-button empty space in modals/sections if any */
+.sheetFooter{
+  padding-bottom: 10px !important;
+}
+
+
+/* ===== PATCH v29: ocultar controles no funcionales (rango/top/botones extra) ===== */
+#btnRango, #btnTop, #rangoBtn, #topBtn,
+.btnRango, .btnTop, .chipRango, .chipTop,
+#toggleRango, #toggleTop,
+#panelRango, #panelTop,
+[data-role="rango"], [data-role="top"],
+/* texto/encabezados que no aportan */
+.chartsModeRow, .rangeTopRow, .topRow, .rangoRow,
+/* fallback: cualquier botón dentro de charts header que diga Rango/Top */
+.chartsHeader button,
+.chartsHeader .pillBtn{
+  display:none !important;
+}
+
+/* Oculta la línea de modos si existe como texto */
+.modeLine, .modesLine, .ventasModesLine{
+  display:none !important;
+}
+
+/* --- FIX: keep chart labels inside the gray card + avoid canvas overflow --- */
+.chart-wrap{
+  overflow: hidden !important;
+  padding-bottom: 26px !important; /* extra room for rotated labels */
+}
+.chart-wrap canvas{
+  display:block;
+  width:100% !important;
+  height:100% !important;
+}
+
+
+@media (max-width: 360px){
+  .menuGrid{grid-template-columns: repeat(2, 1fr); .menuBtn{height:140px;}}
+}
+
+/* Base de datos: chips de fechas visibles */
+.dateChip{
+  width:auto;
+  padding:10px 14px;
+  border-radius:999px;
+  border:1px solid rgba(15,23,42,.10);
+  background:rgba(255,255,255,.92);
+  color:#0f172a;
+  font-weight:900;
+  cursor:pointer;
+  box-shadow:0 10px 22px rgba(2,6,23,.10);
+  backdrop-filter: blur(10px);
+}
+.dateChip:active{transform:translateY(1px) scale(.99)}
+
+/* --- CU catálogo: mostrar costo + editar --- */
+.cuCatRow{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.cuCatInfo{min-width:0}
+.cuCatName{font-weight:900;font-size:18px;color:#101826}
+.cuCatCost{margin-top:4px;font-size:13px;color:rgba(16,24,38,.75)}
+.cuCatActions{display:flex;gap:10px;align-items:center;flex-shrink:0}
+.cuBtnEdit{border:none;border-radius:999px;padding:10px 14px;font-weight:800;background:rgba(99,102,241,.14);color:#3f46d5}
+.cuBtnDel{border:none;border-radius:999px;padding:10px 14px;font-weight:800;background:#ef4444;color:#fff}
+.ghostBtn{border:none;border-radius:999px;padding:10px 14px;font-weight:800;background:rgba(16,24,38,.08);color:#101826}
+
+/* Ajuste proporcional botones CU */
+#cuSheet .row3{
+  grid-template-columns: 1fr 1fr !important;
+  gap:14px !important;
+}
+
+#cuSheet .row3 button{
+  height:58px;
+  font-size:1rem;
+  border-radius:18px;
+  font-weight:900;
+}
+
+#cuSheet .row3 button:first-child{
+  background:#e0e7ff !important;
+  color:#1e293b !important;
+}
+
+#cuSheet .row3 button:last-child{
+  background:#111827 !important;
+  color:white !important;
+}
+
+
+/* ===== Ajustes solicitados (CU + Menú) ===== */
+#cuSheet .row3.cuBtns{
+  grid-template-columns: 1fr 1fr !important; /* sin hueco */
+}
+#cuSheet .row3.cuBtns button{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1.15;
+  padding:0 14px;
+}
+#cuSheet .row3.cuBtns #btnCatInsumos{
+  text-align:center;
+}
+
+/* CU más compacto (sin cambiar lógica) */
+#cuSheet .tableCard{
+  padding: 14px 14px 16px;
+}
+#cuSheet .smallcaps{ margin-bottom:6px; }
+#cuSheet .smallnote{ margin: 8px 0 10px; }
+#cuSheet .sheet input, 
+#cuSheet .sheet select{
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+#cuSheet .sheet input[readonly]{
+  padding: 12px 14px;
+}
+
+
+/* Collapsible inventory cards (evita toques por accidente) */
+.card.collapsed .actions{ display:none !important; }
+.card.collapsed .qty{ margin-bottom: 8px; }
+.card{ cursor:pointer; }
+.card .gear, .card .btn{ cursor:pointer; }
 
 </style>
 
@@ -359,58 +1284,75 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 
 <body>
 
-<h1>INVENTARIO HIELI CREAM</h1>
-<p class="subhead">PRO • ventas • costos • reportes</p>
+
+<h1 class="titleWrap">
+  <span class="titleTop">INVENTARIO</span>
+  <span class="titleBrand">HIELI CREAM</span>
+</h1>
+
+
 
 <div class="inventory" id="inventory"></div>
 <div id="savedStamp" class="savedStamp"></div>
 
 <!-- FAB -->
 <div class="speed-dial">
- <button class="main-fab" id="fab" onclick="toggleMenu()">＋</button>
+ <button class="main-fab" id="fab" onclick="toggleMenu()">
+  <svg class="fabIcon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M5 7h14M5 12h14M5 17h14" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round"/>
+  </svg>
+  <span class="fabHint">Menú</span>
+</button>
 </div>
 
 <!-- MENU -->
 <div class="sheet" id="menuSheet">
  <h2>Menú</h2>
- <p class="subhead">Elige qué quieres hacer</p>
+ 
 
  <!-- ✅ sin degradados: puros colores pastel -->
- <div class="menuGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;">
-  <button class="menuBtn" style="border:none;border-radius:26px;padding:18px 16px;height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#111827;font-weight:950;cursor:pointer;box-shadow:0 18px 35px rgba(0,0,0,.10);transition:.12s;background:#ede9fe" onclick="goTo('add')">
-   <div style="font-size:1.2rem;line-height:1.1">Nuevo Hielito</div>
-   <div style="font-size:.92rem;opacity:.85;font-weight:850;margin-top:6px">Agregar sabores</div>
-  </button>
+ <div class="menuGrid">
+  <button class="menuBtn" onclick="goTo('add')">
+  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 21h8"/><path d="M12 21v-5"/><path d="M7 10.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5c0 2.6-1.6 4.7-3.8 5.3H10.8C8.6 15.2 7 13.1 7 10.5Z"/></svg></div>
+  <div class="mTitle">Nuevo Hielito</div>
+  <div class="mSub">Agregar sabores</div>
+</button>
 
-  <button class="menuBtn" style="border:none;border-radius:26px;padding:18px 16px;height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#111827;font-weight:950;cursor:pointer;box-shadow:0 18px 35px rgba(0,0,0,.10);transition:.12s;background:#dbeafe" onclick="goTo('stats')">
-   <div style="font-size:1.2rem;line-height:1.1">Gráficas</div>
-   <div style="font-size:.92rem;opacity:.85;font-weight:850;margin-top:6px">Ventas + total</div>
-  </button>
+  <button class="menuBtn" onclick="goTo('stats')">
+  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M8 19V11"/><path d="M12 19V7"/><path d="M16 19V13"/><path d="M20 19V9"/></svg></div>
+  <div class="mTitle">Gráficas</div>
+  <div class="mSub">Ventas + total</div>
+</button>
 
-  <button class="menuBtn" style="border:none;border-radius:26px;padding:18px 16px;height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#111827;font-weight:950;cursor:pointer;box-shadow:0 18px 35px rgba(0,0,0,.10);transition:.12s;background:#fee2e2" onclick="goTo('history')">
-   <div style="font-size:1.2rem;line-height:1.1">Reportes</div>
-   <div style="font-size:.92rem;opacity:.85;font-weight:850;margin-top:6px">Historial + PDF</div>
-  </button>
+  <button class="menuBtn" onclick="goTo('history')">
+  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l3 3v15a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v4h4"/><path d="M8 12h8"/><path d="M8 16h8"/></svg></div>
+  <div class="mTitle">Reportes</div>
+  <div class="mSub">Historial + PDF</div>
+</button>
 
-  <button class="menuBtn" style="border:none;border-radius:26px;padding:18px 16px;height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#111827;font-weight:950;cursor:pointer;box-shadow:0 18px 35px rgba(0,0,0,.10);transition:.12s;background:#dcfce7" onclick="goTo('db')">
-   <div style="font-size:1.2rem;line-height:1.1">Base de datos</div>
-   <div style="font-size:.92rem;opacity:.85;font-weight:850;margin-top:6px">Editar vendidos</div>
-  </button>
+  <button class="menuBtn" onclick="goTo('db')">
+  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5"/><path d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg></div>
+  <div class="mTitle">Base de datos</div>
+  <div class="mSub">Editar vendidos</div>
+</button>
 
-  <button class="menuBtn" style="border:none;border-radius:26px;padding:18px 16px;height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#111827;font-weight:950;cursor:pointer;box-shadow:0 18px 35px rgba(0,0,0,.10);transition:.12s;background:#fef9c3" onclick="goTo('io')">
-   <div style="font-size:1.2rem;line-height:1.1">Importación</div>
-   <div style="font-size:.92rem;opacity:.85;font-weight:850;margin-top:6px">Importar / exportar</div>
-  </button>
+  <button class="menuBtn" onclick="goTo('io')">
+  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11a3 3 0 0 1 0 6H8"/><path d="M7 7l2-2"/><path d="M7 7l2 2"/><path d="M17 17H6a3 3 0 0 1 0-6h10"/><path d="M17 17l-2-2"/><path d="M17 17l-2 2"/></svg></div>
+  <div class="mTitle">Importación</div>
+  <div class="mSub">Importar / exportar</div>
+</button>
 
-  <button class="menuBtn" style="border:none;border-radius:26px;padding:18px 16px;height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#111827;font-weight:950;cursor:pointer;box-shadow:0 18px 35px rgba(0,0,0,.10);transition:.12s;background:#fce7f3" onclick="goTo('cu')">
-   <div style="font-size:1.2rem;line-height:1.1">Costo unitario</div>
-   <div style="font-size:.92rem;opacity:.85;font-weight:850;margin-top:6px">Receta por sabor</div>
-  </button>
+  <button class="menuBtn" onclick="goTo('cu')">
+  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14.5a3.5 3.5 0 0 1 0 7H7"/></svg></div>
+  <div class="mTitle">Costo unitario</div>
+  <div class="mSub">Receta por sabor</div>
+</button>
 
-  <button class="menuBtn" style="border:none;border-radius:26px;padding:18px 16px;height:118px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;color:#111827;font-weight:950;cursor:pointer;box-shadow:0 18px 35px rgba(0,0,0,.10);transition:.12s;background:#e0f2fe" onclick="goTo('compras')">
-   <div style="font-size:1.2rem;line-height:1.1">Compras</div>
-   <div style="font-size:.92rem;opacity:.85;font-weight:850;margin-top:6px">OC por críticos</div>
-  </button>
+  <button class="menuBtn" onclick="goTo('compras')">
+  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h15l-1.5 8.5a2 2 0 0 1-2 1.6H8.2a2 2 0 0 1-2-1.6L4 2H2"/><path d="M9 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/><path d="M18 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg></div>
+  <div class="mTitle">Compras</div>
+  <div class="mSub">OC por críticos</div>
+</button>
  </div>
 
  <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
@@ -419,7 +1361,7 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 <!-- COMPRAS (OC por críticos) -->
 <div class="sheet" id="comprasSheet">
  <h2>Compras</h2>
- <p class="subhead">Solo aparecen los sabores en nivel crítico</p>
+ 
 
  <div class="kpiBox" style="margin:0 0 14px">
   <div class="t">TOTAL A COMPRAR</div>
@@ -492,36 +1434,36 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 
  <div id="statsVentasBlock">
 
-   <!-- ✅ NUEVO: selector de rango / semana -->
-   <div class="row3" style="margin-top:10px;grid-template-columns:1fr 1fr">
-    <div>
-     <div class="lbl">Tipo</div>
-     <select id="statsRangeType" onchange="setStatsRangeType(this.value)">
-      <option value="range">Rango (fechas)</option>
-      <option value="week">Semana (Lun–Dom)</option>
-     </select>
-    </div>
-    <div id="weekPickWrap" style="display:none">
-     <div class="lbl">Semana</div>
-     <select id="statsWeek" onchange="onWeekPickChange()"></select>
-    </div>
-   </div>
+   <!-- filtros (alineados) -->
+   <div class="filtersGrid" style="margin-top:10px">
+     <div class="fItem">
+       <div class="lbl">Tipo</div>
+       <select id="statsRangeType" onchange="setStatsRangeType(this.value)">
+         <option value="range">Rango (fechas)</option>
+         <option value="week">Semana (Lun–Dom)</option>
+       </select>
+     </div>
 
+     <div class="fItem">
+       <div class="lbl">Sabor</div>
+       <select id="statsCompare"></select>
+     </div>
 
-  <div class="row3" style="margin-top:10px">
-   <div>
-    <div class="lbl">Desde</div>
-    <input type="date" id="from">
+     <div class="fItem" id="weekPickWrap" style="display:none;grid-column:1 / -1">
+       <div class="lbl">Semana</div>
+       <select id="statsWeek" onchange="onWeekPickChange()"></select>
+     </div>
+
+     <div class="fItem">
+       <div class="lbl">Desde</div>
+       <input type="date" id="from">
+     </div>
+
+     <div class="fItem">
+       <div class="lbl">Hasta</div>
+       <input type="date" id="to">
+     </div>
    </div>
-   <div>
-    <div class="lbl">Hasta</div>
-    <input type="date" id="to">
-   </div>
-   <div>
-    <div class="lbl">Sabor</div>
-    <select id="statsCompare"></select>
-   </div>
-  </div>
   <button onclick="generateChart()">Generar</button>
 
 <div class="kpi2">
@@ -537,11 +1479,11 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 
   <div class="top3Row" id="top3Wrap"></div>
 
-  <div class="chartScroll">
+  <div class="chartHeading">Ventas</div><div class="chartSectionTitle">Ventas</div><div class="chartPanel"><div class="chartScroll">
    <div class="chart-wrap">
     <canvas id="chart"></canvas>
    </div>
-  </div>
+  </div></div><!-- /chartPanel -->
  </div>
 
  <div id="statsCUBlock" style="display:none">
@@ -552,11 +1494,11 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 
   <div class="top3Row" id="top3CUWrap"></div>
 
-  <div class="chartScroll">
+  <div class="chartHeading">Sabores (CU)</div><div class="chartSectionTitle">Costo unitario</div><div class="chartPanel"><div class="chartScroll">
    <div class="chart-wrap" style="height:480px">
     <canvas id="chartCU"></canvas>
    </div>
-  </div>
+  </div></div><!-- /chartPanel -->
  </div>
 
  <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
@@ -591,7 +1533,7 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 <!-- DB -->
 <div class="sheet" id="editDbSheet">
  <h2>Base de datos</h2>
- <p class="subhead">Filtra por fecha o busca por texto</p>
+ 
 
  <input type="date" id="dbDate" onchange="renderSalesDB()">
  <input id="dbSearch" placeholder="Buscar producto o fecha AAAA-MM-DD" oninput="renderSalesDB()">
@@ -624,10 +1566,10 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 <!-- CU -->
 <div class="sheet" id="cuSheet">
  <h2>Costo unitario</h2>
- <p class="subhead">Selecciona sabor, ajusta receta y guarda</p>
+ 
 
  <select id="cuFlavor"></select>
- <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-top:10px"><button onclick="cuAddInsumo()">＋ Agregar insumo</button><div class="row3" style="grid-template-columns:1fr 1fr;gap:12px;margin:0"><button style="background:#e0e7ff;color:#1e293b" onclick="cuOpenCatalog()">Catálogo de insumos</button><button style="background:#111827" onclick="cuSaveCost()">Guardar CU</button></div></div>
+ <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-top:10px"><button onclick="cuAddInsumo()">＋ Agregar insumo</button><div class="row3" style="grid-template-columns: repeat(3, 1fr);gap:12px;margin:0"><button style="background:#e0e7ff;color:#1e293b" onclick="cuOpenCatalog()">Catálogo de insumos</button><button style="background:#111827" onclick="cuSaveCost()">Guardar CU</button></div></div>
 
  <div id="cuLista" style="margin-top:14px"></div>
 
@@ -643,7 +1585,7 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 <!-- CU CATALOGO -->
 <div class="sheet" id="cuCatalogSheet">
  <h2>Catálogo de insumos</h2>
- <p class="subhead">Guarda insumos una vez y luego elígelos en cada receta</p>
+ 
 
  <div class="row3" style="grid-template-columns:1.4fr .8fr;gap:12px">
   <div>
@@ -656,7 +1598,8 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
   </div>
  </div>
 
- <button onclick="cuSaveCatalogItem()">Guardar insumo</button>
+ <button id="cuCatSaveBtn" onclick="cuSaveCatalogItem()">Guardar insumo</button>
+          <button id="cuCatCancelBtn" class="ghostBtn" style="display:none" onclick="cuCancelEditCatalog()">Cancelar edición</button>
 
  <div class="smallnote" style="margin-top:10px">
   Tip: luego en cada <b>INSUMO</b> elige del catálogo para rellenar nombre y costo sin escribir.
@@ -671,6 +1614,25 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 </div>
 
 <script>
+
+/* =========================
+   Persistencia (Android/Chrome)
+   - Pide al navegador que NO borre storage en limpieza automática por falta de espacio.
+   - Nota: si abres el archivo como content:// o file://, el "origen" puede cambiar y parecer que se pierde.
+   Recomendado: abrir desde GitHub Pages / PWA / servidor local (http://127.0.0.1:PORT/)
+========================= */
+(async function requestPersistentStorage(){
+  try{
+    if(navigator.storage && navigator.storage.persist){
+      const already = await navigator.storage.persisted();
+      if(!already){
+        await navigator.storage.persist();
+      }
+    }
+  }catch(e){}
+})();
+
+
 
 // ===== Helpers anti-crash (escape HTML) =====
 function escapeHtml(v){
@@ -703,8 +1665,7 @@ let currentIndex=null;
 /* =========================
    50 colores pastel (más vivos)
 ========================= */
-const PASTELS = [
-  "#4F46E5","#4338CA","#6366F1","#818CF8",  // indigos
+const PASTELS = ["#4F46E5","#4338CA","#6366F1","#818CF8",  // indigos
   "#0EA5E9","#38BDF8","#0284C7","#06B6D4","#22D3EE", // sky/cyan
   "#14B8A6","#2DD4BF","#0D9488","#10B981","#34D399", // teal/emerald
   "#22C55E","#4ADE80","#16A34A","#84CC16","#A3E635", // greens/lime
@@ -716,7 +1677,10 @@ const PASTELS = [
   "#8D6E63","#A1887F","#D2B48C","#E5D4C0",           // café/tan
   "#60A5FA","#93C5FD","#FCA5A5","#FDE68A",           // extras suaves
   "#A7F3D0","#BAE6FD","#E9D5FF","#FFE4E6",           // extras pastel
-  "#C7D2FE","#DDD6FE","#FBCFE8","#FEF3C7"            // extras pastel 2
+  "#C7D2FE","#DDD6FE","#FBCFE8","#FEF3C7",            // extras pastel 2,
+  "#EEF2FF","#E0E7FF","#A5B4FC","#F5F3FF","#EDE9FE","#C4B5FD","#A78BFA","#FAF5FF","#F3E8FF","#C084FC","#FFF7ED","#FFEDD5","#FED7AA","#FFFBEB","#FCD34D","#F0FDF4","#DCFCE7","#BBF7D0","#86EFAC","#ECFDF5","#D1FAE5","#6EE7B7","#F0FDFA","#CCFBF1","#99F6E4","#5EEAD4","#ECFEFF","#CFFAFE","#A5F3FC","#67E8F9","#F0F9FF","#E0F2FE","#7DD3FC","#EFF6FF","#DBEAFE","#BFDBFE","#3B82F6","#FEF2F2","#FEE2E2","#FECACA","#FFF1F2","#FECDD3","#FDA4AF","#F43F5E","#FDF2F8","#FCE7F3","#F9A8D4","#FAFAFA","#F4F4F5","#E4E4E7","#D4D4D8","#A1A1AA","#71717A","#F8FAFC","#F1F5F9","#E2E8F0","#CBD5E1","#0F172A","#1F2937","#475569","#6B7280","#E7E5E4","#D6D3D1","#A8A29E","#78716C","#57534E","#44403C","#F5F5DC","#FAEBD7","#FFEFD5","#FFF0F5","#F0FFF0","#F0FFFF",
+  "#5B21B6","#312E81","#1E3A8A","#0B3B5A","#14532D","#064E3B","#0F766E","#155E75","#075985","#78350F","#92400E","#B45309","#C2410C","#9A3412","#3F1D0B","#4A2C2A","#5C4033","#6B4E3D","#7B5E57","#0B1220","#FF6B6B","#FF8787","#FFA94D","#FFD43B","#69DB7C","#38D9A9","#4DABF7","#9775FA","#F783AC","#FF4D6D","#FF6B6B","#FF922B","#FCC419","#51CF66","#20C997","#339AF0","#845EF7","#E64980","#C0FFEE","#B0E0E6","#ADD8E6","#87CEEB","#00BFFF","#1E90FF","#8B0000","#B22222","#DC143C","#FF0000","#FF4500","#2F4F4F","#708090","#2E3440","#3B4252","#434C5E",
+  '#FFE6F1', '#FFD7E8', '#FFC8DF', '#FFB9D5', '#E6FFF7', '#CCFFF0', '#B3FFE8', '#99FFE1', '#EAE6FF', '#DCD6FF', '#CEC6FF', '#C0B6FF', '#FFF1CC', '#FFE6A6', '#FFDB80', '#E8F4FF', '#D6ECFF', '#C4E4FF', '#B3DCFF', '#F6E6D6', '#F0D7C2', '#EAC9AE', '#E6E9EF', '#D8DEE9', '#C7D0DD', '#B9C4D3'
 ];
 
 /* DATA */
@@ -923,6 +1887,9 @@ function drawBarChartFallback(canvas, labels, values, colors, opts={}){
   const labelFont = opts.labelFont || '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
   const valueFont = opts.valueFont || '13px system-ui, -apple-system, Segoe UI, Roboto, Arial';
   const pad = { top: 14, right: 16, bottom: 86, left: 42, ...(opts.pad||{}) };
+  // si hay título dentro del canvas, deja más aire arriba para que no se lo coma la barra
+  if(opts.title && String(opts.title).trim()) pad.top = Math.max(pad.top, 44);
+
   const barGap = (typeof opts.barGap==='number') ? opts.barGap : 10;
   const radius = (typeof opts.radius==='number') ? opts.radius : 12;
   const showValues = (opts.showValues!==false);
@@ -955,7 +1922,11 @@ function drawBarChartFallback(canvas, labels, values, colors, opts={}){
   const innerW = cssW - pad.left - pad.right;
   const innerH = cssH - pad.top - pad.bottom;
   const totalGap = Math.max(0, (n-1) * barGap);
-  const barW = n ? Math.max(12, (innerW - totalGap) / n) : 0;
+  const computedBarW = n ? Math.max(10, (innerW - totalGap) / n) : 0;
+  const maxBarW = (typeof opts.maxBarW==='number') ? opts.maxBarW : 64;
+  const barW = n ? Math.min(maxBarW, computedBarW) : 0;
+  const totalBarsW = n ? (barW * n + totalGap) : 0;
+  const xOffset = n ? ((opts && opts.center===true) ? Math.max(0, (innerW - totalBarsW)/2) : 0) : 0;
 
   // helpers
   function niceNum(v){
@@ -986,7 +1957,7 @@ function drawBarChartFallback(canvas, labels, values, colors, opts={}){
   }
 
   // título
-  if(opts.title){
+  if(opts.title && String(opts.title).trim()){
     ctx.fillStyle = '#0f172a';
     ctx.font = '900 16px system-ui, -apple-system, Segoe UI, Roboto, Arial';
     ctx.textAlign = 'left';
@@ -1063,7 +2034,7 @@ function drawBarChartFallback(canvas, labels, values, colors, opts={}){
     // barras
     const usedValueBoxes = []; // anti-amontonado (CU)
     for(let i=0;i<n;i++){
-      const x = pad.left + i*(barW+barGap);
+      const x = pad.left + xOffset + i*(barW+barGap);
       const xCenter = x + barW/2;
 
       const v = fromVals[i] + (toVals[i]-fromVals[i]) * t01;
@@ -1141,6 +2112,14 @@ function drawBarChartFallback(canvas, labels, values, colors, opts={}){
         ctx.arcTo(bx+boxW, by+boxH, bx, by+boxH, r);
         ctx.arcTo(bx, by+boxH, bx, by, r);
         ctx.arcTo(bx, by, bx+boxW, by, r);
+        ctx.closePath();
+        ctx.fill();
+        // pequeño pico (como en el mockup) centrado debajo del pill
+        const tipW = 14, tipH = 8;
+        ctx.beginPath();
+        ctx.moveTo(xCenter - tipW/2, by + boxH - 1);
+        ctx.lineTo(xCenter + tipW/2, by + boxH - 1);
+        ctx.lineTo(xCenter, by + boxH + tipH);
         ctx.closePath();
         ctx.fill();
 
@@ -1278,6 +2257,10 @@ function cuAutoSaveDraftNow(){
   if(!sel) return;
   const idx=parseInt(sel.value);
   if(isNaN(idx) || !inventory[idx]) return;
+
+  // ✅ Evita que se sobreescriba una receta con arreglo vacío (ej. Vainilla)
+  if(!Array.isArray(cuRows) || cuRows.length===0) return;
+
   try{ cuSaveRecipeForIndex(idx); }catch(e){}
 }
 
@@ -1593,7 +2576,7 @@ function comprasRenderInsumosTable(items){
         <div style="text-align:center;font-weight:950;color:var(--text)">${it.qty}</div>
         <div style="text-align:right;font-weight:1000;color:${it.hasIt ? '#94a3b8' : 'var(--primary)'}">${costTxt}</div>
         <button type="button" onclick="comprasToggleHave('${escapeHtmlAttr(it.name)}')"
-          style="width:44px;height:44px;min-width:44px;max-width:44px;border-radius:16px;border:none;color:white;font-weight:1000;${btnStyle};padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 20px rgba(0,0,0,.18)">
+          style="width:44px;height:44px;min-width:44px;max-width:44px;border-radius:14px;border:none;color:white;font-weight:1000;${btnStyle};padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 20px rgba(0,0,0,.18)">
           X
         </button>
       </div>
@@ -1672,6 +2655,29 @@ function addDaysISO(iso, days){
   d.setDate(d.getDate() + (Number(days)||0));
   return _toISO(d);
 }
+
+function monthRangeISO(year, month){
+  // month: 1-12
+  const y = parseInt(year,10);
+  const m = parseInt(month,10);
+  if(!y || !m) return null;
+  const start = new Date(Date.UTC(y, m-1, 1));
+  const end = new Date(Date.UTC(y, m, 0)); // last day of month
+  const toISO = d => d.toISOString().slice(0,10);
+  return {from: toISO(start), to: toISO(end)};
+}
+
+function ensureYearOptions(){
+  const sel = document.getElementById("statsYear");
+  if(!sel || sel.dataset.ready==="1") return;
+  const now = new Date();
+  const y = now.getFullYear();
+  const years = [y-1, y, y+1];
+  sel.innerHTML = years.map(v=>`<option value="${v}">${v}</option>`).join("");
+  sel.value = String(y);
+  sel.dataset.ready="1";
+}
+
 
 function initWeekPicker(){
   const weekSel = document.getElementById("statsWeek");
@@ -1760,6 +2766,21 @@ function onWeekPickChange(){
 }
 
 /* RENDER INVENTORY */
+
+// --- Collapsible inventory state ---
+const invExpanded = new Set(JSON.parse(localStorage.getItem('hc_inv_expanded') || '[]'));
+function saveInvExpanded(){
+  try{ localStorage.setItem('hc_inv_expanded', JSON.stringify(Array.from(invExpanded))); }catch(e){}
+}
+function toggleInvCardByKey(key){
+  if(invExpanded.has(key)) invExpanded.delete(key); else invExpanded.add(key);
+  saveInvExpanded();
+  // Solo alternar la clase sin re-renderizar (evita parpadeos)
+  const sel = `.card[data-name="${window.CSS && CSS.escape ? CSS.escape(key) : key.replace(/"/g,'\\"')}"]`;
+  const el = document.querySelector(sel);
+  if(el) el.classList.toggle('collapsed', !invExpanded.has(key));
+}
+
 function render(){
  const inventoryDiv=document.getElementById("inventory");
  const compareSel=document.getElementById("statsCompare");
@@ -1778,9 +2799,11 @@ function render(){
   cuSel.innerHTML+=`<option value="${i}">${p.name}</option>`;
 
   const strip = p.color || "#e5e7eb";
+  const key = encodeURIComponent(p.name);
+  const isOpen = invExpanded.has(key);
 
   inventoryDiv.innerHTML+=`
-   <div class="card ${p.qty<=p.critical?'low':''}" data-i="${i}">
+   <div class="card inv-card ${p.qty<=p.critical?'low':''} ${isOpen?'':'collapsed'}" data-i="${i}" data-name="${key}">
     <div class="colorStrip" style="background:${strip}"></div>
     <div class="cardFlash" id="fx_${i}"></div>
 
@@ -2076,6 +3099,9 @@ function fitCanvasForBars(canvas, barCount, minWidth){
 function renderTop3(containerId, arr, type){
  const wrap=document.getElementById(containerId);
  if(!wrap) return;
+ // ✅ Podio compacto para NO ocupar tanto: oro arriba, plata izq, bronce der
+ wrap.classList.add('top3Podium');
+ wrap.classList.remove('top3Stack');
 
  // Orden ya viene aplicado desde quien llama
  const medals = ['🥇','🥈','🥉'];
@@ -2084,7 +3110,7 @@ function renderTop3(containerId, arr, type){
 
  const top = (arr||[]).slice(0,3);
  wrap.innerHTML = top.map((it,idx)=>`
-  <div class="top3Item" style="border-top:7px solid ${medalColors[idx]};">
+  <div class="top3Item rank${idx+1}" style="border-top:7px solid ${medalColors[idx]};">
     <div class="top3Medal" style="color:${medalColors[idx]};">${medals[idx]}</div>
     <div class="top3Name">${it.name}</div>
     <div class="top3Qty">${type==='cu' ? (titles[idx]+': '+money(it.value)) : (titles[idx]+': '+it.value)}</div>
@@ -2215,7 +3241,7 @@ function generateChart(){
   const titleSuffix = weekText ? (" • " + weekText) : ` • ${from} a ${to}`;
   const titleFlavor = (compareVal && compareVal!=="__ALL__") ? toTitleCase(compareVal) : "TOTAL";
   drawBarChartFallback(canvas, labels, data, colors, {
-    title: `Ventas por día • ${titleFlavor}${titleSuffix}`,
+    title: ``,
     valueSuffix: "",
     yLabel: "Vendidos",
     valuePlacement: "above",
@@ -2261,7 +3287,7 @@ function generateChart(){
   fitCanvasForBars(canvas, labels.length, 520);
 
   drawBarChartFallback(canvas, labels, data, colors, {
-    title: `Ventas por día • ${toTitleCase(compareVal)}`,
+    title: ``,
     valueSuffix: "",
     yLabel: "Vendidos",
     valuePlacement: "above",
@@ -2398,8 +3424,7 @@ function renderSalesDB(){
   // Fechas disponibles (para que no “se oculten”)
   const dates=[...new Set(normalized.map(x=>x.date))].sort();
   const chips = dates.slice(-10).reverse().map(d=>`
-    <button style="width:auto;padding:10px 14px;border-radius:999px;border:1px solid #e5e7eb;background:#f8fafc;font-weight:950;cursor:pointer"
-      onclick="document.getElementById('dbDate').value='${d}'; renderSalesDB();">
+    <button class="dateChip" onclick="document.getElementById('dbDate').value='${d}'; renderSalesDB();">
       ${d}
     </button>
   `).join("");
@@ -2408,7 +3433,7 @@ function renderSalesDB(){
     <div class="smallnote">
       No hay registros para ese filtro.<br>
       ${dates.length ? `<div style="margin-top:10px;font-weight:950">Fechas disponibles (toca una):</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">${chips}</div>` : ""}
+      <div class="dateChipWrap">${chips}</div>` : ""}
     </div>`;
   return;
  }
@@ -2523,6 +3548,9 @@ function cuGetCatalog(){
   try{ return JSON.parse(localStorage.getItem(CU_CATALOG_KEY))||[]; }
   catch(e){ return []; }
 }
+
+let cuCatEditIndex = null; // index being edited in CU catalog
+
 function cuSetCatalog(arr){
   localStorage.setItem(CU_CATALOG_KEY, JSON.stringify(Array.isArray(arr)?arr:[]));
 }
@@ -2547,16 +3575,22 @@ function cuRenderCatalog(){
   const arr=cuNormalizeCatalog(cuGetCatalog());
   cuSetCatalog(arr);
   if(!wrap) return;
+
   if(!arr.length){
     wrap.innerHTML='<div class="smallnote">No hay insumos guardados todavía.</div>';
     return;
   }
+
   wrap.innerHTML=arr.map((it,idx)=>`
-    <div class="tableCard" style="display:flex;gap:12px;align-items:center;justify-content:space-between">
-      <div style="font-weight:950">
-        ${escapeHtml(it.name)}<div class="subhead" style="margin:4px 0 0;font-weight:900">${money(it.pack)} / paquete</div>
+    <div class="tableCard cuCatRow">
+      <div class="cuCatInfo">
+        <div class="cuCatName">${escapeHtml(it.name)}</div>
+        <div class="cuCatCost">Costo: <b>${money(it.pack)}</b> / paquete</div>
       </div>
-      <button style="width:auto;min-width:120px;background:var(--danger)" onclick="cuDeleteCatalog(${idx})">Eliminar</button>
+      <div class="cuCatActions">
+        <button class="cuBtnEdit" onclick="cuStartEditCatalog(${idx})">Editar</button>
+        <button class="cuBtnDel" onclick="cuDeleteCatalog(${idx})">Eliminar</button>
+      </div>
     </div>
   `).join("");
 }
@@ -2572,21 +3606,95 @@ function cuSaveCatalogItem(){
   const name=toTitleCase((nameEl?.value||"").trim());
   const pack=Number(packEl?.value)||0;
   if(!name){ AppUI.toast("Pon el nombre del insumo"); return; }
-  const arr=cuNormalizeCatalog([...cuGetCatalog(), {name, pack}]);
+
+  const catalog=[...cuGetCatalog()];
+  const wasEditing = (cuCatEditIndex!==null && catalog[cuCatEditIndex]);
+
+  if(wasEditing){
+    catalog[cuCatEditIndex]={...catalog[cuCatEditIndex], name, pack};
+  }else{
+    catalog.push({name, pack});
+  }
+
+  const arr=cuNormalizeCatalog(catalog);
   cuSetCatalog(arr);
-  if(nameEl) nameEl.value="";
-  if(packEl) packEl.value="";
+  cuApplyCatalogUpdates();
+
+  cuCancelEditCatalog(true);
   cuRenderCatalog();
-  AppUI.toast("✅ Insumo guardado en catálogo");
+
+  AppUI.toast(wasEditing ? "✅ Insumo actualizado" : "✅ Insumo guardado en catálogo");
 }
 async function cuDeleteCatalog(idx){
   if(!(await AppUI.confirm("¿Eliminar este insumo del catálogo?", "Eliminar", true))) return;
   const arr=cuNormalizeCatalog(cuGetCatalog());
   arr.splice(idx,1);
   cuSetCatalog(arr);
+  cuApplyCatalogUpdates();
   cuRenderCatalog();
   // Si hay filas usando ese catálogo, no las borro; solo se quedan con nombre/costo ya escrito.
 }
+
+/* Si editas un insumo en Catálogo, actualiza costo en CU si ya lo elegiste */
+function cuApplyCatalogUpdates(){
+  try{
+    const catalog = cuNormalizeCatalog(cuGetCatalog());
+    const map = new Map(catalog.map(it => [cuNormKey(it.name), it]));
+    let changed = false;
+
+    cuRows.forEach(r=>{
+      const key = cuNormKey(r.cat || r.name);
+      const it = map.get(key);
+      if(it){
+        const pack = Number(it.pack)||0;
+        if(r.pack !== pack || r.name !== it.name || r.cat !== it.name){
+          r.pack = pack;
+          r.name = it.name;
+          r.cat  = it.name;
+          changed = true;
+        }
+      }
+    });
+
+    if(changed){
+      cuRender();
+    }
+  }catch(e){
+    console.warn("cuApplyCatalogUpdates:", e);
+  }
+}
+
+function cuSetEditMode(on){
+  const saveBtn=document.getElementById("cuCatSaveBtn");
+  const cancelBtn=document.getElementById("cuCatCancelBtn");
+  if(saveBtn) saveBtn.textContent = on ? "Actualizar insumo" : "Guardar insumo";
+  if(cancelBtn) cancelBtn.style.display = on ? "inline-flex" : "none";
+}
+function cuStartEditCatalog(idx){
+  const arr=cuNormalizeCatalog(cuGetCatalog());
+  const it=arr[idx];
+  if(!it) return;
+  cuCatEditIndex=idx;
+  const nameEl=document.getElementById("cuCatName");
+  const packEl=document.getElementById("cuCatPack");
+  if(nameEl) nameEl.value = it.name || "";
+  if(packEl) packEl.value = (it.pack ?? "");
+  cuSetEditMode(true);
+  // sube al inicio de la hoja para editar cómodo
+  const sheet=document.getElementById("cuCatalogSheet");
+  if(sheet) sheet.scrollTo({top:0, behavior:"smooth"});
+  AppUI.toast("✏️ Editando insumo");
+}
+function cuCancelEditCatalog(silent){
+  cuCatEditIndex=null;
+  const nameEl=document.getElementById("cuCatName");
+  const packEl=document.getElementById("cuCatPack");
+  if(nameEl) nameEl.value="";
+  if(packEl) packEl.value="";
+  cuSetEditMode(false);
+  if(!silent) AppUI.toast("Edición cancelada");
+}
+
 function cuCatalogOptionsHTML(selected){
   const arr=cuNormalizeCatalog(cuGetCatalog());
   const selRaw=(selected||"");
@@ -2746,6 +3854,27 @@ function cuPerInsumo(r){
 }
 
 function cuInit(){
+
+  // ✅ Asegura receta base de VAINILLA (solo si falta o está vacía)
+  try{
+    const __r = cuGetRecipes();
+    const __k = "VAINILLA";
+    if(!Array.isArray(__r[__k]) || __r[__k].length===0){
+      __r[__k] = [
+        {cat:"", name:"Leche",           pack:10, qty:1,   yield:9},
+        {cat:"", name:"Lechera",         pack:20, qty:0.5, yield:9},
+        {cat:"", name:"Leche en polvo",  pack:51, qty:1,   yield:71},
+        {cat:"", name:"Media crema",     pack:10, qty:1,   yield:9},
+        {cat:"", name:"Leche evaporada", pack:39, qty:1,   yield:36},
+        {cat:"", name:"Azucar",          pack:20, qty:1,   yield:140},
+        {cat:"", name:"Bolsa",           pack:50, qty:1,   yield:300},
+        {cat:"", name:"Etiqueta",        pack:1,  qty:1,   yield:1},
+        {cat:"", name:"Vainilla",        pack:9,  qty:1,   yield:9}
+      ];
+      cuSetRecipes(__r);
+    }
+  }catch(_){}
+
  const sel=document.getElementById("cuFlavor");
  // restaurar selección guardada
  try{
@@ -2803,7 +3932,7 @@ function cuRender(){
    </div>
 
 
-<div class="row3" style="margin-top:10px">
+<div class="row3 cuBtns" style="margin-top:10px">
     <div>
      <div class="lbl">COSTO PAQUETE ($)</div>
      <input type="number" step="0.01" min="0" value="${Number(r.pack)||0}"
@@ -3777,7 +4906,149 @@ if ("serviceWorker" in navigator) {
 })();
 </script>
 
+
+<script>
+/* =========================
+   UI ONLY: Tap animation + ripple + +1/-1 HUD
+   (No cambia cálculos ni datos)
+========================= */
+(function(){
+  function addRipple(btn, ev){
+    try{
+      // ✅ evita saturación si picas en chinga
+      const existing = btn.querySelectorAll('.ripple');
+      if(existing && existing.length>2) return;
+      const r = document.createElement('span');
+      r.className='ripple';
+      const rect = btn.getBoundingClientRect();
+      const size = Math.max(rect.width, rect.height) * 1.35;
+      r.style.width = r.style.height = size + 'px';
+      const x = (ev && ev.clientX ? ev.clientX : (rect.left + rect.width/2)) - rect.left - size/2;
+      const y = (ev && ev.clientY ? ev.clientY : (rect.top + rect.height/2)) - rect.top - size/2;
+      r.style.left = x + 'px';
+      r.style.top  = y + 'px';
+      btn.appendChild(r);
+      setTimeout(()=>{ r.remove(); }, 520);
+    }catch(_){}
+  }
+
+  // HUD: muestra +1 +2 -1 acumulado si picas rápido
+  const acc = new Map(); // key (data-i) -> {t, v}
+  function showDelta(btn, delta){
+    // buscamos la card contenedora si existe
+    const card = btn.closest('.card') || btn.closest('.menuBtn') || btn;
+    if(!card) return;
+
+    let hud = card.querySelector('.deltaHUD');
+    if(!hud){
+      hud = document.createElement('div');
+      hud.className='deltaHUD';
+      card.appendChild(hud);
+    }
+
+    // ✅ Posiciona el HUD pegadito al número grande (.qty)
+    try{
+      const qtyEl = card.querySelector('.qty');
+      if(qtyEl){
+        const cr = card.getBoundingClientRect();
+        const qr = qtyEl.getBoundingClientRect();
+        // a la derecha del número, centrado verticalmente
+        const top  = (qr.top - cr.top) + (qr.height*0.18);
+        const left = (qr.right - cr.left) + 10;
+        hud.style.top  = Math.max(10, top) + 'px';
+        hud.style.left = Math.max(10, left) + 'px';
+        hud.style.right = 'auto';
+        hud.style.bottom = 'auto';
+      }
+    }catch(_){}
+    const now = Date.now();
+    // ✅ Usa el índice del sabor (data-i) para NO perder acumulación aunque la card se re-renderice
+    const key = (card && card.dataset && card.dataset.i!=null) ? String(card.dataset.i) : 'global';
+    const prev = acc.get(key) || {t:0, v:0};
+    const v = (now - prev.t < 900) ? (prev.v + delta) : delta; // ventana más amplia
+    acc.set(key, {t: now, v});
+    hud.textContent = (v>0? '+'+v : ''+v);
+    hud.style.color = v>0 ? '#16a34a' : '#ef4444';
+    hud.style.background = v>0 ? 'rgba(240,253,244,.92)' : 'rgba(254,242,242,.92)';
+
+    // ✅ Reinicia animación aunque se esté mostrando
+    hud.classList.remove('show','hide');
+    void hud.offsetWidth; // reflow
+    hud.classList.add('show');
+
+    clearTimeout(hud.__tm);
+    hud.__tm = setTimeout(()=>{
+      hud.classList.remove('show');
+      hud.classList.add('hide');
+    }, 2200); // dura más
+  }
+
+  function enhanceButton(btn){
+    if(btn.__enhanced) return;
+    btn.__enhanced = true;
+
+    // Para que Android sí dispare :active visual
+    btn.style.webkitTapHighlightColor = 'transparent';
+    btn.style.touchAction = 'manipulation';
+
+    btn.addEventListener('pointerdown', (e)=>{
+      btn.classList.add('tapFX');
+      addRipple(btn, e);
+      // ✅ Vibración (si el dispositivo lo permite)
+      try{
+        if(navigator.vibrate){
+          if(btn.classList.contains('sell')) navigator.vibrate([12]);
+          else navigator.vibrate([8]);
+        }
+      }catch(_){ }
+
+      // Detectar botones de + / - / vender por clase (solo UI)
+      if(btn.classList.contains('plus'))  showDelta(btn, +1);
+      if(btn.classList.contains('minus')) showDelta(btn, -1);
+      // Vender: solo muestra un pequeño "flash" visual (sin tocar lógica)
+      if(btn.classList.contains('sell'))  showDelta(btn, -1);
+
+      setTimeout(()=>btn.classList.remove('tapFX'), 160);
+    }, {passive:true});
+  }
+
+  function scan(){
+    document.querySelectorAll('button, .btn, .pill, .menuBtn, .closeBtn').forEach(enhanceButton);
+
+    // Delegación: colapsar/expandir tarjeta SOLO si tocas la tarjeta (no botones)
+    if(!window.__hcInvCollapseBound){
+      window.__hcInvCollapseBound = true;
+      document.addEventListener('click', (e)=>{
+        const card = e.target.closest('.inv-card');
+        if(!card) return;
+        // No colapsar si tocaste un botón/selector dentro
+        if(e.target.closest('button, .btn, select, input, textarea, label, a')) return;
+        const key = card.getAttribute('data-name');
+        if(!key) return;
+        toggleInvCardByKey(key);
+      }, {passive:true});
+    }
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', scan);
+  }else{
+    scan();
+  }
+  // ✅ Observa cambios de DOM sin estar escaneando cada 1.5s (mejor rendimiento)
+  try{
+    const mo = new MutationObserver((mutList)=>{
+      for(const m of mutList){
+        if(m.addedNodes && m.addedNodes.length){
+          scan();
+          break;
+        }
+      }
+    });
+    mo.observe(document.documentElement, {childList:true, subtree:true});
+  }catch(_){ }
+})();
+</script>
+
 </body>
 </html>
-
-// WARNING: exportData no encontrada automáticamente
