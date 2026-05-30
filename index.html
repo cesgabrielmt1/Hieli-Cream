@@ -1271,6 +1271,91 @@ align-items:center;text-align:center;}
 .card{ cursor:pointer; }
 .card .gear, .card .btn{ cursor:pointer; }
 
+
+/* --- Estilos del Título con Degradado de Logo y Tarjeta Alineada --- */
+.container-cabecera-simetrica {
+    width: 100% !important;
+    max-width: 680px !important; /* Ajuste perfecto al ancho de las tarjetas de abajo */
+    margin: 0 auto 28px auto !important;
+    box-sizing: border-box !important;
+    padding: 0 4px !important;
+}
+
+.titleWrap {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex-wrap: nowrap !important; /* Mantiene estrictamente en la misma fila horizontal */
+    width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.brand-container-stack {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
+}
+
+.text-inventario-top {
+    font-size: 14px !important;
+    font-weight: 800 !important;
+    color: #64748b !important;
+    letter-spacing: 1.8px !important;
+    text-transform: uppercase !important;
+    margin: 0 !important;
+    line-height: 1 !important;
+}
+
+/* El degradado exacto de la imagen del logo: Lila (#a78bfa), Rosa (#ff6b9d) y Azul Cielo (#38bdf8) */
+.titleBrand-custom {
+    font-size: 32px !important;
+    font-weight: 1000 !important;
+    letter-spacing: -0.5px !important;
+    margin: 0 !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+    background: linear-gradient(135deg, #a78bfa 0%, #ff6b9d 50%, #38bdf8 100%) !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    color: transparent !important;
+    display: inline-block !important;
+}
+
+/* Tarjeta del total con el tamaño grande y balanceado */
+.tarjeta-total-superior-grande {
+    background: #ffffff !important;
+    padding: 12px 22px !important;
+    border-radius: 18px !important;
+    border-left: 6px solid #38bdf8 !important; /* Pestaña azul cielo */
+    box-shadow: 0 6px 16px rgba(0,0,0,0.05) !important;
+    text-align: right !important;
+    flex-shrink: 0 !important;
+    display: inline-block !important;
+}
+
+.tarjeta-total-superior-grande p {
+    font-size: 11px !important;
+    color: #64748b !important;
+    text-transform: uppercase !important;
+    font-weight: 800 !important;
+    margin: 0 0 4px 0 !important;
+    line-height: 1 !important;
+    letter-spacing: 0.5px !important;
+}
+
+.tarjeta-total-superior-grande span {
+    font-size: 32px !important;
+    font-weight: 1000 !important;
+    color: #0f172a !important;
+    line-height: 1 !important;
+    display: block !important;
+}
+
 </style>
 
 <link rel="manifest" href="manifest.webmanifest">
@@ -1285,10 +1370,18 @@ align-items:center;text-align:center;}
 <body>
 
 
-<h1 class="titleWrap">
-  <span class="titleTop">INVENTARIO</span>
-  <span class="titleBrand">HIELI CREAM</span>
-</h1>
+<div class="container-cabecera-simetrica">
+  <h1 class="titleWrap">
+    <div class="brand-container-stack">
+      <span class="text-inventario-top">INVENTARIO</span>
+      <span class="titleBrand-custom">HIELI CREAM</span>
+    </div>
+    <div class="tarjeta-total-superior-grande">
+      <p>Total Hielitos</p>
+      <span id="contador-grande-realtime">0</span>
+    </div>
+  </h1>
+</div>
 
 
 
@@ -5047,6 +5140,30 @@ if ("serviceWorker" in navigator) {
     });
     mo.observe(document.documentElement, {childList:true, subtree:true});
   }catch(_){ }
+})();
+</script>
+
+
+<script>
+(function() {
+    function actualizarContadorGrande() {
+        let acumulado = 0;
+        document.querySelectorAll('.qty').forEach(function(el) {
+            let cant = parseInt(el.textContent || el.innerText || 0);
+            if (!isNaN(cant) && cant > 0) {
+                acumulado += cant;
+            }
+        });
+        const display = document.getElementById('contador-grande-realtime');
+        if (display) {
+            display.textContent = acumulado;
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        actualizarContadorGrande();
+        setInterval(actualizarContadorGrande, 1000);
+    });
 })();
 </script>
 
