@@ -11,11 +11,938 @@
 <title>Inventario Hieli Cream PRO</title>
 
 <!-- Librerías -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js">
+function compararPeriodo(){
+    const inicio = document.getElementById("fechaInicio").value;
+    const fin = document.getElementById("fechaFin").value;
+    if(!inicio || !fin) { alert("Selecciona ambas fechas"); return; }
+    
+    // Filtramos ventas en el rango
+    const rango = ventasDinero.filter(v => v.fecha >= inicio && v.fecha <= fin);
+    
+    
+    const cantidad = rango.length;
+
+    const anchoDinamico =
+      cantidad <= 1 ? 420 :
+      cantidad <= 2 ? 420 :
+      cantidad <= 4 ? 460 :
+      cantidad * 70;
+
+    const moneyInner = document.querySelector('.moneyChartInner');
+
+    if(moneyInner){
+      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+    }
+
+// Calculamos totales del rango
+    let totGasto = rango.reduce((a,b) => a + Number(b.gasto), 0);
+    let totGanancia = rango.reduce((a,b) => a + Number(b.ganancia), 0);
+    
+    // Actualizamos tarjetas de arriba con el total del rango comparativo
+    document.getElementById("ventasIngresos").textContent = `$${(totGasto + totGanancia).toFixed(2)}`;
+    document.getElementById("ventasGanancias").textContent = `$${totGanancia.toFixed(2)}`;
+    document.getElementById("ventasCosto").textContent = `$${totGasto.toFixed(2)}`;
+    
+    // Renderizamos la gráfica comparativa
+    if(window.ventasChartObj) window.ventasChartObj.destroy();
+    const canvas = document.getElementById('ventasChart');
+    canvas.closest('.chartPanel').style.display = 'block';
+    
+    window.ventasChartObj = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: rango.map(v => v.fecha),
+            datasets: [
+                { label: 'Costos', data: rango.map(v => v.gasto), backgroundColor:'#ef4444', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 },
+                { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 }
+            ]
+        },
+        
+options:{
+ responsive:true,
+            maintainAspectRatio:false,
+      maintainAspectRatio:false,
+ maintainAspectRatio:false,
+ animation:true,
+
+ layout:{
+   padding:{
+     top:30,
+     bottom:10,
+     left:10,
+     right:20
+   }
+ },
+
+ plugins:{
+   legend:{
+     display:true,
+     position:'top',
+     labels:{
+       usePointStyle:true,
+       pointStyle:'circle',
+       padding:18,
+       font:{
+         size:13,
+         weight:'bold'
+       }
+     }
+   },
+
+   tooltip:{
+     enabled:true
+   },
+
+   datalabels:{
+     color:'#0f172a',
+     anchor:'end',
+     align:'top',
+     offset:6,
+     clamp:true,
+     clip:false,
+     font:{
+       size:11,
+       weight:'bold'
+     }
+   }
+ },
+
+ scales:{
+
+   x:{ stacked:true,
+     offset:true,
+
+     ticks:{
+       autoSkip:false,
+       maxRotation:55,
+       minRotation:55,
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       display:false
+     }
+   },
+
+   y:{ stacked:true, beginAtZero:true,
+     beginAtZero:true,
+
+     ticks:{
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       color:'rgba(148,163,184,.15)'
+     }
+   }
+ }
+, plugins: { datalabels: { display: false } } }
+    });
+}
+
+</script>
+
+<script>
+  // Configuración global para evitar barras gruesas y estiradas en todo Hieli Cream
+  if (typeof Chart !== 'undefined') {
+      Chart.defaults.datasets.bar.maxBarThickness = 45; // Evita que se hagan gordas
+      Chart.defaults.datasets.bar.borderRadius = 6;    // Bordes estéticos
+  }
+</script>
+
+<script>
+function actualizarTextoVentaBtn(){
+ const fecha=document.getElementById('ventaFecha')?.value;
+ const btn=document.getElementById('ventasBtnGuardar');
+ if(!fecha||!btn||!Array.isArray(ventasDinero)) return;
+ const existe=ventasDinero.find(v=>v.fecha===fecha);
+ btn.textContent=existe?'Editar venta':'Guardar venta';
+}
+
+document.addEventListener('change',function(e){
+ if(e.target && e.target.id==='ventaFecha'){
+   actualizarTextoVentaBtn();
+ }
+});
+
+
+function sincronizarMontoPorFecha(){
+ const fecha=document.getElementById('ventaFecha');
+ const monto=document.getElementById('ventaMonto');
+ if(!fecha || !monto) return;
+ const reg=ventasDinero.find(v=>v.fecha===fecha.value);
+ if(reg){
+    monto.value=reg.vendido || '';
+ }else{
+    monto.value='';
+ }
+ actualizarTextoVentaBtn();
+ if(typeof renderVentas === 'function') {
+   renderVentas();
+ }
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+ const fecha=document.getElementById('ventaFecha');
+ if(fecha){
+   fecha.addEventListener('change', sincronizarMontoPorFecha);
+   fecha.addEventListener('input', sincronizarMontoPorFecha);
+ }
+ // Sincronizar de inmediato al cargar la app
+ setTimeout(sincronizarMontoPorFecha, 500);
+});
+
+
+function renderVentasChart(){
+ const canvas=document.getElementById('ventasChart');
+ if(!canvas) return;
+
+ const panelGrf = canvas.closest('.chartPanel');
+ const fechaInput = document.getElementById("ventaFecha");
+ const chosenDate = fechaInput ? fechaInput.value : todayLocalISO();
+
+ // Buscar si el día seleccionado tiene registro de venta
+ const registroDia = ventasDinero.find(v => v.fecha === chosenDate);
+
+ // Si el día actual no tiene ventas registradas, ocultamos la gráfica por completo como solicitaste
+ if(!registroDia || (Number(registroDia.vendido) === 0 && Number(registroDia.gasto) === 0)) {
+   if(panelGrf) panelGrf.style.display = 'none';
+   if(window.ventasChartObj){ window.ventasChartObj.destroy(); window.ventasChartObj = null; }
+   return;
+ } else {
+   if(panelGrf) panelGrf.style.display = 'block';
+ }
+
+ // Solo graficamos los datos del día seleccionado para que no se desborde ni requiera scroll
+ const labels = [registroDia.fecha];
+ const gastosData = [Number(registroDia.gasto || 0)];
+ const gananciasData = [Number(registroDia.ganancia || 0)];
+
+ if(window.ventasChartObj){
+   window.ventasChartObj.destroy();
+ }
+
+ window.ventasChartObj=new Chart(canvas,{
+   type:'bar',
+   data:{
+     labels:labels,
+     datasets:[
+       {
+         label: 'Costos',
+         data:gastosData,
+         backgroundColor:'#ef4444', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8,
+         
+       },
+       {
+         label:'Ganancias',
+         data:gananciasData,
+         backgroundColor:'#22c55e', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8,
+         
+       }
+     ]
+   },
+   
+options:{
+ responsive:true,
+            maintainAspectRatio:false,
+      maintainAspectRatio:false,
+ maintainAspectRatio:false,
+ animation:true,
+
+ layout:{
+   padding:{
+     top:30,
+     bottom:10,
+     left:10,
+     right:20
+   }
+ },
+
+ plugins:{
+   legend:{
+     display:true,
+     position:'top',
+     labels:{
+       usePointStyle:true,
+       pointStyle:'circle',
+       padding:18,
+       font:{
+         size:13,
+         weight:'bold'
+       }
+     }
+   },
+
+   tooltip:{
+     enabled:true
+   },
+
+   datalabels:{
+     color:'#0f172a',
+     anchor:'end',
+     align:'top',
+     offset:6,
+     clamp:true,
+     clip:false,
+     font:{
+       size:11,
+       weight:'bold'
+     }
+   }
+ },
+
+ scales:{
+
+   x:{
+     offset:true,
+
+     ticks:{
+       autoSkip:false,
+       maxRotation:55,
+       minRotation:55,
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       display:false
+     }
+   },
+
+   y:{
+     beginAtZero:true,
+
+     ticks:{
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       color:'rgba(148,163,184,.15)'
+     }
+   }
+ }
+,
+
+     plugins:{
+       legend:{
+         position:'top',
+         labels:{
+           boxWidth:12,
+           padding:14,
+           font:{
+             size:12,
+             weight:'bold'
+           }
+         }
+       },
+
+       datalabels:{
+         color:'#111827',
+         anchor:'end',
+         align:'top',
+         offset:4,
+         clamp:true,
+         font:{
+           weight:'bold',
+           size:10
+         },
+         formatter:(v)=>v
+       }
+     },
+
+     scales:{
+       x:{
+         ticks:{
+           color:'#334155',
+           maxRotation:55,
+           minRotation:55,
+           autoSkip:false,
+           font:{
+             size:10,
+             weight:'bold'
+           }
+         },
+         grid:{
+           display:false
+         }
+       },
+
+       y:{
+         beginAtZero:true,
+         ticks:{
+           color:'#334155',
+           font:{
+             weight:'bold'
+           }
+         }
+       }
+     },
+     plugins: {
+       legend: { display: true, position: 'top' },
+       datalabels: { display: false } // Desactivar números sobre las barras
+     },
+     scales: {
+       x: {
+         grid: { display: false }
+       },
+       y: {
+         beginAtZero: true
+       }
+     }
+   }
+ });
+}
+
+
+function compararPeriodo(){
+    const inicio = document.getElementById("fechaInicio").value;
+    const fin = document.getElementById("fechaFin").value;
+    if(!inicio || !fin) { alert("Selecciona ambas fechas"); return; }
+    
+    // Filtramos ventas en el rango
+    const rango = ventasDinero.filter(v => v.fecha >= inicio && v.fecha <= fin);
+    
+    
+    const cantidad = rango.length;
+
+    const anchoDinamico =
+      cantidad <= 1 ? 420 :
+      cantidad <= 2 ? 420 :
+      cantidad <= 4 ? 460 :
+      cantidad * 70;
+
+    const moneyInner = document.querySelector('.moneyChartInner');
+
+    if(moneyInner){
+      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+    }
+
+// Calculamos totales del rango
+    let totGasto = rango.reduce((a,b) => a + Number(b.gasto), 0);
+    let totGanancia = rango.reduce((a,b) => a + Number(b.ganancia), 0);
+    
+    // Actualizamos tarjetas de arriba con el total del rango comparativo
+    document.getElementById("ventasIngresos").textContent = `$${(totGasto + totGanancia).toFixed(2)}`;
+    document.getElementById("ventasGanancias").textContent = `$${totGanancia.toFixed(2)}`;
+    document.getElementById("ventasCosto").textContent = `$${totGasto.toFixed(2)}`;
+    
+    // Renderizamos la gráfica comparativa
+    if(window.ventasChartObj) window.ventasChartObj.destroy();
+    const canvas = document.getElementById('ventasChart');
+    canvas.closest('.chartPanel').style.display = 'block';
+    
+    window.ventasChartObj = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: rango.map(v => v.fecha),
+            datasets: [
+                { label: 'Costos', data: rango.map(v => v.gasto), backgroundColor:'#ef4444', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 },
+                { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 }
+            ]
+        },
+        
+options:{
+ responsive:true,
+            maintainAspectRatio:false,
+      maintainAspectRatio:false,
+ maintainAspectRatio:false,
+ animation:true,
+
+ layout:{
+   padding:{
+     top:30,
+     bottom:10,
+     left:10,
+     right:20
+   }
+ },
+
+ plugins:{
+   legend:{
+     display:true,
+     position:'top',
+     labels:{
+       usePointStyle:true,
+       pointStyle:'circle',
+       padding:18,
+       font:{
+         size:13,
+         weight:'bold'
+       }
+     }
+   },
+
+   tooltip:{
+     enabled:true
+   },
+
+   datalabels:{
+     color:'#0f172a',
+     anchor:'end',
+     align:'top',
+     offset:6,
+     clamp:true,
+     clip:false,
+     font:{
+       size:11,
+       weight:'bold'
+     }
+   }
+ },
+
+ scales:{
+
+   x:{
+     offset:true,
+
+     ticks:{
+       autoSkip:false,
+       maxRotation:55,
+       minRotation:55,
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       display:false
+     }
+   },
+
+   y:{
+     beginAtZero:true,
+
+     ticks:{
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       color:'rgba(148,163,184,.15)'
+     }
+   }
+ }
+, plugins: { datalabels: { display: false } } }
+    });
+}
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2">
+function compararPeriodo(){
+    const inicio = document.getElementById("fechaInicio").value;
+    const fin = document.getElementById("fechaFin").value;
+    if(!inicio || !fin) { alert("Selecciona ambas fechas"); return; }
+    
+    // Filtramos ventas en el rango
+    const rango = ventasDinero.filter(v => v.fecha >= inicio && v.fecha <= fin);
+    
+    
+    const cantidad = rango.length;
+
+    const anchoDinamico =
+      cantidad <= 1 ? 420 :
+      cantidad <= 2 ? 420 :
+      cantidad <= 4 ? 460 :
+      cantidad * 70;
+
+    const moneyInner = document.querySelector('.moneyChartInner');
+
+    if(moneyInner){
+      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+    }
+
+// Calculamos totales del rango
+    let totGasto = rango.reduce((a,b) => a + Number(b.gasto), 0);
+    let totGanancia = rango.reduce((a,b) => a + Number(b.ganancia), 0);
+    
+    // Actualizamos tarjetas de arriba con el total del rango comparativo
+    document.getElementById("ventasIngresos").textContent = `$${(totGasto + totGanancia).toFixed(2)}`;
+    document.getElementById("ventasGanancias").textContent = `$${totGanancia.toFixed(2)}`;
+    document.getElementById("ventasCosto").textContent = `$${totGasto.toFixed(2)}`;
+    
+    // Renderizamos la gráfica comparativa
+    if(window.ventasChartObj) window.ventasChartObj.destroy();
+    const canvas = document.getElementById('ventasChart');
+    canvas.closest('.chartPanel').style.display = 'block';
+    
+    window.ventasChartObj = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: rango.map(v => v.fecha),
+            datasets: [
+                { label: 'Costos', data: rango.map(v => v.gasto), backgroundColor:'#ef4444', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 },
+                { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 }
+            ]
+        },
+        
+options:{
+ responsive:true,
+            maintainAspectRatio:false,
+      maintainAspectRatio:false,
+ maintainAspectRatio:false,
+ animation:true,
+
+ layout:{
+   padding:{
+     top:30,
+     bottom:10,
+     left:10,
+     right:20
+   }
+ },
+
+ plugins:{
+   legend:{
+     display:true,
+     position:'top',
+     labels:{
+       usePointStyle:true,
+       pointStyle:'circle',
+       padding:18,
+       font:{
+         size:13,
+         weight:'bold'
+       }
+     }
+   },
+
+   tooltip:{
+     enabled:true
+   },
+
+   datalabels:{
+     color:'#0f172a',
+     anchor:'end',
+     align:'top',
+     offset:6,
+     clamp:true,
+     clip:false,
+     font:{
+       size:11,
+       weight:'bold'
+     }
+   }
+ },
+
+ scales:{
+
+   x:{
+     offset:true,
+
+     ticks:{
+       autoSkip:false,
+       maxRotation:55,
+       minRotation:55,
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       display:false
+     }
+   },
+
+   y:{
+     beginAtZero:true,
+
+     ticks:{
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       color:'rgba(148,163,184,.15)'
+     }
+   }
+ }
+, plugins: { datalabels: { display: false } } }
+    });
+}
+
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
+function compararPeriodo(){
+    const inicio = document.getElementById("fechaInicio").value;
+    const fin = document.getElementById("fechaFin").value;
+    if(!inicio || !fin) { alert("Selecciona ambas fechas"); return; }
+    
+    // Filtramos ventas en el rango
+    const rango = ventasDinero.filter(v => v.fecha >= inicio && v.fecha <= fin);
+    
+    
+    const cantidad = rango.length;
+
+    const anchoDinamico =
+      cantidad <= 1 ? 420 :
+      cantidad <= 2 ? 420 :
+      cantidad <= 4 ? 460 :
+      cantidad * 70;
+
+    const moneyInner = document.querySelector('.moneyChartInner');
+
+    if(moneyInner){
+      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+    }
+
+// Calculamos totales del rango
+    let totGasto = rango.reduce((a,b) => a + Number(b.gasto), 0);
+    let totGanancia = rango.reduce((a,b) => a + Number(b.ganancia), 0);
+    
+    // Actualizamos tarjetas de arriba con el total del rango comparativo
+    document.getElementById("ventasIngresos").textContent = `$${(totGasto + totGanancia).toFixed(2)}`;
+    document.getElementById("ventasGanancias").textContent = `$${totGanancia.toFixed(2)}`;
+    document.getElementById("ventasCosto").textContent = `$${totGasto.toFixed(2)}`;
+    
+    // Renderizamos la gráfica comparativa
+    if(window.ventasChartObj) window.ventasChartObj.destroy();
+    const canvas = document.getElementById('ventasChart');
+    canvas.closest('.chartPanel').style.display = 'block';
+    
+    window.ventasChartObj = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: rango.map(v => v.fecha),
+            datasets: [
+                { label: 'Costos', data: rango.map(v => v.gasto), backgroundColor:'#ef4444', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 },
+                { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 }
+            ]
+        },
+        
+options:{
+ responsive:true,
+            maintainAspectRatio:false,
+      maintainAspectRatio:false,
+ maintainAspectRatio:false,
+ animation:true,
+
+ layout:{
+   padding:{
+     top:30,
+     bottom:10,
+     left:10,
+     right:20
+   }
+ },
+
+ plugins:{
+   legend:{
+     display:true,
+     position:'top',
+     labels:{
+       usePointStyle:true,
+       pointStyle:'circle',
+       padding:18,
+       font:{
+         size:13,
+         weight:'bold'
+       }
+     }
+   },
+
+   tooltip:{
+     enabled:true
+   },
+
+   datalabels:{
+     color:'#0f172a',
+     anchor:'end',
+     align:'top',
+     offset:6,
+     clamp:true,
+     clip:false,
+     font:{
+       size:11,
+       weight:'bold'
+     }
+   }
+ },
+
+ scales:{
+
+   x:{
+     offset:true,
+
+     ticks:{
+       autoSkip:false,
+       maxRotation:55,
+       minRotation:55,
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       display:false
+     }
+   },
+
+   y:{
+     beginAtZero:true,
+
+     ticks:{
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       color:'rgba(148,163,184,.15)'
+     }
+   }
+ }
+, plugins: { datalabels: { display: false } } }
+    });
+}
+
+</script>
 
 <style>
+/* --- CORRECCIÓN DEFINITIVA DE GRÁFICAS INTELIGENTES --- */
+.chartScroll {
+  width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding-bottom: 16px !important;
+  display: block !important;
+}
+.chartScroll::-webkit-scrollbar {
+  height: 6px !important;
+}
+.chartScroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important;
+  border-radius: 10px !important;
+}
+.chart-wrap { position: relative !important; display: block !important; }
+/* Exceptuamos la de ventas para que se ajuste y mantenga centrada */
+.chart-wrap-ventas {
+  position: relative !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 320px !important;
+}
+
 :root{
  --bg:linear-gradient(180deg,#f8fafc,#eef2ff);
  --glass:rgba(255,255,255,.94);
@@ -205,15 +1132,8 @@ min-height:92px;}
 .kpiBox .v{font-size:1.25rem;font-weight:1000;margin-top:6px}
 
 /* GRÁFICA SCROLL */
-.chartScroll{overflow-x:auto;padding-bottom:10px}
-.chart-wrap{
-  border-radius: 22px;
-  background: linear-gradient(180deg, rgba(248,250,252,.96), rgba(241,245,249,.92));
-  border: 1px solid rgba(148,163,184,.14);
-  padding: 18px 16px 12px !important;
-  height: 420px !important;
-  width: 100% !important;
-}
+
+
 
 .savedStamp{margin:16px 0 10px;text-align:center;font-size:12px;color:rgba(100,116,139,.75);}
 
@@ -280,7 +1200,32 @@ min-height:92px;}
 .closeBtn{background:#111827 !important;margin-top:16px}
 
 /* Toggles (ventas / sabores) */
-.toggleRow{display:flex;gap:12px;justify-content:center;align-items:center;margin:16px 0 14px}
+
+.toggleRow{
+ display:grid;
+ grid-template-columns:1fr 1fr;
+ gap:12px;
+ margin:18px 0;
+}
+
+.pill{
+ width:100%;
+ border:none;
+ border-radius:18px;
+ padding:16px 10px;
+ font-size:1rem;
+ font-weight:900;
+ background:#e0e7ff;
+ color:#3730a3;
+ transition:.2s;
+}
+
+.pill.active{
+ background:#6366f1;
+ color:white;
+ box-shadow:0 10px 25px rgba(99,102,241,.35);
+}
+
 
 .pill{flex:1;max-width:320px;background:rgba(99,102,241,.14);border:0;border-radius:999px;padding:14px 18px;font-weight:900;color:#2d2f5f;display:flex;align-items:center;justify-content:center} 
 .pill.active{
@@ -953,9 +1898,9 @@ align-items:center;text-align:center;}
 
 /* Chart: evita “hueco” gigante en móviles */
 @media (max-width: 520px){
-  .chart-wrap{ height: 360px !important; }
+  
   .chart-wrap[style*="height:480px"]{ height: 360px !important; }
-  .chartScroll{ padding-bottom: 6px !important; }
+  
   .sheet{ padding-bottom: 12px !important; }
   .closeBtn{ margin-top: 12px !important; }
 }
@@ -988,7 +1933,7 @@ align-items:center;text-align:center;}
 
 /* Charts: más compactos en móvil para que quepan y se vean nombres */
 @media (max-width: 520px){
-  .chart-wrap{ height: 320px !important; }
+  
   canvas{
   display:block;
   margin:0;
@@ -1035,15 +1980,10 @@ align-items:center;text-align:center;}
   color: #0f172a;
   letter-spacing: .2px;
 }
-.chartScroll{ overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
-.chart-wrap{
-  width: 100% !important;
-  min-width: 0 !important;
-  padding-top: 18px !important; /* evita que se “coma” el título */
-  height: 420px !important;
-}
+
+
 @media (max-width:520px){
-  .chart-wrap{ height: 360px !important; }
+  
 }
 
 
@@ -1130,19 +2070,8 @@ align-items:center;text-align:center;}
   box-shadow: 0 18px 40px rgba(2,6,23,.10);
   backdrop-filter: blur(10px);
 }
-.chartScroll{
-  overflow-x: auto !important;
-  -webkit-overflow-scrolling: touch;
-}
-.chart-wrap{
-  border-radius: 22px;
-  background: linear-gradient(180deg, rgba(248,250,252,.96), rgba(241,245,249,.92));
-  border: 1px solid rgba(148,163,184,.14);
-  padding: 18px 16px 12px !important;
-  height: 420px !important;
-  width: max-content !important;
-  min-width: 100% !important;
-}
+
+
 
 /* Reduce close-button empty space in modals/sections if any */
 .sheetFooter{
@@ -1170,15 +2099,8 @@ align-items:center;text-align:center;}
 }
 
 /* --- FIX: keep chart labels inside the gray card + avoid canvas overflow --- */
-.chart-wrap{
-  overflow: hidden !important;
-  padding-bottom: 26px !important; /* extra room for rotated labels */
-}
-.chart-wrap canvas{
-  display:block;
-  width:100% !important;
-  height:100% !important;
-}
+
+
 
 
 @media (max-width: 360px){
@@ -1356,7 +2278,182 @@ align-items:center;text-align:center;}
     display: block !important;
 }
 
+
+
+.moneyChartScroll{
+  width:100%;
+  overflow-x:auto;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+}
+
+.moneyChartInner{
+  height:420px;
+  min-width:100%;
+  padding-right:20px;
+  position:relative;
+}
+
+.moneyChartInner canvas{
+  display:block;
+  width:100% !important;
+  height:420px !important;
+}
+
+/* ===== GRÁFICAS RESPONSIVE PRO ===== */
+
+.chartPanel{
+  margin-top:18px;
+  background:#fff;
+  border-radius:24px;
+  padding:18px;
+  box-shadow:0 10px 30px rgba(0,0,0,.08);
+  overflow:hidden;
+}
+
+.chartScroll{
+  width:100%;
+  overflow-x:auto;
+  overflow-y:hidden;
+  padding-bottom:10px;
+}
+
+.chart-wrap{
+  position:relative;
+  width:100%;
+  min-height:320px;
+  height:320px;
+}
+
+canvas{
+  width:100% !important;
+  height:100% !important;
+  display:block;
+  image-rendering:auto;
+}
+
+/* Mobile */
+@media (max-width:768px){
+
+  .chart-wrap{
+    height:280px;
+    min-height:280px;
+  }
+
+  .chartPanel{
+    padding:14px;
+    border-radius:22px;
+  }
+
+}
+
+
+/* ===== ULTRA RESPONSIVE CHARTS ===== */
+
+.chartPanel{
+  margin-top:20px;
+  background:#ffffff;
+  border-radius:28px;
+  padding:18px;
+  box-shadow:0 12px 35px rgba(0,0,0,.08);
+  overflow:hidden;
+}
+
+.chartScroll{
+  width:100%;
+  overflow-x:auto;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:14px;
+}
+
+.chartScroll canvas{
+  max-width:100% !important;
+}
+
+.chart-wrap{
+  position:relative;
+  width:100%;
+  height:280px;
+  min-width:100%;
+}
+
+
+
+/* Scroll bonito */
+.chartScroll::-webkit-scrollbar{
+  height:8px;
+}
+
+.chartScroll::-webkit-scrollbar-thumb{
+  background:#c7d2fe;
+  border-radius:999px;
+}
+
+/* Móvil */
+@media (max-width:768px){
+
+  .chartPanel{
+    padding:14px;
+    border-radius:24px;
+  }
+
+  .chart-wrap{
+    width:100%;
+    height:300px;
+    min-width:100%;
+  }
+
+}
+
 </style>
+
+<script>
+let ventaModoEdicion = false;
+
+function actualizarEstadoVenta(){
+ const fecha=document.getElementById('ventaFecha');
+ const monto=document.getElementById('ventaMonto');
+ const btn=document.getElementById('ventasBtnGuardar');
+ const btnEditar=document.getElementById('ventasBtnEditar');
+
+ if(!fecha || !monto || !btn) return;
+
+ const reg=ventasDinero.find(v=>v.fecha===fecha.value);
+
+ if(reg){
+   monto.value = reg.vendido || '';
+   monto.readOnly = !ventaModoEdicion;
+   monto.style.opacity = ventaModoEdicion ? '1' : '.65';
+   btn.textContent = ventaModoEdicion ? 'Actualizar venta' : 'Venta guardada';
+   if(btnEditar) btnEditar.style.display='block';
+ }else{
+   monto.value = '';
+   monto.readOnly = false;
+   monto.style.opacity = '1';
+   btn.textContent = 'Guardar venta';
+   if(btnEditar) btnEditar.style.display='none';
+ }
+}
+
+function activarEdicionVenta(){
+ ventaModoEdicion = true;
+ actualizarEstadoVenta();
+ document.getElementById('ventaMonto')?.focus();
+}
+
+document.addEventListener('change',function(e){
+ if(e.target && e.target.id==='ventaFecha'){
+   ventaModoEdicion = false;
+   setTimeout(actualizarEstadoVenta,100);
+ }
+});
+
+document.addEventListener('DOMContentLoaded',()=>{
+ setTimeout(actualizarEstadoVenta,500);
+});
+</script>
+
 
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#6366f1">
@@ -1446,6 +2543,12 @@ align-items:center;text-align:center;}
   <div class="mTitle">Compras</div>
   <div class="mSub">OC por críticos</div>
 </button>
+
+  <button class="menuBtn" onclick="goTo('ventas')">
+  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M8 19V11"/><path d="M12 19V7"/><path d="M16 19V13"/><path d="M20 19V9"/></svg></div>
+  <div class="mTitle">Ventas</div>
+  <div class="mSub">Ingresos diarios</div>
+</button>
  </div>
 
  <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
@@ -1516,6 +2619,66 @@ align-items:center;text-align:center;}
      (Restante del HTML + inicio JS base + helpers + render tarjetas + config + delete A)
 ========================= -->
 
+
+<!-- VENTAS -->
+
+<div class="sheet" id="ventasSheet">
+ <h2>Ventas</h2><div class="smallnote">Compara ingresos, gastos y ganancias automáticamente.</div>
+
+ <div style="display:flex;gap:10px;margin:12px 0 16px;">
+   <button type="button" onclick="showVentasTab('registro')" id="ventasTabRegistro">Registro</button>
+   <button type="button" onclick="showVentasTab('comparativa')" id="ventasTabComparativa">Comparativa</button>
+ </div>
+
+ <div id="ventasRegistroTab">
+   <div class="kpi2" style="display:block;">
+    <div class="kpiBox" style="width:100%;max-width:100%;"><div class="t">Ingreso</div><div class="v" id="ventasIngresos">$0.00</div></div>
+    <div class="kpiBox" style="display:none"><div class="kpiBox"><div class="t">Costo</div><div class="v" id="ventasCosto">$0.00</div></div></div>
+   </div>
+   <div class="kpi2" style="margin-top:10px;width:100%;display:block;">
+    <div class="kpiBox"><div class="t">Ganancia</div><div class="v" id="ventasGanancias">$0.00</div></div>
+   </div>
+
+   <div class="chartPanel" style="padding:15px; margin-bottom:20px;">
+    <h3 style="margin-top:0;">Registro Diario</h3>
+    <input type="date" id="ventaFecha">
+    <input type="number" id="ventaMonto" placeholder="Dinero vendido">
+    <button id="ventasBtnGuardar" onclick="guardarVentaDia()">Guardar venta</button>
+    <button id="ventasBtnEditar" onclick="activarEdicionVenta()" style="margin-top:10px;background:#111827;display:none;">Editar venta</button>
+   </div>
+   <div id="ventasHistorial" style="display:none!important;margin-top:18px"></div>
+ </div>
+
+ <div id="ventasComparativaTab" style="display:none;">
+   <div class="kpi2">
+    <div class="kpiBox"><div class="t">Ingreso Total</div><div class="v" id="ventasCompIngresos">$0.00</div></div>
+    <div class="kpiBox"><div class="t">Costo Total</div><div class="v" id="ventasCompCosto">$0.00</div></div>
+   </div>
+   <div class="kpi2" style="margin-top:10px;width:100%;display:block;">
+    <div class="kpiBox"><div class="t">Ganancia Total</div><div class="v" id="ventasCompGanancia">$0.00</div></div>
+   </div>
+
+   <div class="chartPanel" style="padding:15px; margin-bottom:20px;">
+    <h3 style="margin-top:0;">Comparar Periodo</h3>
+    <div style="display:flex; gap:10px; margin-bottom:10px;">
+        <input type="date" id="fechaInicio">
+        <input type="date" id="fechaFin">
+    </div>
+    <button onclick="compararPeriodo()">Comparar</button>
+   </div>
+
+   <div class="chartPanel">
+    <div class="chartScroll">
+     <div class="moneyChartScroll"><div class="moneyChartInner"><div class="chart-wrap-ventas" id="wrap-ventas"><div class="moneyChartScroll">
+      <div class="moneyChartInner"><canvas id="ventasChart"></canvas></div>
+     </div></div></div></div>
+    </div>
+   </div>
+ </div>
+
+ <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
+</div>
+
 <!-- STATS -->
 <div class="sheet" id="statsSheet">
  <h2>Gráficas</h2>
@@ -1573,9 +2736,7 @@ align-items:center;text-align:center;}
   <div class="top3Row" id="top3Wrap"></div>
 
   <div class="chartHeading">Ventas</div><div class="chartSectionTitle">Ventas</div><div class="chartPanel"><div class="chartScroll">
-   <div class="chart-wrap">
-    <canvas id="chart"></canvas>
-   </div>
+   <div class="chart-wrap" id="wrap-chart"><canvas id="chart"></canvas></div>
   </div></div><!-- /chartPanel -->
  </div>
 
@@ -1588,9 +2749,7 @@ align-items:center;text-align:center;}
   <div class="top3Row" id="top3CUWrap"></div>
 
   <div class="chartHeading">Sabores (CU)</div><div class="chartSectionTitle">Costo unitario</div><div class="chartPanel"><div class="chartScroll">
-   <div class="chart-wrap" style="height:480px">
-    <canvas id="chartCU"></canvas>
-   </div>
+   <div class="chart-wrap" id="wrap-chartCU"><canvas id="chartCU"></canvas></div>
   </div></div><!-- /chartPanel -->
  </div>
 
@@ -1798,6 +2957,7 @@ let inventory=safeParseJSON(localStorage.getItem("inventory"), null)||[
 ];
 
 let sales=safeParseJSON(localStorage.getItem("sales"), [])||[]; // {product,date,qty,costUnit?}
+let ventasDinero = JSON.parse(localStorage.getItem("ventasDinero") || "[]");
 
 // ---- MIGRACION DE REGISTROS ANTIGUOS (para que Graficas/Reportes lean la base vieja) ----
 function _normStr(v){return (v==null?"":String(v)).trim();}
@@ -2445,6 +3605,7 @@ function goTo(where){
  if(where==="io") ioSheet.classList.add("active");
  if(where==="cu"){cuSheet.classList.add("active"); cuInit();}
  if(where==="compras"){comprasSheet.classList.add("active"); renderCompras();}
+ if(where==="ventas"){ventasSheet.classList.add("active"); renderVentas();renderVentasChart();actualizarTextoVentaBtn();}
 }
 
 /* =========================
@@ -3136,6 +4297,162 @@ function initDbDefaults(){
 }
 
 /* ====== (sigue PARTE 3) ====== */
+
+function compararPeriodo(){
+    const inicio = document.getElementById("fechaInicio").value;
+    const fin = document.getElementById("fechaFin").value;
+    if(!inicio || !fin) { alert("Selecciona ambas fechas"); return; }
+    
+    // Filtramos ventas en el rango
+    const rango = ventasDinero.filter(v => v.fecha >= inicio && v.fecha <= fin);
+    
+    
+    const cantidad = rango.length;
+
+    const anchoDinamico =
+      cantidad <= 1 ? 420 :
+      cantidad <= 2 ? 420 :
+      cantidad <= 4 ? 460 :
+      cantidad * 70;
+
+    const moneyInner = document.querySelector('.moneyChartInner');
+
+    if(moneyInner){
+      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+    }
+
+// Calculamos totales del rango
+    let totGasto = rango.reduce((a,b) => a + Number(b.gasto), 0);
+    let totGanancia = rango.reduce((a,b) => a + Number(b.ganancia), 0);
+    
+    // Actualizamos tarjetas de arriba con el total del rango comparativo
+    document.getElementById("ventasIngresos").textContent = `$${(totGasto + totGanancia).toFixed(2)}`;
+    document.getElementById("ventasGanancias").textContent = `$${totGanancia.toFixed(2)}`;
+    document.getElementById("ventasCosto").textContent = `$${totGasto.toFixed(2)}`;
+    
+    // Renderizamos la gráfica comparativa
+    if(window.ventasChartObj) window.ventasChartObj.destroy();
+    const canvas = document.getElementById('ventasChart');
+    canvas.closest('.chartPanel').style.display = 'block';
+    
+    window.ventasChartObj = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: rango.map(v => v.fecha),
+            datasets: [
+                { label: 'Costos', data: rango.map(v => v.gasto), backgroundColor:'#ef4444', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 },
+                { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 }
+            ]
+        },
+        
+options:{
+ responsive:true,
+            maintainAspectRatio:false,
+      maintainAspectRatio:false,
+ maintainAspectRatio:false,
+ animation:true,
+
+ layout:{
+   padding:{
+     top:30,
+     bottom:10,
+     left:10,
+     right:20
+   }
+ },
+
+ plugins:{
+   legend:{
+     display:true,
+     position:'top',
+     labels:{
+       usePointStyle:true,
+       pointStyle:'circle',
+       padding:18,
+       font:{
+         size:13,
+         weight:'bold'
+       }
+     }
+   },
+
+   tooltip:{
+     enabled:true
+   },
+
+   datalabels:{
+     color:'#0f172a',
+     anchor:'end',
+     align:'top',
+     offset:6,
+     clamp:true,
+     clip:false,
+     font:{
+       size:11,
+       weight:'bold'
+     }
+   }
+ },
+
+ scales:{
+
+   x:{
+     offset:true,
+
+     ticks:{
+       autoSkip:false,
+       maxRotation:55,
+       minRotation:55,
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       display:false
+     }
+   },
+
+   y:{
+     beginAtZero:true,
+
+     ticks:{
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       color:'rgba(148,163,184,.15)'
+     }
+   }
+ }
+, plugins: { datalabels: { display: false } } }
+    });
+}
+
 </script>
 <!-- =========================
      PARTE 3 / 5
@@ -3172,14 +4489,40 @@ function setStatsMode(mode){
    Canvas dinámico (scroll horizontal)
 ========================= */
 function fitCanvasForBars(canvas, barCount, minWidth){
- const wrap = canvas?.parentElement?.parentElement; // chart-wrap -> chartScroll
- const base = (wrap?.clientWidth || 420);
- const perBar = 34; // ancho por barra (compacto estilo app)
- const w = Math.max(minWidth || base, barCount * perBar);
- const h = (canvas.id==="chartCU") ? 380 : 420;
+ const baseWidth = canvas.parentElement.parentElement.clientWidth || window.innerWidth - 40;
+ 
+ let w, h;
+ 
+ // INTELIGENCIA INDIVIDUAL POR GRÁFICA
+ if (canvas.id === "ventasChart") {
+     // Gráfica 1: Rango de fechas (Ventas de dinero roja/verde o días)
+     // Comportamiento: Ajustada a la pantalla, barras no muy altas
+     w = Math.max(baseWidth, barCount * 50); // Solo hace scroll si hay muchísimos días
+     h = 280; // Altura fija y moderada para que no se estire verticalmente
+ } 
+ else if (canvas.id === "chart" || canvas.id === "chartCU") {
+     // Gráfica 2 y 3: Sabores y Costos
+     // Comportamiento: Scroll horizontal asegurado para que quepan todos los nombres
+     const perBar = 42; 
+     w = Math.max(baseWidth, barCount * perBar);
+     h = 360; // Altura un poco mayor para que los nombres inclinados de los sabores quepan perfectos
+ } 
+ else {
+     // Gráfica genérica de respaldo
+     w = baseWidth;
+     h = 300;
+ }
 
- canvas.style.width = w + "px";
+ // Aplicamos las dimensiones exactas y bloqueamos que el CSS externo las deforme
+ canvas.style.width = w + "px"; 
+ canvas.style.minWidth = w + "px"; 
  canvas.style.height = h + "px";
+ canvas.style.maxHeight = h + "px"; // Bloquea estiramiento vertical
+ 
+ if (canvas.parentElement) {
+     canvas.parentElement.style.width = w + "px";
+     canvas.parentElement.style.height = h + "px";
+ }
 
  const dpr = window.devicePixelRatio || 1;
  canvas.width = Math.floor(w * dpr);
@@ -3484,6 +4827,7 @@ drawBarChartFallback(canvas, labels, data, colors, {
   xLabelAnchor: "endAtBarCenter",
   animate: true,
   duration: 420
+, pad: { bottom: 135 }
 });
 return;
 
@@ -3621,6 +4965,162 @@ async function dbDelete(i){
 })();
 
 /* ====== (sigue PARTE 4) ====== */
+
+function compararPeriodo(){
+    const inicio = document.getElementById("fechaInicio").value;
+    const fin = document.getElementById("fechaFin").value;
+    if(!inicio || !fin) { alert("Selecciona ambas fechas"); return; }
+    
+    // Filtramos ventas en el rango
+    const rango = ventasDinero.filter(v => v.fecha >= inicio && v.fecha <= fin);
+    
+    
+    const cantidad = rango.length;
+
+    const anchoDinamico =
+      cantidad <= 1 ? 420 :
+      cantidad <= 2 ? 420 :
+      cantidad <= 4 ? 460 :
+      cantidad * 70;
+
+    const moneyInner = document.querySelector('.moneyChartInner');
+
+    if(moneyInner){
+      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+    }
+
+// Calculamos totales del rango
+    let totGasto = rango.reduce((a,b) => a + Number(b.gasto), 0);
+    let totGanancia = rango.reduce((a,b) => a + Number(b.ganancia), 0);
+    
+    // Actualizamos tarjetas de arriba con el total del rango comparativo
+    document.getElementById("ventasIngresos").textContent = `$${(totGasto + totGanancia).toFixed(2)}`;
+    document.getElementById("ventasGanancias").textContent = `$${totGanancia.toFixed(2)}`;
+    document.getElementById("ventasCosto").textContent = `$${totGasto.toFixed(2)}`;
+    
+    // Renderizamos la gráfica comparativa
+    if(window.ventasChartObj) window.ventasChartObj.destroy();
+    const canvas = document.getElementById('ventasChart');
+    canvas.closest('.chartPanel').style.display = 'block';
+    
+    window.ventasChartObj = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: rango.map(v => v.fecha),
+            datasets: [
+                { label: 'Costos', data: rango.map(v => v.gasto), backgroundColor:'#ef4444', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 },
+                { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 }
+            ]
+        },
+        
+options:{
+ responsive:true,
+            maintainAspectRatio:false,
+      maintainAspectRatio:false,
+ maintainAspectRatio:false,
+ animation:true,
+
+ layout:{
+   padding:{
+     top:30,
+     bottom:10,
+     left:10,
+     right:20
+   }
+ },
+
+ plugins:{
+   legend:{
+     display:true,
+     position:'top',
+     labels:{
+       usePointStyle:true,
+       pointStyle:'circle',
+       padding:18,
+       font:{
+         size:13,
+         weight:'bold'
+       }
+     }
+   },
+
+   tooltip:{
+     enabled:true
+   },
+
+   datalabels:{
+     color:'#0f172a',
+     anchor:'end',
+     align:'top',
+     offset:6,
+     clamp:true,
+     clip:false,
+     font:{
+       size:11,
+       weight:'bold'
+     }
+   }
+ },
+
+ scales:{
+
+   x:{
+     offset:true,
+
+     ticks:{
+       autoSkip:false,
+       maxRotation:55,
+       minRotation:55,
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       display:false
+     }
+   },
+
+   y:{
+     beginAtZero:true,
+
+     ticks:{
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       color:'rgba(148,163,184,.15)'
+     }
+   }
+ }
+, plugins: { datalabels: { display: false } } }
+    });
+}
+
 </script>
 <!-- =========================
      PARTE 4 / 5
@@ -4132,6 +5632,7 @@ function exportData(){
  const payload={
   inventory,
   sales,
+  ventasDinero,
   cu_catalog: cuGetCatalog(),
   cu_recipes: cuGetRecipes(),
   compras: {
@@ -4182,6 +5683,11 @@ function triggerImport(){
      qty:Math.max(1, parseInt(s.qty)||1),
      costUnit:(s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0)
     }));
+   }
+
+   if(Array.isArray(d.ventasDinero)){
+    ventasDinero=d.ventasDinero;
+    localStorage.setItem("ventasDinero", JSON.stringify(ventasDinero));
    }
 
    // ✅ Catálogo de insumos (CU) -> NO se borra al importar: se MERGEA
@@ -4384,6 +5890,162 @@ if(comprasPayload && typeof comprasPayload === 'object'){
 }
 
 /* ====== (sigue PARTE 5) ====== */
+
+function compararPeriodo(){
+    const inicio = document.getElementById("fechaInicio").value;
+    const fin = document.getElementById("fechaFin").value;
+    if(!inicio || !fin) { alert("Selecciona ambas fechas"); return; }
+    
+    // Filtramos ventas en el rango
+    const rango = ventasDinero.filter(v => v.fecha >= inicio && v.fecha <= fin);
+    
+    
+    const cantidad = rango.length;
+
+    const anchoDinamico =
+      cantidad <= 1 ? 420 :
+      cantidad <= 2 ? 420 :
+      cantidad <= 4 ? 460 :
+      cantidad * 70;
+
+    const moneyInner = document.querySelector('.moneyChartInner');
+
+    if(moneyInner){
+      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+    }
+
+// Calculamos totales del rango
+    let totGasto = rango.reduce((a,b) => a + Number(b.gasto), 0);
+    let totGanancia = rango.reduce((a,b) => a + Number(b.ganancia), 0);
+    
+    // Actualizamos tarjetas de arriba con el total del rango comparativo
+    document.getElementById("ventasIngresos").textContent = `$${(totGasto + totGanancia).toFixed(2)}`;
+    document.getElementById("ventasGanancias").textContent = `$${totGanancia.toFixed(2)}`;
+    document.getElementById("ventasCosto").textContent = `$${totGasto.toFixed(2)}`;
+    
+    // Renderizamos la gráfica comparativa
+    if(window.ventasChartObj) window.ventasChartObj.destroy();
+    const canvas = document.getElementById('ventasChart');
+    canvas.closest('.chartPanel').style.display = 'block';
+    
+    window.ventasChartObj = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: rango.map(v => v.fecha),
+            datasets: [
+                { label: 'Costos', data: rango.map(v => v.gasto), backgroundColor:'#ef4444', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 },
+                { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 }
+            ]
+        },
+        
+options:{
+ responsive:true,
+            maintainAspectRatio:false,
+      maintainAspectRatio:false,
+ maintainAspectRatio:false,
+ animation:true,
+
+ layout:{
+   padding:{
+     top:30,
+     bottom:10,
+     left:10,
+     right:20
+   }
+ },
+
+ plugins:{
+   legend:{
+     display:true,
+     position:'top',
+     labels:{
+       usePointStyle:true,
+       pointStyle:'circle',
+       padding:18,
+       font:{
+         size:13,
+         weight:'bold'
+       }
+     }
+   },
+
+   tooltip:{
+     enabled:true
+   },
+
+   datalabels:{
+     color:'#0f172a',
+     anchor:'end',
+     align:'top',
+     offset:6,
+     clamp:true,
+     clip:false,
+     font:{
+       size:11,
+       weight:'bold'
+     }
+   }
+ },
+
+ scales:{
+
+   x:{
+     offset:true,
+
+     ticks:{
+       autoSkip:false,
+       maxRotation:55,
+       minRotation:55,
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       display:false
+     }
+   },
+
+   y:{
+     beginAtZero:true,
+
+     ticks:{
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       color:'rgba(148,163,184,.15)'
+     }
+   }
+ }
+, plugins: { datalabels: { display: false } } }
+    });
+}
+
 </script>
 <!-- =========================
      PARTE 5 / 5
@@ -4952,6 +6614,162 @@ const AppUI = (()=>{
   };
 })();
 
+
+function compararPeriodo(){
+    const inicio = document.getElementById("fechaInicio").value;
+    const fin = document.getElementById("fechaFin").value;
+    if(!inicio || !fin) { alert("Selecciona ambas fechas"); return; }
+    
+    // Filtramos ventas en el rango
+    const rango = ventasDinero.filter(v => v.fecha >= inicio && v.fecha <= fin);
+    
+    
+    const cantidad = rango.length;
+
+    const anchoDinamico =
+      cantidad <= 1 ? 420 :
+      cantidad <= 2 ? 420 :
+      cantidad <= 4 ? 460 :
+      cantidad * 70;
+
+    const moneyInner = document.querySelector('.moneyChartInner');
+
+    if(moneyInner){
+      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+    }
+
+// Calculamos totales del rango
+    let totGasto = rango.reduce((a,b) => a + Number(b.gasto), 0);
+    let totGanancia = rango.reduce((a,b) => a + Number(b.ganancia), 0);
+    
+    // Actualizamos tarjetas de arriba con el total del rango comparativo
+    document.getElementById("ventasIngresos").textContent = `$${(totGasto + totGanancia).toFixed(2)}`;
+    document.getElementById("ventasGanancias").textContent = `$${totGanancia.toFixed(2)}`;
+    document.getElementById("ventasCosto").textContent = `$${totGasto.toFixed(2)}`;
+    
+    // Renderizamos la gráfica comparativa
+    if(window.ventasChartObj) window.ventasChartObj.destroy();
+    const canvas = document.getElementById('ventasChart');
+    canvas.closest('.chartPanel').style.display = 'block';
+    
+    window.ventasChartObj = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: rango.map(v => v.fecha),
+            datasets: [
+                { label: 'Costos', data: rango.map(v => v.gasto), backgroundColor:'#ef4444', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 },
+                { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 }
+            ]
+        },
+        
+options:{
+ responsive:true,
+            maintainAspectRatio:false,
+      maintainAspectRatio:false,
+ maintainAspectRatio:false,
+ animation:true,
+
+ layout:{
+   padding:{
+     top:30,
+     bottom:10,
+     left:10,
+     right:20
+   }
+ },
+
+ plugins:{
+   legend:{
+     display:true,
+     position:'top',
+     labels:{
+       usePointStyle:true,
+       pointStyle:'circle',
+       padding:18,
+       font:{
+         size:13,
+         weight:'bold'
+       }
+     }
+   },
+
+   tooltip:{
+     enabled:true
+   },
+
+   datalabels:{
+     color:'#0f172a',
+     anchor:'end',
+     align:'top',
+     offset:6,
+     clamp:true,
+     clip:false,
+     font:{
+       size:11,
+       weight:'bold'
+     }
+   }
+ },
+
+ scales:{
+
+   x:{
+     offset:true,
+
+     ticks:{
+       autoSkip:false,
+       maxRotation:55,
+       minRotation:55,
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       display:false
+     }
+   },
+
+   y:{
+     beginAtZero:true,
+
+     ticks:{
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       color:'rgba(148,163,184,.15)'
+     }
+   }
+ }
+, plugins: { datalabels: { display: false } } }
+    });
+}
+
 </script>
 
 
@@ -4982,6 +6800,162 @@ if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(console.error);
   });
 }
+
+function compararPeriodo(){
+    const inicio = document.getElementById("fechaInicio").value;
+    const fin = document.getElementById("fechaFin").value;
+    if(!inicio || !fin) { alert("Selecciona ambas fechas"); return; }
+    
+    // Filtramos ventas en el rango
+    const rango = ventasDinero.filter(v => v.fecha >= inicio && v.fecha <= fin);
+    
+    
+    const cantidad = rango.length;
+
+    const anchoDinamico =
+      cantidad <= 1 ? 420 :
+      cantidad <= 2 ? 420 :
+      cantidad <= 4 ? 460 :
+      cantidad * 70;
+
+    const moneyInner = document.querySelector('.moneyChartInner');
+
+    if(moneyInner){
+      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+    }
+
+// Calculamos totales del rango
+    let totGasto = rango.reduce((a,b) => a + Number(b.gasto), 0);
+    let totGanancia = rango.reduce((a,b) => a + Number(b.ganancia), 0);
+    
+    // Actualizamos tarjetas de arriba con el total del rango comparativo
+    document.getElementById("ventasIngresos").textContent = `$${(totGasto + totGanancia).toFixed(2)}`;
+    document.getElementById("ventasGanancias").textContent = `$${totGanancia.toFixed(2)}`;
+    document.getElementById("ventasCosto").textContent = `$${totGasto.toFixed(2)}`;
+    
+    // Renderizamos la gráfica comparativa
+    if(window.ventasChartObj) window.ventasChartObj.destroy();
+    const canvas = document.getElementById('ventasChart');
+    canvas.closest('.chartPanel').style.display = 'block';
+    
+    window.ventasChartObj = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: rango.map(v => v.fecha),
+            datasets: [
+                { label: 'Costos', data: rango.map(v => v.gasto), backgroundColor:'#ef4444', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 },
+                { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 }
+            ]
+        },
+        
+options:{
+ responsive:true,
+            maintainAspectRatio:false,
+      maintainAspectRatio:false,
+ maintainAspectRatio:false,
+ animation:true,
+
+ layout:{
+   padding:{
+     top:30,
+     bottom:10,
+     left:10,
+     right:20
+   }
+ },
+
+ plugins:{
+   legend:{
+     display:true,
+     position:'top',
+     labels:{
+       usePointStyle:true,
+       pointStyle:'circle',
+       padding:18,
+       font:{
+         size:13,
+         weight:'bold'
+       }
+     }
+   },
+
+   tooltip:{
+     enabled:true
+   },
+
+   datalabels:{
+     color:'#0f172a',
+     anchor:'end',
+     align:'top',
+     offset:6,
+     clamp:true,
+     clip:false,
+     font:{
+       size:11,
+       weight:'bold'
+     }
+   }
+ },
+
+ scales:{
+
+   x:{
+     offset:true,
+
+     ticks:{
+       autoSkip:false,
+       maxRotation:55,
+       minRotation:55,
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       display:false
+     }
+   },
+
+   y:{
+     beginAtZero:true,
+
+     ticks:{
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       color:'rgba(148,163,184,.15)'
+     }
+   }
+ }
+, plugins: { datalabels: { display: false } } }
+    });
+}
+
 </script>
 
 <script>
@@ -4997,6 +6971,162 @@ if ("serviceWorker" in navigator) {
     console.log("Persistencia no soportada", e);
   }
 })();
+
+function compararPeriodo(){
+    const inicio = document.getElementById("fechaInicio").value;
+    const fin = document.getElementById("fechaFin").value;
+    if(!inicio || !fin) { alert("Selecciona ambas fechas"); return; }
+    
+    // Filtramos ventas en el rango
+    const rango = ventasDinero.filter(v => v.fecha >= inicio && v.fecha <= fin);
+    
+    
+    const cantidad = rango.length;
+
+    const anchoDinamico =
+      cantidad <= 1 ? 420 :
+      cantidad <= 2 ? 420 :
+      cantidad <= 4 ? 460 :
+      cantidad * 70;
+
+    const moneyInner = document.querySelector('.moneyChartInner');
+
+    if(moneyInner){
+      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+    }
+
+// Calculamos totales del rango
+    let totGasto = rango.reduce((a,b) => a + Number(b.gasto), 0);
+    let totGanancia = rango.reduce((a,b) => a + Number(b.ganancia), 0);
+    
+    // Actualizamos tarjetas de arriba con el total del rango comparativo
+    document.getElementById("ventasIngresos").textContent = `$${(totGasto + totGanancia).toFixed(2)}`;
+    document.getElementById("ventasGanancias").textContent = `$${totGanancia.toFixed(2)}`;
+    document.getElementById("ventasCosto").textContent = `$${totGasto.toFixed(2)}`;
+    
+    // Renderizamos la gráfica comparativa
+    if(window.ventasChartObj) window.ventasChartObj.destroy();
+    const canvas = document.getElementById('ventasChart');
+    canvas.closest('.chartPanel').style.display = 'block';
+    
+    window.ventasChartObj = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: rango.map(v => v.fecha),
+            datasets: [
+                { label: 'Costos', data: rango.map(v => v.gasto), backgroundColor:'#ef4444', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 },
+                { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 }
+            ]
+        },
+        
+options:{
+ responsive:true,
+            maintainAspectRatio:false,
+      maintainAspectRatio:false,
+ maintainAspectRatio:false,
+ animation:true,
+
+ layout:{
+   padding:{
+     top:30,
+     bottom:10,
+     left:10,
+     right:20
+   }
+ },
+
+ plugins:{
+   legend:{
+     display:true,
+     position:'top',
+     labels:{
+       usePointStyle:true,
+       pointStyle:'circle',
+       padding:18,
+       font:{
+         size:13,
+         weight:'bold'
+       }
+     }
+   },
+
+   tooltip:{
+     enabled:true
+   },
+
+   datalabels:{
+     color:'#0f172a',
+     anchor:'end',
+     align:'top',
+     offset:6,
+     clamp:true,
+     clip:false,
+     font:{
+       size:11,
+       weight:'bold'
+     }
+   }
+ },
+
+ scales:{
+
+   x:{
+     offset:true,
+
+     ticks:{
+       autoSkip:false,
+       maxRotation:55,
+       minRotation:55,
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       display:false
+     }
+   },
+
+   y:{
+     beginAtZero:true,
+
+     ticks:{
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       color:'rgba(148,163,184,.15)'
+     }
+   }
+ }
+, plugins: { datalabels: { display: false } } }
+    });
+}
+
 </script>
 
 
@@ -5141,6 +7271,162 @@ if ("serviceWorker" in navigator) {
     mo.observe(document.documentElement, {childList:true, subtree:true});
   }catch(_){ }
 })();
+
+function compararPeriodo(){
+    const inicio = document.getElementById("fechaInicio").value;
+    const fin = document.getElementById("fechaFin").value;
+    if(!inicio || !fin) { alert("Selecciona ambas fechas"); return; }
+    
+    // Filtramos ventas en el rango
+    const rango = ventasDinero.filter(v => v.fecha >= inicio && v.fecha <= fin);
+    
+    
+    const cantidad = rango.length;
+
+    const anchoDinamico =
+      cantidad <= 1 ? 420 :
+      cantidad <= 2 ? 420 :
+      cantidad <= 4 ? 460 :
+      cantidad * 70;
+
+    const moneyInner = document.querySelector('.moneyChartInner');
+
+    if(moneyInner){
+      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+    }
+
+// Calculamos totales del rango
+    let totGasto = rango.reduce((a,b) => a + Number(b.gasto), 0);
+    let totGanancia = rango.reduce((a,b) => a + Number(b.ganancia), 0);
+    
+    // Actualizamos tarjetas de arriba con el total del rango comparativo
+    document.getElementById("ventasIngresos").textContent = `$${(totGasto + totGanancia).toFixed(2)}`;
+    document.getElementById("ventasGanancias").textContent = `$${totGanancia.toFixed(2)}`;
+    document.getElementById("ventasCosto").textContent = `$${totGasto.toFixed(2)}`;
+    
+    // Renderizamos la gráfica comparativa
+    if(window.ventasChartObj) window.ventasChartObj.destroy();
+    const canvas = document.getElementById('ventasChart');
+    canvas.closest('.chartPanel').style.display = 'block';
+    
+    window.ventasChartObj = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: rango.map(v => v.fecha),
+            datasets: [
+                { label: 'Costos', data: rango.map(v => v.gasto), backgroundColor:'#ef4444', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 },
+                { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 }
+            ]
+        },
+        
+options:{
+ responsive:true,
+            maintainAspectRatio:false,
+      maintainAspectRatio:false,
+ maintainAspectRatio:false,
+ animation:true,
+
+ layout:{
+   padding:{
+     top:30,
+     bottom:10,
+     left:10,
+     right:20
+   }
+ },
+
+ plugins:{
+   legend:{
+     display:true,
+     position:'top',
+     labels:{
+       usePointStyle:true,
+       pointStyle:'circle',
+       padding:18,
+       font:{
+         size:13,
+         weight:'bold'
+       }
+     }
+   },
+
+   tooltip:{
+     enabled:true
+   },
+
+   datalabels:{
+     color:'#0f172a',
+     anchor:'end',
+     align:'top',
+     offset:6,
+     clamp:true,
+     clip:false,
+     font:{
+       size:11,
+       weight:'bold'
+     }
+   }
+ },
+
+ scales:{
+
+   x:{
+     offset:true,
+
+     ticks:{
+       autoSkip:false,
+       maxRotation:55,
+       minRotation:55,
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       display:false
+     }
+   },
+
+   y:{
+     beginAtZero:true,
+
+     ticks:{
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       color:'rgba(148,163,184,.15)'
+     }
+   }
+ }
+, plugins: { datalabels: { display: false } } }
+    });
+}
+
 </script>
 
 
@@ -5165,7 +7451,510 @@ if ("serviceWorker" in navigator) {
         setInterval(actualizarContadorGrande, 1000);
     });
 })();
+
+function compararPeriodo(){
+    const inicio = document.getElementById("fechaInicio").value;
+    const fin = document.getElementById("fechaFin").value;
+    if(!inicio || !fin) { alert("Selecciona ambas fechas"); return; }
+    
+    // Filtramos ventas en el rango
+    const rango = ventasDinero.filter(v => v.fecha >= inicio && v.fecha <= fin);
+    
+    
+    const cantidad = rango.length;
+
+    const anchoDinamico =
+      cantidad <= 1 ? 420 :
+      cantidad <= 2 ? 420 :
+      cantidad <= 4 ? 460 :
+      cantidad * 70;
+
+    const moneyInner = document.querySelector('.moneyChartInner');
+
+    if(moneyInner){
+      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+    }
+
+// Calculamos totales del rango
+    let totGasto = rango.reduce((a,b) => a + Number(b.gasto), 0);
+    let totGanancia = rango.reduce((a,b) => a + Number(b.ganancia), 0);
+    
+    // Actualizamos tarjetas de arriba con el total del rango comparativo
+    document.getElementById("ventasIngresos").textContent = `$${(totGasto + totGanancia).toFixed(2)}`;
+    document.getElementById("ventasGanancias").textContent = `$${totGanancia.toFixed(2)}`;
+    document.getElementById("ventasCosto").textContent = `$${totGasto.toFixed(2)}`;
+    
+    // Renderizamos la gráfica comparativa
+    if(window.ventasChartObj) window.ventasChartObj.destroy();
+    const canvas = document.getElementById('ventasChart');
+    canvas.closest('.chartPanel').style.display = 'block';
+    
+    window.ventasChartObj = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: rango.map(v => v.fecha),
+            datasets: [
+                { label: 'Costos', data: rango.map(v => v.gasto), backgroundColor:'#ef4444', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 },
+                { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 }
+            ]
+        },
+        
+options:{
+ responsive:true,
+            maintainAspectRatio:false,
+      maintainAspectRatio:false,
+ maintainAspectRatio:false,
+ animation:true,
+
+ layout:{
+   padding:{
+     top:30,
+     bottom:10,
+     left:10,
+     right:20
+   }
+ },
+
+ plugins:{
+   legend:{
+     display:true,
+     position:'top',
+     labels:{
+       usePointStyle:true,
+       pointStyle:'circle',
+       padding:18,
+       font:{
+         size:13,
+         weight:'bold'
+       }
+     }
+   },
+
+   tooltip:{
+     enabled:true
+   },
+
+   datalabels:{
+     color:'#0f172a',
+     anchor:'end',
+     align:'top',
+     offset:6,
+     clamp:true,
+     clip:false,
+     font:{
+       size:11,
+       weight:'bold'
+     }
+   }
+ },
+
+ scales:{
+
+   x:{
+     offset:true,
+
+     ticks:{
+       autoSkip:false,
+       maxRotation:55,
+       minRotation:55,
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       display:false
+     }
+   },
+
+   y:{
+     beginAtZero:true,
+
+     ticks:{
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       color:'rgba(148,163,184,.15)'
+     }
+   }
+ }
+, plugins: { datalabels: { display: false } } }
+    });
+}
+
 </script>
 
+<script>
+let ventasChart=null;
+
+function calcularGastoPorFecha(fecha){
+ try{
+  return sales
+   .filter(s => (s.date||"").slice(0,10)===fecha)
+   .reduce((acc,s)=> acc + ((Number(s.costUnit)||getUnitCost(s.product)||0) * (Number(s.qty)||0)),0);
+ }catch(e){
+  return 0;
+ }
+}
+
+function guardarVentaDia(){
+ const fecha=document.getElementById("ventaFecha").value || todayLocalISO();
+ const vendido=Number(document.getElementById("ventaMonto").value)||0;
+
+ const gasto=calcularGastoPorFecha(fecha);
+ const ganancia=vendido-gasto;
+
+ const idx=ventasDinero.findIndex(v=>v.fecha===fecha);
+
+ const row={fecha,vendido,gasto,ganancia};
+
+ if(idx>=0) ventasDinero[idx]=row;
+ else ventasDinero.push(row);
+
+ ventasDinero.sort((a,b)=>a.fecha.localeCompare(b.fecha));
+
+ localStorage.setItem("ventasDinero", JSON.stringify(ventasDinero));
+ renderVentas();renderVentasChart();actualizarTextoVentaBtn();
+}
+
+function renderVentas(){
+ const fechaInput=document.getElementById("ventaFecha");
+ if(fechaInput && !fechaInput.value) fechaInput.value=todayLocalISO();
+ 
+ const chosenDate = fechaInput ? fechaInput.value : todayLocalISO();
+ 
+ // Sincronizar campo de dinero del día seleccionado
+ const montoInput=document.getElementById("ventaMonto");
+ if(fechaInput && montoInput){
+   const reg=ventasDinero.find(v=>v.fecha===chosenDate);
+   if(!reg) {
+     montoInput.value='';
+   } else {
+     montoInput.value=reg.vendido || '';
+   }
+ }
+
+ const historial=document.getElementById("ventasHistorial");
+ const ingresos=document.getElementById("ventasIngresos");
+ const ganancias=document.getElementById("ventasGanancias");
+
+ if(!historial) return;
+
+ // Buscar datos específicos del día seleccionado para las tarjetas de arriba
+ const registroDia = ventasDinero.find(v => v.fecha === chosenDate);
+ let ingresosDia = registroDia ? (Number(registroDia.vendido) || 0) : 0;
+ let gananciasDia = registroDia ? (Number(registroDia.ganancia) || 0) : 0;
+
+ ingresos.textContent = `$${ingresosDia.toFixed(2)}`;
+ ganancias.textContent = `$${gananciasDia.toFixed(2)}`;
+
+ // Renderizar lista general abajo
+ historial.innerHTML=ventasDinero.map(v=>{
+   return `
+   <div class="tableCard">
+    <div style="font-weight:900">${v.fecha}</div>
+    <div>Vendido: $${Number(v.vendido||0).toFixed(2)}</div>
+    <div>Gasto: $${Number(v.gasto||0).toFixed(2)}</div>
+    <div>Ganancia: $${Number(v.ganancia||0).toFixed(2)}</div>
+   </div>`;
+ }).reverse().join("");
+
+ // Ejecutar el renderizado de la gráfica de forma segura
+ if(typeof renderVentasChart === 'function') {
+   renderVentasChart();
+ }
+}
+
+document.addEventListener("DOMContentLoaded", ()=>{
+ renderVentas();renderVentasChart();actualizarTextoVentaBtn();
+});
+
+function compararPeriodo(){
+    const inicio = document.getElementById("fechaInicio").value;
+    const fin = document.getElementById("fechaFin").value;
+    if(!inicio || !fin) { alert("Selecciona ambas fechas"); return; }
+    
+    // Filtramos ventas en el rango
+    const rango = ventasDinero.filter(v => v.fecha >= inicio && v.fecha <= fin);
+    
+    
+    const cantidad = rango.length;
+
+    const anchoDinamico =
+      cantidad <= 1 ? 420 :
+      cantidad <= 2 ? 420 :
+      cantidad <= 4 ? 460 :
+      cantidad * 70;
+
+    const moneyInner = document.querySelector('.moneyChartInner');
+
+    if(moneyInner){
+      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+    }
+
+// Calculamos totales del rango
+    let totGasto = rango.reduce((a,b) => a + Number(b.gasto), 0);
+    let totGanancia = rango.reduce((a,b) => a + Number(b.ganancia), 0);
+    
+    // Actualizamos tarjetas de arriba con el total del rango comparativo
+    document.getElementById("ventasIngresos").textContent = `$${(totGasto + totGanancia).toFixed(2)}`;
+    document.getElementById("ventasGanancias").textContent = `$${totGanancia.toFixed(2)}`;
+    document.getElementById("ventasCosto").textContent = `$${totGasto.toFixed(2)}`;
+    
+    // Renderizamos la gráfica comparativa
+    if(window.ventasChartObj) window.ventasChartObj.destroy();
+    const canvas = document.getElementById('ventasChart');
+    canvas.closest('.chartPanel').style.display = 'block';
+    
+    window.ventasChartObj = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: rango.map(v => v.fecha),
+            datasets: [
+                { label: 'Costos', data: rango.map(v => v.gasto), backgroundColor:'#ef4444', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 },
+                { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
+        borderRadius:14,
+        borderSkipped:false,
+        
+        categoryPercentage:0.7,
+        barPercentage:0.8,
+        maxBarThickness:55,
+        minBarLength:8 }
+            ]
+        },
+        
+options:{
+ responsive:true,
+            maintainAspectRatio:false,
+      maintainAspectRatio:false,
+ maintainAspectRatio:false,
+ animation:true,
+
+ layout:{
+   padding:{
+     top:30,
+     bottom:10,
+     left:10,
+     right:20
+   }
+ },
+
+ plugins:{
+   legend:{
+     display:true,
+     position:'top',
+     labels:{
+       usePointStyle:true,
+       pointStyle:'circle',
+       padding:18,
+       font:{
+         size:13,
+         weight:'bold'
+       }
+     }
+   },
+
+   tooltip:{
+     enabled:true
+   },
+
+   datalabels:{
+     color:'#0f172a',
+     anchor:'end',
+     align:'top',
+     offset:6,
+     clamp:true,
+     clip:false,
+     font:{
+       size:11,
+       weight:'bold'
+     }
+   }
+ },
+
+ scales:{
+
+   x:{
+     offset:true,
+
+     ticks:{
+       autoSkip:false,
+       maxRotation:55,
+       minRotation:55,
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       display:false
+     }
+   },
+
+   y:{
+     beginAtZero:true,
+
+     ticks:{
+       padding:8,
+       color:'#334155',
+
+       font:{
+         size:11,
+         weight:'bold'
+       }
+     },
+
+     grid:{
+       color:'rgba(148,163,184,.15)'
+     }
+   }
+ }
+, plugins: { datalabels: { display: false } } }
+    });
+}
+
+</script>
+
+<script>
+function renderHistorialVentasPersonalizado(){
+ const wrap=document.getElementById('ventasHistorial');
+ if(!wrap || !Array.isArray(ventasDinero)) return;
+
+ const inicio=document.getElementById('fechaInicio')?.value;
+ const fin=document.getElementById('fechaFin')?.value;
+ const fechaActual=document.getElementById('ventaFecha')?.value;
+
+ let registros=[];
+
+ if(window.modoComparacionRango && inicio && fin){
+   registros = ventasDinero.filter(v=>v.fecha>=inicio && v.fecha<=fin);
+ }else if(fechaActual){
+   registros = ventasDinero.filter(v=>v.fecha===fechaActual);
+ }
+
+ registros.sort((a,b)=>b.fecha.localeCompare(a.fecha));
+
+ wrap.innerHTML='';
+
+ registros.forEach(v=>{
+   const card=document.createElement('div');
+   card.className='reportCard';
+   card.innerHTML=`
+    <div style="font-weight:900;font-size:1.2rem">${v.fecha}</div>
+    <div>Vendido: $${Number(v.vendido||0).toFixed(2)}</div>
+    <div>Gasto: $${Number(v.gasto||0).toFixed(2)}</div>
+    <div>Ganancia: $${Number(v.ganancia||0).toFixed(2)}</div>
+   `;
+   wrap.appendChild(card);
+ });
+}
+
+document.addEventListener('change',function(e){
+ if(e.target && ['ventaFecha','fechaInicio','fechaFin'].includes(e.target.id)){
+   if(e.target.id==='ventaFecha'){
+      window.modoComparacionRango = false;
+   }
+   setTimeout(renderHistorialVentasPersonalizado,100);
+ }
+});
+
+document.addEventListener('DOMContentLoaded',()=>{
+ setTimeout(renderHistorialVentasPersonalizado,700);
+});
+</script>
+
+
+<script>
+function actualizarResumenGrafica(labels,gastos,ganancias){
+ const anterior=document.getElementById('graficaResumenValores');
+ if(anterior) anterior.remove();
+
+ const panel=document.querySelector('.chartPanel');
+ if(!panel) return;
+
+ const cont=document.createElement('div');
+ cont.id='graficaResumenValores';
+ cont.style.marginTop='18px';
+
+ labels.forEach((fecha,i)=>{
+   const card=document.createElement('div');
+   card.className='reportCard';
+   card.style.marginBottom='12px';
+   card.innerHTML=`
+     <div style="font-weight:900;font-size:1.1rem">${fecha}</div>
+     <div style="color:#ef4444">Gastos: $${Number(gastos[i]||0).toFixed(2)}</div>
+     <div style="color:#22c55e">Ganancias: $${Number(ganancias[i]||0).toFixed(2)}</div>
+   `;
+   cont.appendChild(card);
+ });
+
+ panel.appendChild(cont);
+}
+</script>
+
+
+<script>
+function showVentasTab(tab){
+ var r=document.getElementById('ventasRegistroTab');
+ var c=document.getElementById('ventasComparativaTab');
+ if(r&&c){r.style.display=tab==='registro'?'block':'none'; c.style.display=tab==='comparativa'?'block':'none';}
+}
+document.addEventListener('DOMContentLoaded',function(){
+ showVentasTab('registro');
+});
+if(typeof compararPeriodo==='function'){
+ const _compararPeriodo=compararPeriodo;
+ compararPeriodo=function(){
+   _compararPeriodo();
+   try{
+    const inicio=document.getElementById('fechaInicio').value;
+    const fin=document.getElementById('fechaFin').value;
+    const rango=ventasDinero.filter(v=>v.fecha>=inicio&&v.fecha<=fin);
+    let costo=rango.reduce((a,b)=>a+Number(b.gasto||0),0);
+    let gan=rango.reduce((a,b)=>a+Number(b.ganancia||0),0);
+    let ing=costo+gan;
+    if(document.getElementById('ventasCompIngresos')) document.getElementById('ventasCompIngresos').textContent='$'+ing.toFixed(2);
+    if(document.getElementById('ventasCompCosto')) document.getElementById('ventasCompCosto').textContent='$'+costo.toFixed(2);
+    if(document.getElementById('ventasCompGanancia')) document.getElementById('ventasCompGanancia').textContent='$'+gan.toFixed(2);
+   }catch(e){}
+ };
+}
+</script>
 </body>
 </html>
