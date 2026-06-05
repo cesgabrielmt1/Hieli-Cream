@@ -5647,6 +5647,7 @@ function exportData(){
   inventory,
   sales,
   ventasDinero,
+  listaPVs,
   cu_catalog: cuGetCatalog(),
   cu_recipes: cuGetRecipes(),
   compras: {
@@ -5702,6 +5703,17 @@ function triggerImport(){
    if(Array.isArray(d.ventasDinero)){
     ventasDinero=d.ventasDinero;
     localStorage.setItem("ventasDinero", JSON.stringify(ventasDinero));
+   }
+
+   if(Array.isArray(d.listaPVs)){
+    listaPVs=[...d.listaPVs];
+    localStorage.setItem("listaPVs", JSON.stringify(listaPVs));
+
+    try{ renderPVRows(); }catch(e){}
+    try{ renderPVChart(); }catch(e){}
+    try{ renderVentasDinero && renderVentasDinero(); }catch(e){}
+    try{ render(); }catch(e){}
+    try{ generateChart && generateChart(); }catch(e){}
    }
 
    // ✅ Catálogo de insumos (CU) -> NO se borra al importar: se MERGEA
