@@ -2406,6 +2406,15 @@ canvas{
 
 }
 
+
+.pvTitle{font-size:28px;font-weight:700;color:#6366f1;margin-bottom:12px}
+.pvItem{background:#f5f5f7;border-radius:18px;padding:12px 14px;margin:8px 0}
+.pvDel{background:#0b1433;color:#fff;border:none;border-radius:14px;padding:10px 14px}
+.pvAddBtn,.pvCloseBtn{background:#6366f1;color:#fff;border:none;border-radius:999px;padding:14px;width:100%;margin-top:10px;font-weight:700}
+.pvCloseBtn{background:#0b1433}
+#nuevoPVVisual{border-radius:16px;border:1px solid #ddd}
+@keyframes popIn{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 </style>
 
 <script>
@@ -2641,8 +2650,13 @@ document.addEventListener('DOMContentLoaded',()=>{
 
    <div class="chartPanel" style="padding:15px; margin-bottom:20px;">
     <h3 style="margin-top:0;">Registro Diario</h3>
+<button type="button" onclick="adminPVs()" style="margin-bottom:10px;">PVs</button>
+<div id="pvRows"></div>
+<button type="button" onclick="agregarPVRow()">+</button>
+<canvas id="pvChart" height="500" style="margin-top:20px;width:100%;max-height:500px;"></canvas>
+
     <input type="date" id="ventaFecha">
-    <input type="number" id="ventaMonto" placeholder="Dinero vendido">
+    <input type="number" id="ventaMonto" placeholder="Dinero vendido" style="display:none">
     <button id="ventasBtnGuardar" onclick="guardarVentaDia()">Guardar venta</button>
     <button id="ventasBtnEditar" onclick="activarEdicionVenta()" style="margin-top:10px;background:#111827;display:none;">Editar venta</button>
    </div>
@@ -7622,16 +7636,118 @@ function calcularGastoPorFecha(fecha){
  }
 }
 
+
+let listaPVs=JSON.parse(localStorage.getItem('listaPVs')||'[]');
+function adminPVs(){
+const accion=prompt('Escribe: AGREGAR o ELIMINAR');
+if(!accion)return;
+if(accion.toUpperCase()==='AGREGAR'){
+ const n=prompt('Nombre PV');
+ if(!n)return;
+ if(!listaPVs.includes(n)){
+   listaPVs.push(n);
+   localStorage.setItem('listaPVs',JSON.stringify(listaPVs));
+   renderPVRows();
+ }
+}else if(accion.toUpperCase()==='ELIMINAR'){
+ const n=prompt('PV a eliminar:\n'+listaPVs.join(', '));
+ if(!n)return;
+ listaPVs=listaPVs.filter(x=>x!==n);
+ localStorage.setItem('listaPVs',JSON.stringify(listaPVs));
+ renderPVRows();
+}
+}
+function agregarPVRow(nombre='',monto=''){
+const c=document.getElementById('pvRows'); if(!c)return;
+const d=document.createElement('div');
+d.style='display:flex;gap:6px;margin:6px 0';
+let opts=listaPVs.map(x=>`<option ${x===nombre?'selected':''}>${x}</option>`).join('');
+d.innerHTML=`<select class="pvSel">${opts}</select><input type="number" class="pvMonto" value="${monto}" placeholder="Ingreso"><button type="button" onclick="eliminarPVVenta(this)" style="min-width:44px">✕</button>`;
+c.appendChild(d);
+}
+function renderPVRows(arr){const c=document.getElementById('pvRows'); if(!c)return; c.innerHTML=''; if(arr&&arr.length){arr.forEach(p=>agregarPVRow(p.nombre,p.monto));} else agregarPVRow();}
+function getPVsData(){return [...document.querySelectorAll('#pvRows > div')].map(r=>({nombre:r.querySelector('.pvSel')?.value||'',monto:Number(r.querySelector('.pvMonto')?.value)||0})).filter(x=>x.nombre||x.monto);}
+
+function eliminarPVVenta(btn){
+  btn.parentNode.remove();
+
+  try{
+    if(typeof actualizarIngresoDesdePVs==="function"){
+      actualizarIngresoDesdePVs();
+    }
+  }catch(e){}
+
+  try{ renderPVChart(); }catch(e){}
+
+  const fechaEl=document.getElementById("ventaFecha")||document.getElementById("fechaVenta");
+  const fecha=fechaEl?fechaEl.value:"";
+
+  if(typeof ventasDinero!=="undefined" && fecha){
+    const idx=ventasDinero.findIndex(v=>v.fecha===fecha);
+
+    if(idx>=0){
+      const pvData=(typeof getPVsData==="function")?getPVsData():[];
+
+      ventasDinero[idx].pvs=pvData;
+      ventasDinero[idx].vendido=pvData.reduce((a,b)=>a+(Number(b.monto)||0),0);
+
+      if("gasto" in ventasDinero[idx]){
+        ventasDinero[idx].ganancia=ventasDinero[idx].vendido-Number(ventasDinero[idx].gasto||0);
+      }
+
+      localStorage.setItem("ventasDinero",JSON.stringify(ventasDinero));
+    }
+  }
+}
+function renderPVChart(){
+const cv=document.getElementById('pvChart');
+if(!cv||!window.Chart)return;
+const data=getPVsData();
+const ctx=cv.getContext('2d');
+if(window.pvChartObj) window.pvChartObj.destroy();
+window.pvChartObj=new Chart(ctx,{
+type:'bar',
+data:{
+labels:data.map(x=>x.nombre),
+datasets:[{
+label:'PVs',
+data:data.map(x=>x.monto),
+barThickness:55,
+borderRadius:14
+}]
+},
+options:{
+responsive:true,
+maintainAspectRatio:false,
+plugins:{
+legend:{display:false},
+title:{display:true,text:'Puntos de Venta del día',font:{size:22}}
+},
+layout:{padding:20},
+scales:{
+x:{
+ticks:{
+font:{size:18},
+autoSkip:false,
+maxRotation:55,
+minRotation:55
+}
+},
+y:{beginAtZero:true,ticks:{font:{size:16}}}
+}
+}
+});
+}
 function guardarVentaDia(){
  const fecha=document.getElementById("ventaFecha").value || todayLocalISO();
- const vendido=Number(document.getElementById("ventaMonto").value)||0;
+ const pvData=getPVsData(); const vendido=pvData.length?pvData.reduce((a,b)=>a+(Number(b.monto)||0),0):(Number(document.getElementById("ventaMonto").value)||0);
 
  const gasto=calcularGastoPorFecha(fecha);
  const ganancia=vendido-gasto;
 
  const idx=ventasDinero.findIndex(v=>v.fecha===fecha);
 
- const row={fecha,vendido,gasto,ganancia};
+ const row={fecha,vendido,gasto,ganancia,pvs:pvData};
 
  if(idx>=0) ventasDinero[idx]=row;
  else ventasDinero.push(row);
@@ -7655,7 +7771,7 @@ function renderVentas(){
    if(!reg) {
      montoInput.value='';
    } else {
-     montoInput.value=reg.vendido || '';
+     montoInput.value=reg.vendido || ''; if(reg.pvs) renderPVRows(reg.pvs); else renderPVRows(); renderPVChart();
    }
  }
 
@@ -7956,5 +8072,59 @@ if(typeof compararPeriodo==='function'){
  };
 }
 </script>
-</body>
+
+<style>
+#pvModal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(4px);animation:fadeIn .25s ease}
+#pvBox{background:#fff;width:90%;max-width:420px;border-radius:30px;padding:22px;box-shadow:0 15px 40px rgba(0,0,0,.18);animation:popIn .25s ease}
+.pvItem{display:flex;justify-content:space-between;align-items:center;padding:8px 0}
+.pvDel{border:none;border-radius:10px;padding:8px 12px}
+</style>
+<div id="pvModal">
+ <div id="pvBox">
+   <div class='pvTitle'>Puntos de Venta</div>
+   <div id="pvListaVisual"></div>
+   <input id="nuevoPVVisual" placeholder="Nuevo PV" style="width:100%;padding:12px;margin-top:10px">
+   <button class='pvAddBtn' onclick="agregarPVVisual()">Agregar PV</button>
+   <button class='pvCloseBtn' onclick="cerrarPVModal()">Cerrar</button>
+ </div>
+</div>
+
+<script>
+function adminPVs(){
+ document.getElementById('pvModal').style.display='flex';
+ renderListaPVVisual();
+}
+function cerrarPVModal(){
+ document.getElementById('pvModal').style.display='none';
+}
+function renderListaPVVisual(){
+ const c=document.getElementById('pvListaVisual');
+ if(!c) return;
+ c.innerHTML='';
+ (listaPVs||[]).forEach(p=>{
+   const d=document.createElement('div');
+   d.className='pvItem';
+   d.innerHTML='<span>'+p+'</span><button class="pvDel" onclick="eliminarPVVisual(\''+p+'\')">🗑️</button>';
+   c.appendChild(d);
+ });
+}
+function agregarPVVisual(){
+ const i=document.getElementById('nuevoPVVisual');
+ const v=i.value.trim();
+ if(!v) return;
+ if(!listaPVs.includes(v)){
+   listaPVs.push(v);
+   localStorage.setItem('listaPVs',JSON.stringify(listaPVs));
+   renderListaPVVisual();
+   if(typeof renderPVRows==='function') renderPVRows();
+ }
+ i.value='';
+}
+function eliminarPVVisual(n){ if(!confirm('¿Eliminar PV '+n+'?')) return;
+ listaPVs=listaPVs.filter(x=>x!==n);
+ localStorage.setItem('listaPVs',JSON.stringify(listaPVs));
+ renderListaPVVisual();
+ if(typeof renderPVRows==='function') renderPVRows();
+}
+</script></body>
 </html>
