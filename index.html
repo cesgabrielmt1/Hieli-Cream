@@ -7771,6 +7771,7 @@ if(accion.toUpperCase()==='AGREGAR'){
  if(!listaPVs.includes(n)){
    listaPVs.push(n);
    localStorage.setItem('listaPVs',JSON.stringify(listaPVs));
+   try{ cloudSaveNow(); }catch(_){}
    renderPVRows();
  }
 }else if(accion.toUpperCase()==='ELIMINAR'){
@@ -7778,6 +7779,7 @@ if(accion.toUpperCase()==='AGREGAR'){
  if(!n)return;
  listaPVs=listaPVs.filter(x=>x!==n);
  localStorage.setItem('listaPVs',JSON.stringify(listaPVs));
+ try{ cloudSaveNow(); }catch(_){}
  renderPVRows();
 }
 }
@@ -7820,6 +7822,7 @@ function eliminarPVVenta(btn){
       }
 
       localStorage.setItem("ventasDinero",JSON.stringify(ventasDinero));
+      try{ cloudSaveNow(); }catch(_){}
     }
   }
 }
@@ -7879,6 +7882,7 @@ function guardarVentaDia(){
  ventasDinero.sort((a,b)=>a.fecha.localeCompare(b.fecha));
 
  localStorage.setItem("ventasDinero", JSON.stringify(ventasDinero));
+ try{ cloudSaveNow(); }catch(_){}
  renderVentas();renderVentasChart();actualizarTextoVentaBtn();
 }
 
@@ -8234,6 +8238,7 @@ function agregarPVVisual(){
  if(!listaPVs.includes(v)){
    listaPVs.push(v);
    localStorage.setItem('listaPVs',JSON.stringify(listaPVs));
+   try{ cloudSaveNow(); }catch(_){}
    renderListaPVVisual();
    if(typeof renderPVRows==='function') renderPVRows();
  }
@@ -8242,6 +8247,7 @@ function agregarPVVisual(){
 function eliminarPVVisual(n){ if(!confirm('¿Eliminar PV '+n+'?')) return;
  listaPVs=listaPVs.filter(x=>x!==n);
  localStorage.setItem('listaPVs',JSON.stringify(listaPVs));
+ try{ cloudSaveNow(); }catch(_){}
  renderListaPVVisual();
  if(typeof renderPVRows==='function') renderPVRows();
 }
