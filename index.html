@@ -10,7 +10,124 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Inventario Hieli Cream PRO</title>
 
-<!-- Librerías -->
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+// =============================================
+//  FIREBASE CONFIG - HieliCream
+// =============================================
+const firebaseConfig = {
+  apiKey: "AIzaSyCDtxYsVBFmj70vCdVh75J148uJlXuVmX4",
+  authDomain: "hielicream-13160.firebaseapp.com",
+  projectId: "hielicream-13160",
+  storageBucket: "hielicream-13160.firebasestorage.app",
+  messagingSenderId: "190074664083",
+  appId: "1:190074664083:web:64b341afd3c25bb1bfc966"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// Habilitar persistencia offline automática
+db.enablePersistence({ synchronizeTabs: true })
+  .catch(err => console.warn("Persistencia offline no disponible:", err.code));
+
+const CLOUD_DOC = "hielicream-13160";
+let __isOnline = navigator.onLine;
+
+// ---- INDICADOR DE CONEXIÓN ----
+function updateConnectionUI(){
+  const dot  = document.getElementById("ioConnectionDot");
+  const text = document.getElementById("ioConnectionText");
+  if(!dot || !text) return;
+  if(__isOnline){
+    dot.textContent  = "🟢";
+    text.textContent = "En línea — cambios se sincronizan con la nube";
+  } else {
+    dot.textContent  = "🔴";
+    text.textContent = "Sin internet — guardando local, subirá al reconectar";
+  }
+}
+
+window.addEventListener("online",  () => { __isOnline=true;  updateConnectionUI(); cloudLoad(); cloudSave(); });
+window.addEventListener("offline", () => { __isOnline=false; updateConnectionUI(); updateCloudStamp("📴 Sin internet (guardado local)"); });
+document.addEventListener("DOMContentLoaded", updateConnectionUI);
+
+// ---- GUARDAR EN NUBE ----
+let __cloudSaveTimer = null;
+
+// Inmediato: para ventas/inventario
+function cloudSaveNow(){
+  _doCloudSave();
+}
+
+// Con pequeño delay: para ediciones de texto
+function cloudSaveSoon(){
+  clearTimeout(__cloudSaveTimer);
+  __cloudSaveTimer = setTimeout(_doCloudSave, 2000);
+}
+
+function cloudSave(){ _doCloudSave(); }
+
+function _doCloudSave(){
+  try{
+    const payload = {
+      inventory:    JSON.parse(localStorage.getItem("inventory")      || "[]"),
+      sales:        JSON.parse(localStorage.getItem("sales")          || "[]"),
+      ventasDinero: JSON.parse(localStorage.getItem("ventasDinero")   || "[]"),
+      listaPVs:     JSON.parse(localStorage.getItem("listaPVs")       || "[]"),
+      cu_catalog:   JSON.parse(localStorage.getItem("cu_catalog_v1")  || "[]"),
+      cu_recipes:   JSON.parse(localStorage.getItem("cu_recipes_v1")  || "{}"),
+      compras_plan: JSON.parse(localStorage.getItem("compras_plan_v1")|| "{}"),
+      compras_have: JSON.parse(localStorage.getItem("compras_have_v1")|| "{}"),
+      updatedAt:    firebase.firestore.FieldValue.serverTimestamp()
+    };
+    db.collection("data").doc(CLOUD_DOC).set(payload)
+      .then(()=> updateCloudStamp("☁️ Sincronizado"))
+      .catch(()=> updateCloudStamp("⚠️ Sin conexión (guardado local)"));
+  }catch(e){ console.warn("cloudSave error:", e); }
+}
+
+// ---- CARGAR DESDE NUBE ----
+function cloudLoad(){
+  updateCloudStamp("☁️ Sincronizando...");
+  db.collection("data").doc(CLOUD_DOC).get()
+    .then(doc => {
+      if(!doc.exists){ updateCloudStamp("☁️ Sin datos en nube aún"); return; }
+      const d = doc.data();
+      if(d.inventory)    localStorage.setItem("inventory",      JSON.stringify(d.inventory));
+      if(d.sales)        localStorage.setItem("sales",          JSON.stringify(d.sales));
+      if(d.ventasDinero) localStorage.setItem("ventasDinero",   JSON.stringify(d.ventasDinero));
+      if(d.listaPVs)     localStorage.setItem("listaPVs",       JSON.stringify(d.listaPVs));
+      if(d.cu_catalog)   localStorage.setItem("cu_catalog_v1",  JSON.stringify(d.cu_catalog));
+      if(d.cu_recipes)   localStorage.setItem("cu_recipes_v1",  JSON.stringify(d.cu_recipes));
+      if(d.compras_plan) localStorage.setItem("compras_plan_v1",JSON.stringify(d.compras_plan));
+      if(d.compras_have) localStorage.setItem("compras_have_v1",JSON.stringify(d.compras_have));
+      try{
+        inventory    = JSON.parse(localStorage.getItem("inventory") || "[]");
+        sales        = JSON.parse(localStorage.getItem("sales")     || "[]");
+        ventasDinero = JSON.parse(localStorage.getItem("ventasDinero") || "[]");
+        listaPVs     = JSON.parse(localStorage.getItem("listaPVs")  || "[]");
+        render();
+        try{ renderVentasDinero && renderVentasDinero(); }catch(_){}
+        try{ renderPVRows && renderPVRows(); }catch(_){}
+      }catch(e){ console.warn("cloudLoad render:", e); }
+      updateCloudStamp("☁️ Sincronizado");
+    })
+    .catch(()=> updateCloudStamp("⚠️ Sin conexión (datos locales)"));
+}
+
+function updateCloudStamp(msg){
+  const el = document.getElementById("cloudStamp");
+  if(el) el.textContent = msg;
+}
+
+// Cargar desde nube al iniciar
+window.addEventListener("load", () => setTimeout(cloudLoad, 1500));
+</script>
+<!-- /Firebase -->
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js">
 function compararPeriodo(){
     const inicio = document.getElementById("fechaInicio").value;
@@ -24,15 +141,12 @@ function compararPeriodo(){
     const cantidad = rango.length;
 
     const anchoDinamico =
-      cantidad <= 1 ? 420 :
-      cantidad <= 2 ? 420 :
-      cantidad <= 4 ? 460 :
-      cantidad * 70;
+      cantidad <= 4 ? 800 : cantidad * 110;
 
     const moneyInner = document.querySelector('.moneyChartInner');
 
     if(moneyInner){
-      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+      moneyInner.style.width = anchoDinamico + 'px';
     }
 
 // Calculamos totales del rango
@@ -58,17 +172,17 @@ function compararPeriodo(){
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 },
                 { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 }
             ]
         },
@@ -116,7 +230,7 @@ options:{
      clamp:true,
      clip:false,
      font:{
-       size:11,
+       size:13,
        weight:'bold'
      }
    }
@@ -163,7 +277,7 @@ options:{
      }
    }
  }
-, plugins: { datalabels: { display: false } } }
+, plugins: { datalabels: { display: true } } }
     });
 }
 
@@ -261,9 +375,9 @@ function renderVentasChart(){
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8,
          
        },
@@ -274,9 +388,9 @@ function renderVentasChart(){
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8,
          
        }
@@ -326,7 +440,7 @@ options:{
      clamp:true,
      clip:false,
      font:{
-       size:11,
+       size:13,
        weight:'bold'
      }
    }
@@ -458,15 +572,12 @@ function compararPeriodo(){
     const cantidad = rango.length;
 
     const anchoDinamico =
-      cantidad <= 1 ? 420 :
-      cantidad <= 2 ? 420 :
-      cantidad <= 4 ? 460 :
-      cantidad * 70;
+      cantidad <= 4 ? 800 : cantidad * 110;
 
     const moneyInner = document.querySelector('.moneyChartInner');
 
     if(moneyInner){
-      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+      moneyInner.style.width = anchoDinamico + 'px';
     }
 
 // Calculamos totales del rango
@@ -492,17 +603,17 @@ function compararPeriodo(){
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 },
                 { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 }
             ]
         },
@@ -550,7 +661,7 @@ options:{
      clamp:true,
      clip:false,
      font:{
-       size:11,
+       size:13,
        weight:'bold'
      }
    }
@@ -597,7 +708,7 @@ options:{
      }
    }
  }
-, plugins: { datalabels: { display: false } } }
+, plugins: { datalabels: { display: true } } }
     });
 }
 
@@ -615,15 +726,12 @@ function compararPeriodo(){
     const cantidad = rango.length;
 
     const anchoDinamico =
-      cantidad <= 1 ? 420 :
-      cantidad <= 2 ? 420 :
-      cantidad <= 4 ? 460 :
-      cantidad * 70;
+      cantidad <= 4 ? 800 : cantidad * 110;
 
     const moneyInner = document.querySelector('.moneyChartInner');
 
     if(moneyInner){
-      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+      moneyInner.style.width = anchoDinamico + 'px';
     }
 
 // Calculamos totales del rango
@@ -649,17 +757,17 @@ function compararPeriodo(){
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 },
                 { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 }
             ]
         },
@@ -707,7 +815,7 @@ options:{
      clamp:true,
      clip:false,
      font:{
-       size:11,
+       size:13,
        weight:'bold'
      }
    }
@@ -754,7 +862,7 @@ options:{
      }
    }
  }
-, plugins: { datalabels: { display: false } } }
+, plugins: { datalabels: { display: true } } }
     });
 }
 
@@ -772,15 +880,12 @@ function compararPeriodo(){
     const cantidad = rango.length;
 
     const anchoDinamico =
-      cantidad <= 1 ? 420 :
-      cantidad <= 2 ? 420 :
-      cantidad <= 4 ? 460 :
-      cantidad * 70;
+      cantidad <= 4 ? 800 : cantidad * 110;
 
     const moneyInner = document.querySelector('.moneyChartInner');
 
     if(moneyInner){
-      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+      moneyInner.style.width = anchoDinamico + 'px';
     }
 
 // Calculamos totales del rango
@@ -806,17 +911,17 @@ function compararPeriodo(){
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 },
                 { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 }
             ]
         },
@@ -864,7 +969,7 @@ options:{
      clamp:true,
      clip:false,
      font:{
-       size:11,
+       size:13,
        weight:'bold'
      }
    }
@@ -911,7 +1016,7 @@ options:{
      }
    }
  }
-, plugins: { datalabels: { display: false } } }
+, plugins: { datalabels: { display: true } } }
     });
 }
 
@@ -2493,6 +2598,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 <div class="inventory" id="inventory"></div>
 <div id="savedStamp" class="savedStamp"></div>
+<div id="cloudStamp" style="text-align:center;font-size:12px;color:rgba(100,116,139,.75);margin-bottom:8px">☁️ Conectando...</div>
 
 <!-- FAB -->
 <div class="speed-dial">
@@ -2678,6 +2784,13 @@ document.addEventListener('DOMContentLoaded',()=>{
         <input type="date" id="fechaInicio">
         <input type="date" id="fechaFin">
     </div>
+    <div style="display:flex; gap:10px; margin-bottom:10px;">
+      <select id="tipoComparacion" onchange="document.getElementById('pvComparativa').style.display=this.value==='pv'?'':'none'; if(this.value==='pv' && typeof llenarPVs==='function') llenarPVs();">
+        <option value="dia">Por Día</option>
+        <option value="pv">Por PV</option>
+      </select>
+      <select id="pvComparativa" style="display:none"></select>
+    </div>
     <button onclick="compararPeriodo()">Comparar</button>
    </div>
 
@@ -2815,6 +2928,12 @@ document.addEventListener('DOMContentLoaded',()=>{
 <!-- IO -->
 <div class="sheet" id="ioSheet">
  <h2>Importación / Exportación</h2>
+
+ <!-- Indicador de conexión -->
+ <div id="ioConnectionBadge" style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;background:#f1f5f9;margin-bottom:16px;font-size:14px;font-weight:700">
+   <span id="ioConnectionDot" style="font-size:18px">🟢</span>
+   <span id="ioConnectionText">En línea — cambios se sincronizan con la nube</span>
+ </div>
 
  <button onclick="exportData()">Exportar JSON</button>
 
@@ -3490,6 +3609,8 @@ function saveSilent(){
 const ts = new Date().toISOString();
   localStorage.setItem("lastSaved", ts);
   updateSavedStamp();
+  // Sincronizar con Firebase en segundo plano
+  try{ cloudSaveSoon(); }catch(_){}
  }catch(e){
   console.warn('No se pudo guardar en localStorage:',e);
   try{ AppUI.toast('No se pudo guardar (permiso/almacenamiento). Abre en Chrome o descarga/abre desde Archivos.','warn',3200);}catch(_){ }
@@ -4054,6 +4175,8 @@ function render(){
  const compareSel=document.getElementById("statsCompare");
  const cuSel=document.getElementById("cuFlavor");
 
+ const cuPrevVal = cuSel.value;
+
  inventoryDiv.innerHTML="";
  if(compareSel){
   compareSel.innerHTML = `<option value="__ALL__">Todos</option>`;
@@ -4098,6 +4221,10 @@ function render(){
    </div>`;
  });
 
+ if(cuPrevVal!=="" && cuSel.querySelector(`option[value="${cuPrevVal}"]`)){
+  cuSel.value = cuPrevVal;
+ }
+
  saveSilent();
  scheduleChartsAnimated();
 }
@@ -4120,12 +4247,13 @@ function increase(i, btn){
  flash(i,"add");
  inventory[i].qty++;
  saveSilent(); render();
+ try{ cloudSaveNow(); }catch(_){}
 }
 
 function decrease(i, btn){
  vibrateSafe(10);
  flash(i,"sub");
- if(inventory[i].qty>0){inventory[i].qty--;saveSilent();render()}
+ if(inventory[i].qty>0){inventory[i].qty--;saveSilent();render();try{ cloudSaveNow(); }catch(_){}}
 }
 
 /* VENDER + hold cantidad */
@@ -4200,9 +4328,9 @@ function doSell(i, qty, btn){
 
  saveSilent();
  render();
+ try{ cloudSaveNow(); }catch(_){}
 }
 
-/* CONFIG */
 function openConfig(i){
  currentIndex=i;
  editName.value=inventory[i].name;
@@ -4324,15 +4452,12 @@ function compararPeriodo(){
     const cantidad = rango.length;
 
     const anchoDinamico =
-      cantidad <= 1 ? 420 :
-      cantidad <= 2 ? 420 :
-      cantidad <= 4 ? 460 :
-      cantidad * 70;
+      cantidad <= 4 ? 800 : cantidad * 110;
 
     const moneyInner = document.querySelector('.moneyChartInner');
 
     if(moneyInner){
-      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+      moneyInner.style.width = anchoDinamico + 'px';
     }
 
 // Calculamos totales del rango
@@ -4358,17 +4483,17 @@ function compararPeriodo(){
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 },
                 { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 }
             ]
         },
@@ -4416,7 +4541,7 @@ options:{
      clamp:true,
      clip:false,
      font:{
-       size:11,
+       size:13,
        weight:'bold'
      }
    }
@@ -4463,7 +4588,7 @@ options:{
      }
    }
  }
-, plugins: { datalabels: { display: false } } }
+, plugins: { datalabels: { display: true } } }
     });
 }
 
@@ -4992,15 +5117,12 @@ function compararPeriodo(){
     const cantidad = rango.length;
 
     const anchoDinamico =
-      cantidad <= 1 ? 420 :
-      cantidad <= 2 ? 420 :
-      cantidad <= 4 ? 460 :
-      cantidad * 70;
+      cantidad <= 4 ? 800 : cantidad * 110;
 
     const moneyInner = document.querySelector('.moneyChartInner');
 
     if(moneyInner){
-      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+      moneyInner.style.width = anchoDinamico + 'px';
     }
 
 // Calculamos totales del rango
@@ -5026,17 +5148,17 @@ function compararPeriodo(){
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 },
                 { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 }
             ]
         },
@@ -5084,7 +5206,7 @@ options:{
      clamp:true,
      clip:false,
      font:{
-       size:11,
+       size:13,
        weight:'bold'
      }
    }
@@ -5131,7 +5253,7 @@ options:{
      }
    }
  }
-, plugins: { datalabels: { display: false } } }
+, plugins: { datalabels: { display: true } } }
     });
 }
 
@@ -5542,8 +5664,13 @@ function cuRender(){
 <div class="row3 cuBtns" style="margin-top:10px">
     <div>
      <div class="lbl">COSTO PAQUETE ($)</div>
-     <input type="number" step="0.01" min="0" value="${Number(r.pack)||0}"
-      oninput="cuRows[${i}].pack=this.value; cuRows[${i}].cat=''; cuCalc()">
+     ${r.cat ? `
+      <input type="text" readonly value="${money(Number(r.pack)||0)}"
+       style="background:#e2e8f0;color:#475569;font-weight:800">
+     ` : `
+      <input type="number" step="0.01" min="0" value="${Number(r.pack)||0}"
+       oninput="cuRows[${i}].pack=this.value; cuCalc()">
+     `}
     </div>
     <div>
      <div class="lbl">CANTIDAD USADA</div>
@@ -5643,6 +5770,7 @@ async function clearSales(){
 ========================= */
 function exportData(){
  saveSilent();
+ try{ cloudSaveNow(); }catch(_){}
  const payload={
   inventory,
   sales,
@@ -5660,6 +5788,7 @@ const a=document.createElement("a");
  a.href=URL.createObjectURL(blob);
  a.download="hieli_cream_backup.json";
  a.click();
+ AppUI.toast("☁️ También sincronizado con la nube");
 }
 
 function triggerImport(){
@@ -5907,7 +6036,8 @@ if(comprasPayload && typeof comprasPayload === 'object'){
      },0);
    }catch(_){}
 
-   AppUI.toast(String("✅ Importado correctamente"));
+   AppUI.toast(String("✅ Importado correctamente — sincronizando con la nube..."));
+   try{ cloudSaveNow(); }catch(_){}
   }catch(err){
    AppUI.alert("No se pudo importar: " + (err?.message || err), {title:"Error"});
   }
@@ -5929,15 +6059,12 @@ function compararPeriodo(){
     const cantidad = rango.length;
 
     const anchoDinamico =
-      cantidad <= 1 ? 420 :
-      cantidad <= 2 ? 420 :
-      cantidad <= 4 ? 460 :
-      cantidad * 70;
+      cantidad <= 4 ? 800 : cantidad * 110;
 
     const moneyInner = document.querySelector('.moneyChartInner');
 
     if(moneyInner){
-      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+      moneyInner.style.width = anchoDinamico + 'px';
     }
 
 // Calculamos totales del rango
@@ -5963,17 +6090,17 @@ function compararPeriodo(){
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 },
                 { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 }
             ]
         },
@@ -6021,7 +6148,7 @@ options:{
      clamp:true,
      clip:false,
      font:{
-       size:11,
+       size:13,
        weight:'bold'
      }
    }
@@ -6068,7 +6195,7 @@ options:{
      }
    }
  }
-, plugins: { datalabels: { display: false } } }
+, plugins: { datalabels: { display: true } } }
     });
 }
 
@@ -6653,15 +6780,12 @@ function compararPeriodo(){
     const cantidad = rango.length;
 
     const anchoDinamico =
-      cantidad <= 1 ? 420 :
-      cantidad <= 2 ? 420 :
-      cantidad <= 4 ? 460 :
-      cantidad * 70;
+      cantidad <= 4 ? 800 : cantidad * 110;
 
     const moneyInner = document.querySelector('.moneyChartInner');
 
     if(moneyInner){
-      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+      moneyInner.style.width = anchoDinamico + 'px';
     }
 
 // Calculamos totales del rango
@@ -6687,17 +6811,17 @@ function compararPeriodo(){
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 },
                 { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 }
             ]
         },
@@ -6745,7 +6869,7 @@ options:{
      clamp:true,
      clip:false,
      font:{
-       size:11,
+       size:13,
        weight:'bold'
      }
    }
@@ -6792,7 +6916,7 @@ options:{
      }
    }
  }
-, plugins: { datalabels: { display: false } } }
+, plugins: { datalabels: { display: true } } }
     });
 }
 
@@ -6839,15 +6963,12 @@ function compararPeriodo(){
     const cantidad = rango.length;
 
     const anchoDinamico =
-      cantidad <= 1 ? 420 :
-      cantidad <= 2 ? 420 :
-      cantidad <= 4 ? 460 :
-      cantidad * 70;
+      cantidad <= 4 ? 800 : cantidad * 110;
 
     const moneyInner = document.querySelector('.moneyChartInner');
 
     if(moneyInner){
-      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+      moneyInner.style.width = anchoDinamico + 'px';
     }
 
 // Calculamos totales del rango
@@ -6873,17 +6994,17 @@ function compararPeriodo(){
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 },
                 { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 }
             ]
         },
@@ -6931,7 +7052,7 @@ options:{
      clamp:true,
      clip:false,
      font:{
-       size:11,
+       size:13,
        weight:'bold'
      }
    }
@@ -6978,7 +7099,7 @@ options:{
      }
    }
  }
-, plugins: { datalabels: { display: false } } }
+, plugins: { datalabels: { display: true } } }
     });
 }
 
@@ -7010,15 +7131,12 @@ function compararPeriodo(){
     const cantidad = rango.length;
 
     const anchoDinamico =
-      cantidad <= 1 ? 420 :
-      cantidad <= 2 ? 420 :
-      cantidad <= 4 ? 460 :
-      cantidad * 70;
+      cantidad <= 4 ? 800 : cantidad * 110;
 
     const moneyInner = document.querySelector('.moneyChartInner');
 
     if(moneyInner){
-      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+      moneyInner.style.width = anchoDinamico + 'px';
     }
 
 // Calculamos totales del rango
@@ -7044,17 +7162,17 @@ function compararPeriodo(){
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 },
                 { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 }
             ]
         },
@@ -7102,7 +7220,7 @@ options:{
      clamp:true,
      clip:false,
      font:{
-       size:11,
+       size:13,
        weight:'bold'
      }
    }
@@ -7149,7 +7267,7 @@ options:{
      }
    }
  }
-, plugins: { datalabels: { display: false } } }
+, plugins: { datalabels: { display: true } } }
     });
 }
 
@@ -7310,15 +7428,12 @@ function compararPeriodo(){
     const cantidad = rango.length;
 
     const anchoDinamico =
-      cantidad <= 1 ? 420 :
-      cantidad <= 2 ? 420 :
-      cantidad <= 4 ? 460 :
-      cantidad * 70;
+      cantidad <= 4 ? 800 : cantidad * 110;
 
     const moneyInner = document.querySelector('.moneyChartInner');
 
     if(moneyInner){
-      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+      moneyInner.style.width = anchoDinamico + 'px';
     }
 
 // Calculamos totales del rango
@@ -7344,17 +7459,17 @@ function compararPeriodo(){
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 },
                 { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 }
             ]
         },
@@ -7402,7 +7517,7 @@ options:{
      clamp:true,
      clip:false,
      font:{
-       size:11,
+       size:13,
        weight:'bold'
      }
    }
@@ -7449,7 +7564,7 @@ options:{
      }
    }
  }
-, plugins: { datalabels: { display: false } } }
+, plugins: { datalabels: { display: true } } }
     });
 }
 
@@ -7490,15 +7605,12 @@ function compararPeriodo(){
     const cantidad = rango.length;
 
     const anchoDinamico =
-      cantidad <= 1 ? 420 :
-      cantidad <= 2 ? 420 :
-      cantidad <= 4 ? 460 :
-      cantidad * 70;
+      cantidad <= 4 ? 800 : cantidad * 110;
 
     const moneyInner = document.querySelector('.moneyChartInner');
 
     if(moneyInner){
-      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+      moneyInner.style.width = anchoDinamico + 'px';
     }
 
 // Calculamos totales del rango
@@ -7524,17 +7636,17 @@ function compararPeriodo(){
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 },
                 { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
         borderRadius:14,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.95,
+        barPercentage:0.95,
+        maxBarThickness:70,
         minBarLength:8 }
             ]
         },
@@ -7582,7 +7694,7 @@ options:{
      clamp:true,
      clip:false,
      font:{
-       size:11,
+       size:13,
        weight:'bold'
      }
    }
@@ -7629,7 +7741,7 @@ options:{
      }
    }
  }
-, plugins: { datalabels: { display: false } } }
+, plugins: { datalabels: { display: true } } }
     });
 }
 
@@ -7834,25 +7946,17 @@ function compararPeriodo(){
     const cantidad = rango.length;
 
     const anchoDinamico =
-      cantidad <= 1 ? 420 :
-      cantidad <= 2 ? 420 :
-      cantidad <= 4 ? 460 :
-      cantidad * 70;
+      cantidad <= 4 ? 800 : cantidad * 90;
 
     const moneyInner = document.querySelector('.moneyChartInner');
 
     if(moneyInner){
-      moneyInner.style.width = (cantidad <= 1 ? '100%' : (anchoDinamico + 'px'));
+      moneyInner.style.width = anchoDinamico + 'px';
     }
 
 // Calculamos totales del rango
     let totGasto = rango.reduce((a,b) => a + Number(b.gasto), 0);
     let totGanancia = rango.reduce((a,b) => a + Number(b.ganancia), 0);
-    
-    // Actualizamos tarjetas de arriba con el total del rango comparativo
-    document.getElementById("ventasIngresos").textContent = `$${(totGasto + totGanancia).toFixed(2)}`;
-    document.getElementById("ventasGanancias").textContent = `$${totGanancia.toFixed(2)}`;
-    document.getElementById("ventasCosto").textContent = `$${totGasto.toFixed(2)}`;
     
     // Renderizamos la gráfica comparativa
     if(window.ventasChartObj) window.ventasChartObj.destroy();
@@ -7865,28 +7969,26 @@ function compararPeriodo(){
             labels: rango.map(v => v.fecha),
             datasets: [
                 { label: 'Costos', data: rango.map(v => v.gasto), backgroundColor:'#ef4444', stack:'ventas',
-        borderRadius:14,
+        borderRadius:10,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.9,
+        barPercentage:0.6,
+        maxBarThickness:40,
         minBarLength:8 },
                 { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
-        borderRadius:14,
+        borderRadius:10,
         borderSkipped:false,
         
-        categoryPercentage:0.7,
-        barPercentage:0.8,
-        maxBarThickness:55,
+        categoryPercentage:0.9,
+        barPercentage:0.6,
+        maxBarThickness:40,
         minBarLength:8 }
             ]
         },
         
 options:{
  responsive:true,
-            maintainAspectRatio:false,
-      maintainAspectRatio:false,
  maintainAspectRatio:false,
  animation:true,
 
@@ -7919,12 +8021,16 @@ options:{
    },
 
    datalabels:{
-     color:'#0f172a',
+     color:'#ffffff',
+     backgroundColor:'rgba(15,23,42,.88)',
+     borderRadius:11,
+     padding:{top:4,bottom:4,left:7,right:7},
      anchor:'end',
-     align:'top',
-     offset:6,
+     align:'end',
+     offset:1,
      clamp:true,
      clip:false,
+     formatter:(v)=>'$'+Number(v).toFixed(1),
      font:{
        size:11,
        weight:'bold'
@@ -7973,7 +8079,7 @@ options:{
      }
    }
  }
-, plugins: { datalabels: { display: false } } }
+}
     });
 }
 
@@ -8062,6 +8168,7 @@ function showVentasTab(tab){
  var r=document.getElementById('ventasRegistroTab');
  var c=document.getElementById('ventasComparativaTab');
  if(r&&c){r.style.display=tab==='registro'?'block':'none'; c.style.display=tab==='comparativa'?'block':'none';}
+ if(tab==='comparativa' && typeof llenarPVs==='function') llenarPVs();
 }
 document.addEventListener('DOMContentLoaded',function(){
  showVentasTab('registro');
@@ -8138,5 +8245,143 @@ function eliminarPVVisual(n){ if(!confirm('¿Eliminar PV '+n+'?')) return;
  renderListaPVVisual();
  if(typeof renderPVRows==='function') renderPVRows();
 }
-</script></body>
+</script>
+<script>
+(function(){
+function llenarPVs(){
+ const s=document.getElementById('pvComparativa');
+ if(!s) return;
+ s.innerHTML='<option value="">Todos los PVs</option>';
+ try{
+  (listaPVs||[]).forEach(p=>{
+   const o=document.createElement('option');
+   o.value=p;o.textContent=p;s.appendChild(o);
+  });
+ }catch(e){}
+}
+window.llenarPVs=llenarPVs;
+window.addEventListener('load',()=>setTimeout(llenarPVs,1000));
+
+const original=window.compararPeriodo;
+window.compararPeriodo=function(){
+ const tipo=document.getElementById('tipoComparacion');
+ if(!tipo || tipo.value==='dia') return original();
+
+ const ini=document.getElementById('fechaInicio').value;
+ const fin=document.getElementById('fechaFin').value;
+ const pv=document.getElementById('pvComparativa').value;
+
+ const rango=(ventasDinero||[]).filter(v=>v.fecha>=ini && v.fecha<=fin);
+
+ let labels=[], ingresos=0,costo=0,gan=0;
+ let dsVentas=[];
+
+ if(!pv){
+   const map={};
+   rango.forEach(d=>(d.pvs||[]).forEach(p=>{
+      map[p.nombre]=(map[p.nombre]||0)+Number(p.monto||0);
+   }));
+   const arr=Object.entries(map).sort((a,b)=>b[1]-a[1]);
+   labels=arr.map(x=>x[0]);
+   dsVentas=arr.map(x=>x[1]);
+   ingresos=dsVentas.reduce((a,b)=>a+b,0);
+   costo=rango.reduce((a,b)=>a+Number(b.gasto||0),0);
+   gan=rango.reduce((a,b)=>a+Number(b.ganancia||0),0);
+ } else {
+   rango.forEach(d=>{
+      const p=(d.pvs||[]).find(x=>x.nombre===pv);
+      if(p){
+       const m=Number(p.monto||0);
+       labels.push(d.fecha);
+       dsVentas.push(m);
+       ingresos+=m;
+       if(Number(d.vendido||0)>0){
+         costo += (Number(d.gasto||0)/Number(d.vendido))*m;
+         gan += (Number(d.ganancia||0)/Number(d.vendido))*m;
+       }
+      }
+   });
+ }
+
+ const cantidad = labels.length;
+ const anchoDinamico = cantidad <= 4 ? 800 : cantidad * 90;
+ const moneyInner = document.querySelector('.moneyChartInner');
+ if(moneyInner){
+   moneyInner.style.width = anchoDinamico + 'px';
+ }
+
+ let ci=document.getElementById('ventasCompIngresos');
+ let cc=document.getElementById('ventasCompCosto');
+ let cg=document.getElementById('ventasCompGanancia');
+ if(ci) ci.textContent='$'+ingresos.toFixed(2);
+ if(cc) cc.textContent='$0.00';
+ if(cg) cg.textContent='$0.00';
+
+ if(window.ventasChartObj){
+   window.ventasChartObj.destroy();
+ }
+ const canvas=document.getElementById('ventasChart');
+ canvas.closest('.chartPanel').style.display='block';
+ window.ventasChartObj=new Chart(canvas,{
+   type:'bar',
+   data:{labels:labels,datasets:[{label:'Ventas',data:dsVentas,backgroundColor:'#6366f1',
+     borderRadius:10,
+     borderSkipped:false,
+     categoryPercentage:0.9,
+     barPercentage:0.6,
+     maxBarThickness:40,
+     minBarLength:8}]},
+   options:{
+ responsive:true,
+ maintainAspectRatio:false,
+ layout:{padding:{top:35,left:10,right:10,bottom:10}},
+ plugins:{
+   legend:{display:true,position:'top',
+     labels:{usePointStyle:true,pointStyle:'circle',
+     font:{size:13,weight:'bold'}}},
+   tooltip:{enabled:true},
+   datalabels:{
+     color:'#ffffff',
+     backgroundColor:'rgba(15,23,42,.88)',
+     borderRadius:11,
+     padding:{top:4,bottom:4,left:7,right:7},
+     anchor:'end',
+     align:'end',
+     offset:1,
+     clamp:true,
+     clip:false,
+     font:{
+       size:12,
+       weight:'bold'
+     },
+     formatter:(v)=>'$'+Number(v).toFixed(1)
+   }
+ },
+ scales:{
+   x:{offset:true,ticks:{autoSkip:false,maxRotation:55,minRotation:55,color:'#334155',font:{size:11,weight:'bold'}},grid:{display:false}},
+   y:{beginAtZero:true,ticks:{callback:(v)=>'$'+Number(v).toLocaleString()}}
+ }
+}
+ });
+}
+})();
+</script>
+
+</body>
 </html>
+
+<style>
+.moneyChartScroll{overflow-x:auto!important;overflow-y:hidden!important;}
+.moneyChartInner{
+ min-width:800px!important;
+ height:550px!important;
+}
+.moneyChartInner canvas{
+ height:550px!important;
+}
+</style>
+
+<style>
+.moneyChartInner canvas{height:550px!important;}
+.chart-wrap canvas{max-height:380px!important;}
+</style>
