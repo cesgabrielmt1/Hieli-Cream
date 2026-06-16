@@ -7053,9 +7053,39 @@ options:{
 
 
 <script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch(console.error);
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+
+      // Revisar actualizaciones cada vez que la app vuelve al frente
+      document.addEventListener('visibilitychange', () => {
+        if(document.visibilityState === 'visible') reg.update();
+      });
+
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        newSW.addEventListener('statechange', () => {
+          if(newSW.state === 'activated'){
+            // Toast de nueva versión
+            const t = document.createElement('div');
+            t.innerHTML = `
+              <div id="swToast" style="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+                background:#0f172a;color:#fff;padding:12px 20px;border-radius:50px;
+                font-size:14px;font-weight:700;z-index:99999;display:flex;gap:12px;align-items:center;
+                box-shadow:0 4px 20px rgba(0,0,0,.35);white-space:nowrap">
+                🔄 Nueva versión disponible
+                <button onclick="location.reload()" style="background:#6366f1;border:none;
+                  color:#fff;padding:6px 14px;border-radius:50px;font-weight:700;cursor:pointer;
+                  font-size:13px">
+                  Actualizar
+                </button>
+              </div>`;
+            document.body.appendChild(t);
+          }
+        });
+      });
+
+    }).catch(console.error);
   });
 }
 
@@ -8542,34 +8572,65 @@ function buildDaySelector(){
 function getDateStr(offset){
   const d = new Date();
   d.setDate(d.getDate() + offset);
-  return d.toISOString().slice(0,10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
 }
 
 function getProyeccion(productName, targetOffset){
-  // Siempre usa el promedio del mismo día de semana de las últimas 4 semanas
   const today = new Date();
   const targetDate = new Date(today);
   targetDate.setDate(today.getDate() + targetOffset);
 
+  // Primero: promedio del mismo día de semana (últimas 4 semanas)
   let relevantSales = [];
   for(let w = 1; w <= 4; w++){
-    const d = new Date(targetDate);
-    d.setDate(targetDate.getDate() - (7 * w));
-    const dateStr = d.toISOString().slice(0,10);
-    const daySales = (sales||[]).filter(s => s.date === dateStr && s.product === productName);
+    const dateStr = getDateStr(0 - (7 * w) + targetOffset);
+    const pName = productName.trim().toLowerCase();
+    const daySales = (sales||[]).filter(s =>
+      normalizeISODate(s.date) === dateStr &&
+      (s.product||'').trim().toLowerCase() === pName
+    );
     const total = daySales.reduce((a,b) => a + Number(b.qty||0), 0);
     relevantSales.push(total);
   }
 
-  if(!relevantSales.length) return 0;
-  const sum = relevantSales.reduce((a,b) => a+b, 0);
-  return Math.round(sum / relevantSales.length);
+  const sumWeekday = relevantSales.reduce((a,b) => a+b, 0);
+
+  // Si hay historial del día de semana, usarlo
+  if(sumWeekday > 0){
+    return Math.round(sumWeekday / relevantSales.length);
+  }
+
+  // Fallback: promedio de los últimos 7 días (cualquier día)
+  let fallbackSales = [];
+  const pName2 = productName.trim().toLowerCase();
+  for(let i = 1; i <= 7; i++){
+    const dateStr = getDateStr(-i);
+    const daySales = (sales||[]).filter(s =>
+      normalizeISODate(s.date) === dateStr &&
+      (s.product||'').trim().toLowerCase() === pName2
+    );
+    const total = daySales.reduce((a,b) => a + Number(b.qty||0), 0);
+    fallbackSales.push(total);
+  }
+  const sumFallback = fallbackSales.reduce((a,b) => a+b, 0);
+  if(sumFallback > 0){
+    return Math.round(sumFallback / fallbackSales.length);
+  }
+
+  return 0;
 }
 
 function getRealToday(productName, offset){
-  if(offset !== 0) return 0; // Solo hay real para hoy
-  const dateStr = getDateStr(0);
-  const daySales = (sales||[]).filter(s => s.date === dateStr && s.product === productName);
+  if(offset !== 0) return 0;
+  const dateStr = getDateStr(0); // local date
+  const pName = productName.trim().toLowerCase();
+  const daySales = (sales||[]).filter(s =>
+    normalizeISODate(s.date) === dateStr &&
+    (s.product||'').trim().toLowerCase() === pName
+  );
   return daySales.reduce((a,b) => a + Number(b.qty||0), 0);
 }
 
@@ -8617,17 +8678,20 @@ function renderProyecciones(){
   // Barra progresiva morada de diferencia
   const diffBar = document.getElementById("proyDiffBar");
   if(diffBar){
-    const pctDiff = totalProy > 0 ? Math.min(Math.round((totalReal/totalProy)*100), 100) : 0;
-    diffBar.style.width = pctDiff + "%";
+    const pctDiff = totalProy > 0 ? Math.round((totalReal/totalProy)*100) : 0;
+    diffBar.style.width = Math.min(pctDiff, 100) + "%";
+    diffBar.style.background = pctDiff >= 100 ? "#22c55e" : "var(--primary)";
   }
 
   // Tarjetas
   cards.innerHTML = data.map(({ name, proy, real, color }) => {
-    const pct = proy > 0 ? Math.min(Math.round((real/proy)*100), 100) : (real > 0 ? 100 : 0);
+    const pct = proy > 0 ? Math.round((real/proy)*100) : (real > 0 ? 100 : 0);
+    const pctBar = Math.min(pct, 100);
+    const exceeded = pct >= 100;
     const diff = real - proy;
     const diffStr = (diff >= 0 ? "+" : "") + diff + " pzas";
     const diffColor = diff >= 0 ? "#22c55e" : "#ef4444";
-    const rgb = hexToRgb(color);
+    const barColor = exceeded ? "#22c55e" : color;
     const isToday = __proyDayOffset === 0;
 
     return `
@@ -8643,7 +8707,7 @@ function renderProyecciones(){
       </div>
       <!-- Barra de progreso -->
       <div style="background:#f1f5f9;border-radius:50px;height:10px;overflow:hidden;margin-bottom:10px">
-        <div style="height:100%;width:${isToday ? pct : 0}%;background:${color};border-radius:50px;transition:width .6s ease"></div>
+        <div style="height:100%;width:${isToday ? pctBar : 0}%;background:${barColor};border-radius:50px;transition:width .6s ease"></div>
       </div>
       <!-- Stats -->
       <div style="display:grid;grid-template-columns:1fr 1fr ${isToday?'1fr':''};gap:8px;text-align:center">
@@ -8658,7 +8722,7 @@ function renderProyecciones(){
         </div>
         <div>
           <div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase">%</div>
-          <div style="font-size:18px;font-weight:900;color:${color}">${proy>0?pct+'%':'—'}</div>
+          <div style="font-size:18px;font-weight:900;color:${exceeded?'#22c55e':color}">${proy>0?pct+'%':(real>0?'✅':'—')}</div>
         </div>` : `
         <div>
           <div style="font-size:10px;color:#94a3b8;font-weight:700;text-transform:uppercase">Histórico</div>
