@@ -1,4 +1,4 @@
-const CACHE_NAME = "hieli-pro-v2"; // ← cambia este número en cada deploy
+const CACHE_NAME = "hieli-pro-v3";
 
 const CORE_ASSETS = [
   "./",
@@ -9,11 +9,24 @@ const CORE_ASSETS = [
   "./icon-512.png"
 ];
 
+// Dominios que NUNCA deben cachearse (Firebase, CDNs dinámicos)
+const BYPASS_DOMAINS = [
+  "firestore.googleapis.com",
+  "firebase.googleapis.com",
+  "identitytoolkit.googleapis.com",
+  "securetoken.googleapis.com",
+  "firebaseinstallations.googleapis.com",
+  "gstatic.com",
+  "jsdelivr.net",
+  "cdn.jsdelivr.net",
+  "cdnjs.cloudflare.com"
+];
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS))
   );
-  self.skipWaiting(); // Toma control inmediatamente
+  self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
@@ -22,7 +35,7 @@ self.addEventListener("activate", (event) => {
       Promise.all(keys.map((k) => k !== CACHE_NAME ? caches.delete(k) : null))
     )
   );
-  self.clients.claim(); // Controla todas las pestañas abiertas
+  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
@@ -30,10 +43,14 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
 
   const url = new URL(req.url);
+
+  // Dejar pasar Firebase y CDNs sin tocar
+  const shouldBypass = BYPASS_DOMAINS.some(d => url.hostname.includes(d));
+  if (shouldBypass) return;
+
   const isHTML = req.destination === "document" || url.pathname.endsWith(".html");
 
   if (isHTML) {
-    // HTML → red primero, caché como fallback
     event.respondWith(
       fetch(req)
         .then((res) => {
@@ -44,7 +61,6 @@ self.addEventListener("fetch", (event) => {
         .catch(() => caches.match(req) || caches.match("./"))
     );
   } else {
-    // Otros archivos → caché primero, red como fallback
     event.respondWith(
       caches.match(req).then((cached) => {
         if (cached) return cached;
