@@ -71,7 +71,7 @@ function cloudSaveSoon(){
 function cloudSave(){ _doCloudSave(); }
 
 function _doCloudSave(){
-  __ignoreNextSnapshot = true;
+  _bumpIgnore(); // suma 1 al contador — el snapshot de este save será ignorado
   try{
     const payload = {
       inventory:    JSON.parse(localStorage.getItem("inventory")      || "[]"),
@@ -114,7 +114,17 @@ function _applyCloudData(d){
 }
 
 let __snapshotUnsub = null;
-let __ignoreNextSnapshot = false;
+// Usamos CONTADOR en vez de boolean: cada save suma 1, cada snapshot resta 1
+// Así si tocas 5 veces rápido, se ignoran exactamente 5 snapshots propios
+let __ignoreSnapshots = 0;
+let __ignoreResetTimer = null;
+
+function _bumpIgnore(){
+  __ignoreSnapshots++;
+  // Seguro: si en 8s no llegaron todos los snapshots, resetear
+  clearTimeout(__ignoreResetTimer);
+  __ignoreResetTimer = setTimeout(() => { __ignoreSnapshots = 0; }, 8000);
+}
 
 function cloudStartListening(){
   // Si ya hay un listener activo, no crear otro
@@ -122,18 +132,45 @@ function cloudStartListening(){
   updateCloudStamp("☁️ Conectando...");
   __snapshotUnsub = db.collection("data").doc(CLOUD_DOC).onSnapshot(doc => {
     if(!doc.exists){ updateCloudStamp("☁️ Sin datos en nube aún"); return; }
-    // Ignorar solo el snapshot inmediato después de guardar en ESTE dispositivo
-    if(__ignoreNextSnapshot){ __ignoreNextSnapshot=false; updateCloudStamp("☁️ Sincronizado"); return; }
+    // Ignorar snapshots causados por ESTE dispositivo
+    if(__ignoreSnapshots > 0){
+      __ignoreSnapshots--;
+      updateCloudStamp("☁️ Sincronizado");
+      return;
+    }
     _applyCloudData(doc.data());
     updateCloudStamp("☁️ Sincronizado en tiempo real");
   }, err => {
     __snapshotUnsub = null;
     updateCloudStamp("⚠️ Sin conexión (datos locales)");
+    // Reconectar rápido tras error (5s en vez de 30s)
+    setTimeout(() => { if(__isOnline && !__snapshotUnsub) cloudStartListening(); }, 5000);
   });
 }
 
 // Alias para compatibilidad con llamadas existentes
 function cloudLoad(){ cloudStartListening(); }
+
+// Reconectador automático cada 30s
+setInterval(() => {
+  if(!__snapshotUnsub && __isOnline){
+    console.log('☁️ Reconectando listener...');
+    cloudStartListening();
+  }
+}, 30000);
+
+// Reconectar cuando la app vuelve al frente
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible' && __isOnline){
+    if(!__snapshotUnsub){
+      console.log('☁️ App al frente — reconectando...');
+      cloudStartListening();
+    } else {
+      // Forzar revisión de datos frescos aunque el listener esté vivo
+      __ignoreSnapshots = 0;
+    }
+  }
+});
 
 function updateCloudStamp(msg){
   const el = document.getElementById("cloudStamp");
@@ -1951,31 +1988,75 @@ align-items:center;text-align:center;}
 
 
 /* =========================
-   PATCH v15: Menú cards RECTANGULARES (no ovaladas)
+   PATCH v21: Cards cuadradas simétricas
 ========================= */
 .menuGrid{
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 12px !important;
 }
 .menuBtn{
-  border-radius: 18px !important;   /* esquinas redondeadas suaves */
-  height: 172px !important;         /* más alto para evitar forma de “bolita” */
-  padding: 18px 14px 16px !important;
-  background: rgba(255,255,255,.96) !important;
-  border: 1px solid rgba(148,163,184,.22) !important;
-  box-shadow: 0 14px 30px rgba(2,6,23,.10), inset 0 1px 0 rgba(255,255,255,.85) !important;
+  border-radius: 28px !important;
+  aspect-ratio: 1 / 1 !important;
+  height: auto !important;
+  width: 100% !important;
+  padding: 0 !important;
+  border: none !important;
+  background: #f0f1f5 !important;
+  box-shadow:
+    0 2px 0 rgba(0,0,0,.05),
+    0 6px 18px rgba(0,0,0,.09) !important;
+  transition: transform .13s ease, box-shadow .13s ease !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
 }
-.menuBtn .mIcon{
-  border-radius: 14px !important;
-  width: 46px !important;
-  height: 46px !important;
-  margin: 2px 0 12px !important;
+.menuBtn:active{
+  transform: scale(.94) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,.10) !important;
 }
-.menuBtn .mTitle{ font-size: 1.10rem !important; }
-.menuBtn .mSub{ font-size: .96rem !important; }
 
-/* Si tu sheet aplica estilos redondos a botones, lo neutralizamos */
-.sheet .menuBtn{ border-radius: 18px !important; }
+.menuBtn .mIcon{
+  border-radius: 22px !important;
+  width: 52px !important;
+  height: 52px !important;
+  margin: 0 !important;
+  flex-shrink: 0 !important;
+  box-shadow: 0 4px 14px rgba(0,0,0,.20) !important;
+  display: grid !important;
+  place-items: center !important;
+}
+.menuBtn .mIcon svg{
+  stroke: #fff !important;
+  width: 26px !important;
+  height: 26px !important;
+  stroke-width: 2.2px !important;
+  fill: none !important;
+}
+
+.menuBtn .mTitle{
+  font-size: .74rem !important;
+  color: #1e1b2e !important;
+  font-weight: 800 !important;
+  line-height: 1.2 !important;
+  text-align: center !important;
+  padding: 0 6px !important;
+}
+.menuBtn .mSub{ display: none !important; }
+
+/* Degradados logo HieliCream */
+.mBtn-1 .mIcon{ background: linear-gradient(135deg,#38c6f5,#7c5fe6) !important; }
+.mBtn-2 .mIcon{ background: linear-gradient(135deg,#7c5fe6,#c45ee8) !important; }
+.mBtn-3 .mIcon{ background: linear-gradient(135deg,#c45ee8,#f06fc4) !important; }
+.mBtn-4 .mIcon{ background: linear-gradient(135deg,#38c6f5,#c45ee8) !important; }
+.mBtn-5 .mIcon{ background: linear-gradient(135deg,#7c5fe6,#f06fc4) !important; }
+.mBtn-6 .mIcon{ background: linear-gradient(135deg,#4db8ff,#7c5fe6) !important; }
+.mBtn-7 .mIcon{ background: linear-gradient(135deg,#c45ee8,#7c5fe6) !important; }
+.mBtn-8 .mIcon{ background: linear-gradient(135deg,#38c6f5,#4db8ff) !important; }
+.mBtn-9 .mIcon{ background: linear-gradient(135deg,#9b6fe8,#f06fc4) !important; }
+
+.sheet .menuBtn{ border-radius: 28px !important; background: #f0f1f5 !important; }
 
 
 /* =========================
@@ -2673,61 +2754,57 @@ document.addEventListener('DOMContentLoaded',()=>{
  <h2>Menú</h2>
  
 
- <!-- ✅ sin degradados: puros colores pastel -->
  <div class="menuGrid">
-  <button class="menuBtn" onclick="goTo('add')">
-  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 21h8"/><path d="M12 21v-5"/><path d="M7 10.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5c0 2.6-1.6 4.7-3.8 5.3H10.8C8.6 15.2 7 13.1 7 10.5Z"/></svg></div>
-  <div class="mTitle">Nuevo Hielito</div>
-  <div class="mSub">Agregar sabores</div>
-</button>
+  <!-- Fila 1 -->
+  <button class="menuBtn mBtn-1" onclick="goTo('add')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 21h8"/><path d="M12 21v-5"/><path d="M7 10.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5c0 2.6-1.6 4.7-3.8 5.3H10.8C8.6 15.2 7 13.1 7 10.5Z"/></svg></div>
+    <div class="mTitle">Nuevo Sabor</div>
+    <div class="mSub">Agregar sabores</div>
+  </button>
+  <button class="menuBtn mBtn-2" onclick="goTo('stats')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M8 19V11"/><path d="M12 19V7"/><path d="M16 19V13"/><path d="M20 19V9"/></svg></div>
+    <div class="mTitle">Productos vendidos</div>
+    <div class="mSub">Ventas + total</div>
+  </button>
+  <button class="menuBtn mBtn-3" onclick="goTo('ventas')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14.5a3.5 3.5 0 0 1 0 7H7"/></svg></div>
+    <div class="mTitle">Ventas</div>
+    <div class="mSub">Ingresos diarios</div>
+  </button>
 
-  <button class="menuBtn" onclick="goTo('stats')">
-  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M8 19V11"/><path d="M12 19V7"/><path d="M16 19V13"/><path d="M20 19V9"/></svg></div>
-  <div class="mTitle">Gráficas</div>
-  <div class="mSub">Ventas + total</div>
-</button>
+  <!-- Fila 2 -->
+  <button class="menuBtn mBtn-4" onclick="goTo('cu')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><path d="M9 12h6"/><path d="M9 16h4"/></svg></div>
+    <div class="mTitle">Recetas</div>
+    <div class="mSub">Receta por sabor</div>
+  </button>
+  <button class="menuBtn mBtn-5" onclick="goTo('db')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5"/><path d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg></div>
+    <div class="mTitle">Base de datos</div>
+    <div class="mSub">Editar vendidos</div>
+  </button>
+  <button class="menuBtn mBtn-6" onclick="goTo('io')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></div>
+    <div class="mTitle">Guardado</div>
+    <div class="mSub">Copias de seguridad</div>
+  </button>
 
-  <button class="menuBtn" onclick="goTo('history')">
-  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l3 3v15a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v4h4"/><path d="M8 12h8"/><path d="M8 16h8"/></svg></div>
-  <div class="mTitle">Reportes</div>
-  <div class="mSub">Historial + PDF</div>
-</button>
-
-  <button class="menuBtn" onclick="goTo('db')">
-  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5"/><path d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg></div>
-  <div class="mTitle">Base de datos</div>
-  <div class="mSub">Editar vendidos</div>
-</button>
-
-  <button class="menuBtn" onclick="goTo('io')">
-  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h11a3 3 0 0 1 0 6H8"/><path d="M7 7l2-2"/><path d="M7 7l2 2"/><path d="M17 17H6a3 3 0 0 1 0-6h10"/><path d="M17 17l-2-2"/><path d="M17 17l-2 2"/></svg></div>
-  <div class="mTitle">Importación</div>
-  <div class="mSub">Importar / exportar</div>
-</button>
-
-  <button class="menuBtn" onclick="goTo('cu')">
-  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14.5a3.5 3.5 0 0 1 0 7H7"/></svg></div>
-  <div class="mTitle">Costo unitario</div>
-  <div class="mSub">Receta por sabor</div>
-</button>
-
-  <button class="menuBtn" onclick="goTo('compras')">
-  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h15l-1.5 8.5a2 2 0 0 1-2 1.6H8.2a2 2 0 0 1-2-1.6L4 2H2"/><path d="M9 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/><path d="M18 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg></div>
-  <div class="mTitle">Compras</div>
-  <div class="mSub">OC por críticos</div>
-</button>
-
-  <button class="menuBtn" onclick="goTo('proyecciones')">
-  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 20h20"/><path d="M5 20V10l5-5 4 4 5-7"/><circle cx="10" cy="10" r="1" fill="currentColor"/><circle cx="14" cy="14" r="1" fill="currentColor"/><circle cx="19" cy="7" r="1" fill="currentColor"/></svg></div>
-  <div class="mTitle">Proyecciones</div>
-  <div class="mSub">Estimado de ventas</div>
-</button>
-
-  <button class="menuBtn" onclick="goTo('ventas')">
-  <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M8 19V11"/><path d="M12 19V7"/><path d="M16 19V13"/><path d="M20 19V9"/></svg></div>
-  <div class="mTitle">Ventas</div>
-  <div class="mSub">Ingresos diarios</div>
-</button>
+  <!-- Fila 3 -->
+  <button class="menuBtn mBtn-7" onclick="goTo('history')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l3 3v15a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v4h4"/><path d="M8 12h8"/><path d="M8 16h8"/></svg></div>
+    <div class="mTitle">Reportes</div>
+    <div class="mSub">Historial + PDF</div>
+  </button>
+  <button class="menuBtn mBtn-8" onclick="goTo('compras')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h15l-1.5 8.5a2 2 0 0 1-2 1.6H8.2a2 2 0 0 1-2-1.6L4 2H2"/><path d="M9 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/><path d="M18 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg></div>
+    <div class="mTitle">Compras</div>
+    <div class="mSub">OC por críticos</div>
+  </button>
+  <button class="menuBtn mBtn-9" onclick="goTo('proyecciones')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 20h20"/><path d="M5 20V10l5-5 4 4 5-7"/><circle cx="10" cy="10" r="1" fill="currentColor"/><circle cx="14" cy="14" r="1" fill="currentColor"/><circle cx="19" cy="7" r="1" fill="currentColor"/></svg></div>
+    <div class="mTitle">Proyecciones</div>
+    <div class="mSub">Estimado de ventas</div>
+  </button>
  </div>
 
  <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
@@ -3027,7 +3104,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 <!-- IO -->
 <div class="sheet" id="ioSheet">
- <h2>Importación / Exportación</h2>
+ <h2>💾 Guardado</h2>
 
  <!-- Indicador de conexión -->
  <div id="ioConnectionBadge" style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;background:#f1f5f9;margin-bottom:16px;font-size:14px;font-weight:700">
@@ -3035,14 +3112,27 @@ document.addEventListener('DOMContentLoaded',()=>{
    <span id="ioConnectionText">En línea — cambios se sincronizan con la nube</span>
  </div>
 
- <button onclick="exportData()">Exportar JSON</button>
+ <!-- COPIAS DE SEGURIDAD -->
+ <div style="background:#f8fafc;border-radius:16px;padding:16px;margin-bottom:16px">
+   <div style="font-weight:800;font-size:15px;color:#0f172a;margin-bottom:4px">📦 Copias de seguridad locales</div>
+   <div style="font-size:12px;color:#64748b;margin-bottom:14px">Se guardan en este dispositivo. Puedes restaurar cualquier día.</div>
+   <button onclick="guardarCopiaSeguridad()" style="background:#7c3aed;margin-bottom:12px">💾 Guardar copia ahora</button>
+   <div id="backupList"></div>
+ </div>
 
- <input id="importFile" type="file" accept=".json,application/json">
- <button style="background:var(--success);margin-bottom:14px" onclick="triggerImport()">Importar datos</button>
+ <!-- EXPORTAR JSON -->
+ <div style="background:#f8fafc;border-radius:16px;padding:16px;margin-bottom:16px">
+   <div style="font-weight:800;font-size:15px;color:#0f172a;margin-bottom:4px">📤 Exportar archivo</div>
+   <div style="font-size:12px;color:#64748b;margin-bottom:12px">Descarga un JSON con todo tu inventario y ventas.</div>
+   <button onclick="exportData()">Exportar JSON</button>
+ </div>
 
- <div class="smallnote">
-  Tip: importa un archivo exportado por esta misma app:
-  <b>hieli_cream_backup.json</b>
+ <!-- IMPORTAR JSON -->
+ <div style="background:#f8fafc;border-radius:16px;padding:16px;margin-bottom:16px">
+   <div style="font-weight:800;font-size:15px;color:#0f172a;margin-bottom:4px">📥 Importar archivo</div>
+   <div style="font-size:12px;color:#64748b;margin-bottom:12px">Importa un archivo <b>hieli_cream_backup.json</b> exportado por esta app.</div>
+   <input id="importFile" type="file" accept=".json,application/json">
+   <button style="background:var(--success);margin-top:8px" onclick="triggerImport()">Importar datos</button>
  </div>
 
  <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
@@ -3181,13 +3271,18 @@ function safeParseJSON(str, fallback){
   }
 }
 
-let inventory=safeParseJSON(localStorage.getItem("inventory"), null)||[
+// ⚠️ Solo usar ejemplos si NUNCA se ha guardado nada (primera vez absoluta)
+const __invRaw = safeParseJSON(localStorage.getItem("inventory"), null);
+const __invNeverUsed = (__invRaw === null && !localStorage.getItem("_hc_used"));
+let inventory = __invRaw || (__invNeverUsed ? [
  {name:"OREO",qty:10,critical:4,cost:0,color:PASTELS[7]},
  {name:"NUTELLA",qty:10,critical:4,cost:0,color:PASTELS[1]},
  {name:"FERRERO",qty:10,critical:4,cost:0,color:PASTELS[3]},
  {name:"DUVALIN",qty:10,critical:4,cost:0,color:PASTELS[10]},
  {name:"VAINILLA",qty:10,critical:4,cost:0,color:PASTELS[14]}
-];
+] : []);
+// Marcar que ya se usó la app (para nunca volver a poner ejemplos)
+try{ localStorage.setItem("_hc_used","1"); }catch(_){}
 
 let sales=safeParseJSON(localStorage.getItem("sales"), [])||[]; // {product,date,qty,costUnit?}
 let ventasDinero = JSON.parse(localStorage.getItem("ventasDinero") || "[]");
@@ -4350,7 +4445,17 @@ function flash(i, type){
  setTimeout(()=>el.classList.remove("show"), 140);
 }
 
+// Bloqueo anti-tap-rápido: evita que +/- se dispare más de 1 vez cada 80ms por producto
+const __btnLock = {};
+function _btnThrottle(key){
+  const now = Date.now();
+  if(__btnLock[key] && now - __btnLock[key] < 80) return false;
+  __btnLock[key] = now;
+  return true;
+}
+
 function increase(i, btn){
+ if(!_btnThrottle("inc_"+i)) return;
  vibrateSafe(12);
  flash(i,"add");
  inventory[i].qty++;
@@ -4359,6 +4464,7 @@ function increase(i, btn){
 }
 
 function decrease(i, btn){
+ if(!_btnThrottle("dec_"+i)) return;
  vibrateSafe(10);
  flash(i,"sub");
  if(inventory[i].qty>0){inventory[i].qty--;saveSilent();render();try{ cloudSaveNow(); }catch(_){}}
@@ -4518,6 +4624,7 @@ async function deleteFlavor(){
  saveSilent();
  render();
  closeSheets();
+ try{ cloudSaveNow(); }catch(_){}
 }
 
 /* ADD */
@@ -5898,6 +6005,175 @@ const a=document.createElement("a");
  a.click();
  AppUI.toast("☁️ También sincronizado con la nube");
 }
+
+// =============================================
+//  COPIAS AUTOMÁTICAS (12am y 5am) + AVISO SUAVE
+// =============================================
+
+// Guarda una copia en un slot específico sin rotar los demás
+function _autoBackup(slot){
+  try{
+    saveSilent();
+    const payload = JSON.stringify({
+      inventory, sales, ventasDinero, listaPVs,
+      cu_catalog: cuGetCatalog(),
+      cu_recipes: cuGetRecipes(),
+      compras: { plan: comprasGetPlan(), have: comprasGetHave() },
+      savedAt: new Date().toISOString(),
+      autoSaved: true,
+      slot
+    });
+    localStorage.setItem(slot, payload);
+    console.log("✅ Copia automática guardada en:", slot);
+  }catch(e){ console.warn("Auto-backup falló:", e); }
+}
+
+// Revisar cada minuto si es hora de hacer copia automática
+let __lastAutoBackupCheck = "";
+setInterval(() => {
+  const now = new Date();
+  const hhmm = `${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}`;
+  if(hhmm === __lastAutoBackupCheck) return; // evitar doble disparo
+  __lastAutoBackupCheck = hhmm;
+
+  if(hhmm === "00:00"){ // 12am — guardar en slot backup_auto_medianoche
+    _autoBackup("backup_auto_medianoche");
+  }
+  if(hhmm === "05:00"){ // 5am — guardar en slot backup_auto_5am
+    _autoBackup("backup_auto_5am");
+  }
+}, 60000);
+
+// Aviso suave: si no se ha hecho copia manual hoy, mostrar una vez al día
+(function _checkBackupReminder(){
+  try{
+    const hoy = new Date().toISOString().slice(0,10);
+    const lastRemind = localStorage.getItem("_hc_last_remind");
+    if(lastRemind === hoy) return; // ya se avisó hoy
+    const lastBackup = localStorage.getItem("backup_hoy");
+    if(lastBackup){
+      const d = JSON.parse(lastBackup);
+      if(d.savedAt && d.savedAt.slice(0,10) === hoy) return; // ya hay copia de hoy
+    }
+    // Mostrar aviso suave después de 30s de uso
+    setTimeout(() => {
+      if(typeof AppUI !== "undefined" && AppUI.toast){
+        AppUI.toast("💾 No olvides guardar tu copia de hoy en Guardado");
+        localStorage.setItem("_hc_last_remind", hoy);
+      }
+    }, 30000);
+  }catch(e){}
+})();
+const BACKUP_KEYS = ["backup_hoy","backup_ayer","backup_antier"];
+
+function guardarCopiaSeguridad(){
+  saveSilent();
+  const hoyStr = new Date().toISOString().slice(0,10);
+  const payload = JSON.stringify({
+    inventory,
+    sales,
+    ventasDinero,
+    listaPVs,
+    cu_catalog: cuGetCatalog(),
+    cu_recipes: cuGetRecipes(),
+    compras: { plan: comprasGetPlan(), have: comprasGetHave() },
+    savedAt: new Date().toISOString()
+  });
+
+  try{
+    const prevHoyRaw = localStorage.getItem("backup_hoy");
+    let prevHoyEsDeHoy = false;
+    if(prevHoyRaw){
+      try{
+        const prevHoy = JSON.parse(prevHoyRaw);
+        if(prevHoy.savedAt && prevHoy.savedAt.slice(0,10) === hoyStr) prevHoyEsDeHoy = true;
+      }catch(_){}
+    }
+
+    if(prevHoyEsDeHoy){
+      // Ya guardaste hoy antes: solo REEMPLAZAR "Hoy", no rotar nada
+      localStorage.setItem("backup_hoy", payload);
+    }else{
+      // Es la primera copia del día: rotar antier←ayer←hoy←nueva
+      const prev_ayer = localStorage.getItem("backup_hoy");
+      const prev_antier = localStorage.getItem("backup_ayer");
+      if(prev_antier) localStorage.setItem("backup_antier", prev_antier);
+      if(prev_ayer)   localStorage.setItem("backup_ayer", prev_ayer);
+      localStorage.setItem("backup_hoy", payload);
+    }
+  }catch(e){ AppUI.toast("⚠️ Sin espacio para guardar copia"); return; }
+
+  AppUI.toast("✅ Copia guardada correctamente");
+  renderBackupList();
+}
+
+function restaurarCopia(key){
+  const raw = localStorage.getItem(key);
+  if(!raw){ AppUI.toast("No hay copia en ese slot"); return; }
+  const labels = { backup_hoy:"de hoy", backup_ayer:"de ayer", backup_antier:"de antier" };
+  AppUI.confirm(`¿Restaurar la copia ${labels[key]||""}?\nSe reemplazarán tus datos actuales.`, {
+    title:"Restaurar copia",
+    okText:"Sí, restaurar",
+    cancelText:"Cancelar"
+  }).then(ok => {
+    if(!ok) return;
+    try{
+      const d = JSON.parse(raw);
+      if(d.inventory)    { inventory = d.inventory; localStorage.setItem("inventory", JSON.stringify(inventory)); }
+      if(d.sales)        { sales = d.sales; localStorage.setItem("sales", JSON.stringify(sales)); }
+      if(d.ventasDinero) { ventasDinero = d.ventasDinero; localStorage.setItem("ventasDinero", JSON.stringify(ventasDinero)); }
+      if(d.listaPVs)     { listaPVs = d.listaPVs; localStorage.setItem("listaPVs", JSON.stringify(listaPVs)); }
+      render();
+      try{ cloudSaveNow(); }catch(_){}
+      AppUI.toast("✅ Copia restaurada y subida a la nube");
+    }catch(e){ AppUI.toast("⚠️ Error al restaurar: "+e.message); }
+  });
+}
+
+function renderBackupList(){
+  const el = document.getElementById("backupList");
+  if(!el) return;
+  const slots = [
+    { key:"backup_hoy",              label:"📌 Manual — Hoy" },
+    { key:"backup_ayer",             label:"📌 Manual — Ayer" },
+    { key:"backup_antier",           label:"📌 Manual — Antier" },
+    { key:"backup_auto_medianoche",  label:"🕛 Auto — Medianoche" },
+    { key:"backup_auto_5am",         label:"🌅 Auto — 5:00 AM" },
+  ];
+  el.innerHTML = slots.map(s => {
+    const raw = localStorage.getItem(s.key);
+    if(!raw) return `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #e2e8f0">
+        <div>
+          <div style="font-weight:700;font-size:14px;color:#0f172a">${s.label}</div>
+          <div style="font-size:12px;color:#94a3b8">Sin copia guardada</div>
+        </div>
+        <span style="font-size:20px">⬜</span>
+      </div>`;
+    let d; try{ d = JSON.parse(raw); }catch(_){ d={}; }
+    const when = d.savedAt ? new Date(d.savedAt).toLocaleString("es-MX",{hour:"2-digit",minute:"2-digit",day:"2-digit",month:"short"}) : "—";
+    const total = (d.inventory||[]).reduce((a,p)=>a+Number(p.qty||0),0);
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #e2e8f0">
+        <div>
+          <div style="font-weight:700;font-size:14px;color:#0f172a">${s.label}</div>
+          <div style="font-size:12px;color:#64748b">${when} · ${total} hielitos</div>
+        </div>
+        <button onclick="restaurarCopia('${s.key}')" style="padding:6px 14px;font-size:12px;font-weight:700;background:#7c3aed;border-radius:20px;min-width:unset;margin:0">Restaurar</button>
+      </div>`;
+  }).join("");
+}
+
+// Cargar lista al abrir el sheet
+document.addEventListener("DOMContentLoaded", () => {
+  const ioSheet = document.getElementById("ioSheet");
+  if(ioSheet){
+    const observer = new MutationObserver(() => {
+      if(ioSheet.classList.contains("active")) renderBackupList();
+    });
+    observer.observe(ioSheet, { attributes:true, attributeFilter:["class"] });
+  }
+});
 
 function triggerImport(){
  const input=document.getElementById("importFile");
