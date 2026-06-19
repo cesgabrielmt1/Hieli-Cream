@@ -1074,6 +1074,7 @@ options:{
 </script>
 
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Varela+Round&display=swap');
 /* --- CORRECCIÓN DEFINITIVA DE GRÁFICAS INTELIGENTES --- */
 .chartScroll {
   width: 100% !important;
@@ -1112,7 +1113,7 @@ options:{
  --muted:#64748b;
 }
 
-*{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,Inter,sans-serif}
+*{box-sizing:border-box;font-family:'Varela Round',-apple-system,BlinkMacSystemFont,sans-serif}
 
 body{
  margin:0;
@@ -1129,13 +1130,39 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 
 .card{
  background:var(--glass);
- border-radius:30px;
- padding:22px;
- box-shadow:0 30px 60px rgba(0,0,0,.12);
+ border-radius:48px;
+ padding:18px 22px 18px 28px;
+ box-shadow:0 30px 60px rgba(0,0,0,.10);
  position:relative;
  overflow:hidden;
- padding-right:72px;}
-.card.hasStrip{padding-right:58px}
+ padding-right:80px;}
+.card.hasStrip{padding-right:66px}
+.card:not(.collapsed){ padding-top:22px; padding-bottom:22px; }
+
+/* Botones modernos con degradado ligero */
+.btn{
+  border-radius: 9999px !important;
+  border: none !important;
+  font-weight: 800 !important;
+  box-shadow: 0 10px 22px rgba(0,0,0,.16) !important;
+  transition: transform .12s ease, box-shadow .12s ease !important;
+}
+.btn:active{ transform: scale(.95) !important; }
+
+.btnPlus, .btn.plus{
+  background: linear-gradient(135deg,#7c5fe6,#5d3fd1) !important;
+}
+.btnMinus, .btn.minus{
+  background: linear-gradient(135deg,#f06f8c,#e0445f) !important;
+}
+.btnSell, .btn.sell, .btn.vender{
+  background: linear-gradient(135deg,#34d399,#0ea968) !important;
+}
+
+/* Botones genéricos (modales, sheets) */
+button:not(.menuBtn):not(.iconBtn){
+  border-radius: 9999px !important;
+}
 
 /* REPORTES: separación */
 #historyWrap .card{margin-bottom:16px}
@@ -1151,15 +1178,16 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
  margin-bottom:14px;
 }
 #historyWrap .card{margin-bottom:16px}
-/* Barrita de color elegible (derecha, centrada) */
-.colorStrip{position:absolute;right:22px;top:50%;transform:translateY(-50%);width:24px;height:120px;border-radius:999px;opacity:.95;box-shadow:0 10px 20px rgba(0,0,0,.12)}
+/* Barrita de color elegible — gruesa, recorrida hacia el centro */
+.colorStrip{position:absolute;right:36px;top:50%;transform:translateY(-50%);width:20px;height:78px;border-radius:999px;opacity:.9;box-shadow:none}
+.card:not(.collapsed) .colorStrip{height:100px}
 
 
 /* flash visual al presionar botones */
 .cardFlash{
  position:absolute;
  inset:0;
- border-radius:30px;
+ border-radius:48px;
  opacity:0;
  pointer-events:none;
  transition:.18s;
@@ -1175,14 +1203,15 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
  display:flex;
  justify-content:space-between;
  align-items:center;
- font-weight:950;
+ font-weight:600;
+ font-size:1.18rem;
 }
 .gear{background:none;border:none;font-size:20px;cursor:pointer}
 
 .qty{
- font-size:3rem;
- font-weight:1000;
- margin:12px 0;
+ font-size:2.6rem;
+ font-weight:700;
+ margin:6px 0;
  color:var(--primary);
 }
 
@@ -1195,8 +1224,8 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
 .btn{
  border:none;
  border-radius:999px;
- padding:16px;
- font-weight:950;
+ padding:13px 16px;
+ font-weight:700;
  cursor:pointer;
  transition:.12s;
 }
@@ -1213,7 +1242,7 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
  align-items:center;
  justify-content:center;
  font-size:38px;
- font-weight:1000;
+ font-weight:700;
  color:#fff;
  background:rgba(34,197,94,.95);
  opacity:0;
@@ -1271,7 +1300,7 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
  border-radius:999px;
  background:var(--primary);
  color:white;
- font-weight:950;
+ font-weight:700;
  cursor:pointer;
 }
 .sheet button + button{margin-top:12px}
@@ -1284,8 +1313,8 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
  background:#f8fafc;
  border:1px solid #e5e7eb;
 min-height:92px;}
-.kpiBox .t{color:var(--muted);font-weight:950;font-size:.82rem}
-.kpiBox .v{font-size:1.25rem;font-weight:1000;margin-top:6px}
+.kpiBox .t{color:var(--muted);font-weight:700;font-size:.82rem}
+.kpiBox .v{font-size:1.25rem;font-weight:700;margin-top:6px}
 
 /* GRÁFICA SCROLL */
 
@@ -1330,7 +1359,7 @@ min-height:92px;}
 }
 .row2{display:grid;grid-template-columns: repeat(3, 1fr);gap:12px;margin-top:10px;}
 
-.lbl{color:var(--muted);font-weight:950;font-size:.8rem;margin-bottom:6px}
+.lbl{color:var(--muted);font-weight:700;font-size:.8rem;margin-bottom:6px}
 
 /* TOP 3 */
 .top3Row{display:flex;gap:10px}
@@ -1472,10 +1501,10 @@ min-height:92px;}
 
 /* Fondo más moderno y suave */
 :root{
-  --bg: radial-gradient(1200px 800px at 20% 0%, rgba(99,102,241,.14), transparent 55%),
-        radial-gradient(1000px 700px at 80% 12%, rgba(34,197,94,.10), transparent 52%),
-        linear-gradient(180deg,#f8fafc,#eef2ff);
-  --glass: rgba(255,255,255,.82);
+  --bg: radial-gradient(1200px 800px at 20% 0%, rgba(99,102,241,.02), transparent 55%),
+        radial-gradient(1000px 700px at 80% 12%, rgba(34,197,94,.015), transparent 52%),
+        linear-gradient(180deg,#fdfdfe,#fafbfc);
+  --glass: rgba(255,255,255,.98);
 }
 
 /* Cards: glass real */
@@ -1584,12 +1613,12 @@ h1{letter-spacing:.02em}
   box-shadow: 0 0 0 4px rgba(99,102,241,.14);
 }
 
-/* Reduce “brillo” de engrane y lo integra */
+/* Engranaje plano, sin efecto 3D */
 .gear{
-  opacity:.72;
-  filter: drop-shadow(0 10px 18px rgba(2,6,23,.10));
+  opacity:.55;
+  filter: none;
 }
-.gear:active{opacity:.9}
+.gear:active{opacity:.8}
 
 
 /* =========================
@@ -1664,7 +1693,7 @@ h1{letter-spacing:.02em}
   position:absolute;
   left:22px;
   bottom:78px;
-  font-weight:1000;
+  font-weight:700;
   letter-spacing:.02em;
   font-size:1.05rem;
   opacity:0;
@@ -1870,7 +1899,7 @@ align-items:center;text-align:center;}
 
 .titleBrand{
   font-size:2.6rem;
-  font-weight:1000;
+  font-weight:700;
   letter-spacing:-1px;
   line-height:1;
   background: linear-gradient(90deg,#5b5ce6,#7c3aed,#06b6d4);
@@ -2194,7 +2223,7 @@ align-items:center;text-align:center;}
 /* Section title like "Ventas" */
 .chartSectionTitle{
   margin: 18px 6px 10px;
-  font-weight: 950;
+  font-weight:700;
   font-size: 2.15rem;
   letter-spacing: .2px;
   color: #0b1220;
@@ -2231,7 +2260,7 @@ align-items:center;text-align:center;}
   min-height: 92px;
 }
 .podiumCard.gold{ min-height: 118px; transform: translateY(-8px); background: rgba(255,255,255,.92); }
-.podiumCard .podiumName{ font-weight: 950; font-size: 1.35rem; color:#0b1220; line-height:1.1; }
+.podiumCard .podiumName{ font-weight:700; font-size: 1.35rem; color:#0b1220; line-height:1.1; }
 .podiumCard .podiumMeta{ margin-top:6px; font-weight: 800; color:#64748b; font-size: 1.05rem; }
 
 /* Medal badge */
@@ -2244,7 +2273,7 @@ align-items:center;text-align:center;}
   height: 54px;
   display:grid;
   place-items:center;
-  font-weight: 950;
+  font-weight:700;
   color:#0b1220;
   border-radius: 999px;
   box-shadow: 0 12px 22px rgba(2,6,23,.16);
@@ -2435,7 +2464,7 @@ align-items:center;text-align:center;}
 /* El degradado exacto de la imagen del logo: Lila (#a78bfa), Rosa (#ff6b9d) y Azul Cielo (#38bdf8) */
 .titleBrand-custom {
     font-size: 32px !important;
-    font-weight: 1000 !important;
+    font-weight:700 !important;
     letter-spacing: -0.5px !important;
     margin: 0 !important;
     line-height: 1.1 !important;
@@ -2472,7 +2501,7 @@ align-items:center;text-align:center;}
 
 .tarjeta-total-superior-grande span {
     font-size: 32px !important;
-    font-weight: 1000 !important;
+    font-weight:700 !important;
     color: #0f172a !important;
     line-height: 1 !important;
     display: block !important;
@@ -4033,7 +4062,7 @@ function renderCompras(){
     const val = comprasSanitizeLitros(plan[key] ?? 0);
     return `
       <div class="tableCard comprasFlavorRow" style="display:grid;grid-template-columns:1fr 120px 70px;align-items:center;gap:10px">
-        <div style="font-weight:950;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.name)}</div>
+        <div style="font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.name)}</div>
         <input class="comprasLitrosInput" type="number" inputmode="decimal" step="0.5" min="0" value="${val}"
           style="width:120px;margin:0"
           oninput="comprasOnLitrosChange('${escapeHtmlAttr(p.name)}', this.value)">
@@ -4165,10 +4194,10 @@ function comprasRenderInsumosTable(items){
     return `
       <div class="row3" style="grid-template-columns:1.2fr .6fr .7fr .25fr;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(15,23,42,.08)">
         <div style="font-weight:950">${escapeHtml(it.name)}${sub}</div>
-        <div style="text-align:center;font-weight:950;color:var(--text)">${it.qty}</div>
-        <div style="text-align:right;font-weight:1000;color:${it.hasIt ? '#94a3b8' : 'var(--primary)'}">${costTxt}</div>
+        <div style="text-align:center;font-weight:700;color:var(--text)">${it.qty}</div>
+        <div style="text-align:right;font-weight:700;color:${it.hasIt ? '#94a3b8' : 'var(--primary)'}">${costTxt}</div>
         <button type="button" onclick="comprasToggleHave('${escapeHtmlAttr(it.name)}')"
-          style="width:44px;height:44px;min-width:44px;max-width:44px;border-radius:14px;border:none;color:white;font-weight:1000;${btnStyle};padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 20px rgba(0,0,0,.18)">
+          style="width:44px;height:44px;min-width:44px;max-width:44px;border-radius:14px;border:none;color:white;font-weight:700;${btnStyle};padding:0;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 20px rgba(0,0,0,.18)">
           X
         </button>
       </div>
@@ -4397,7 +4426,7 @@ function render(){
   const isOpen = invExpanded.has(key);
 
   inventoryDiv.innerHTML+=`
-   <div class="card inv-card ${p.qty<=p.critical?'low':''} ${isOpen?'':'collapsed'}" data-i="${i}" data-name="${key}">
+   <div class="card inv-card ${p.qty<=p.critical?'low':''} ${isOpen?'':'collapsed'}" data-i="${i}" data-name="${key}" style="border-left:6px solid ${strip}">
     <div class="colorStrip" style="background:${strip}"></div>
     <div class="cardFlash" id="fx_${i}"></div>
 
@@ -6007,7 +6036,7 @@ const a=document.createElement("a");
 }
 
 // =============================================
-//  COPIAS AUTOMÁTICAS (12am y 5am) + AVISO SUAVE
+//  COPIAS AUTOMÁTICAS (12am y 5pm) + AVISO SUAVE
 // =============================================
 
 // Guarda una copia en un slot específico sin rotar los demás
@@ -6028,7 +6057,24 @@ function _autoBackup(slot){
   }catch(e){ console.warn("Auto-backup falló:", e); }
 }
 
-// Revisar cada minuto si es hora de hacer copia automática
+// Revisa si ya se guardó la copia automática de "slot" HOY; si no, la guarda.
+// Esto cubre el caso de que la app esté cerrada justo a la hora programada:
+// en cuanto se abra después de esa hora, se pondrá al día.
+function _ensureAutoBackupToday(slot, hourThreshold){
+  const now = new Date();
+  if(now.getHours() < hourThreshold) return; // aún no llega la hora hoy
+  const hoyStr = now.toISOString().slice(0,10);
+  const doneKey = slot + "_done_" + hoyStr;
+  if(localStorage.getItem(doneKey)) return; // ya se hizo hoy
+  _autoBackup(slot);
+  try{ localStorage.setItem(doneKey, "1"); }catch(_){}
+}
+
+// Revisar al cargar la app (cubre el caso de app cerrada a la hora exacta)
+_ensureAutoBackupToday("backup_auto_medianoche", 0);   // cualquier hora del día ya pasó medianoche
+_ensureAutoBackupToday("backup_auto_5pm", 17);         // solo si ya son las 17:00 o más
+
+// Revisar cada minuto mientras la app esté abierta (para el momento exacto)
 let __lastAutoBackupCheck = "";
 setInterval(() => {
   const now = new Date();
@@ -6036,13 +6082,17 @@ setInterval(() => {
   if(hhmm === __lastAutoBackupCheck) return; // evitar doble disparo
   __lastAutoBackupCheck = hhmm;
 
-  if(hhmm === "00:00"){ // 12am — guardar en slot backup_auto_medianoche
-    _autoBackup("backup_auto_medianoche");
-  }
-  if(hhmm === "05:00"){ // 5am — guardar en slot backup_auto_5am
-    _autoBackup("backup_auto_5am");
-  }
+  _ensureAutoBackupToday("backup_auto_medianoche", 0);
+  _ensureAutoBackupToday("backup_auto_5pm", 17);
 }, 60000);
+
+// También revisar cuando la app vuelve al frente (la abriste de nuevo)
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "visible"){
+    _ensureAutoBackupToday("backup_auto_medianoche", 0);
+    _ensureAutoBackupToday("backup_auto_5pm", 17);
+  }
+});
 
 // Aviso suave: si no se ha hecho copia manual hoy, mostrar una vez al día
 (function _checkBackupReminder(){
@@ -6138,7 +6188,7 @@ function renderBackupList(){
     { key:"backup_ayer",             label:"📌 Manual — Ayer" },
     { key:"backup_antier",           label:"📌 Manual — Antier" },
     { key:"backup_auto_medianoche",  label:"🕛 Auto — Medianoche" },
-    { key:"backup_auto_5am",         label:"🌅 Auto — 5:00 AM" },
+    { key:"backup_auto_5pm",         label:"🌇 Auto — 5:00 PM" },
   ];
   el.innerHTML = slots.map(s => {
     const raw = localStorage.getItem(s.key);
@@ -6646,20 +6696,20 @@ function renderHistory(){
   <div class="card">
    <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start">
     <div>
-     <div style="font-weight:1000;font-size:1.2rem">Reporte</div>
+     <div style="font-weight:700;font-size:1.2rem">Reporte</div>
      <div class="smallnote">Rango: <b>${from}</b> → <b>${to}</b></div>
     </div>
     <div style="text-align:right">
      <div class="smallnote">Vendidos</div>
-     <div style="font-weight:1000;font-size:2rem">${total}</div>
+     <div style="font-weight:700;font-size:2rem">${total}</div>
      <div class="smallnote" style="margin-top:4px">Gastado</div>
-     <div style="font-weight:1000;font-size:2rem">${money(gasto)}</div>
+     <div style="font-weight:700;font-size:2rem">${money(gasto)}</div>
     </div>
    </div>
   </div>
 
   <div class="card">
-   <div style="font-weight:1000;margin-bottom:10px">Sumatoria por sabor</div>
+   <div style="font-weight:700;margin-bottom:10px">Sumatoria por sabor</div>
    <div style="overflow:auto">
     <table style="width:100%;border-collapse:collapse">
      <thead>
@@ -6687,7 +6737,7 @@ function renderHistory(){
   </div>
 
   <div class="card">
-   <div style="font-weight:1000;margin-bottom:10px">Detalle</div>
+   <div style="font-weight:700;margin-bottom:10px">Detalle</div>
    ${
     arr.length ? arr.map(r=>`
      <div class="reportCard">
