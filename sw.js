@@ -1,4 +1,4 @@
-const CACHE_NAME = "hieli-pro-v5";
+const CACHE_NAME = "hieli-pro-v6";
 
 const CORE_ASSETS = [
   "./",
