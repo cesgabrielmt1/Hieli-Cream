@@ -1331,6 +1331,56 @@ min-height:92px;}
  margin-bottom:12px;
 }
 
+/* PATCH: Compras — interfaz mejorada */
+.comprasFlavorRow{
+  background:#fff !important;
+  border:1px solid #ece9f7 !important;
+  border-radius:16px !important;
+  padding:12px 14px !important;
+  margin-bottom:8px !important;
+  box-shadow:0 2px 8px rgba(0,0,0,.03);
+}
+.comprasLitrosInput{
+  border-radius:12px !important;
+  border:1.5px solid #e2def5 !important;
+  padding:8px 10px !important;
+  text-align:center;
+  font-weight:600;
+}
+#comprasAddSelector{
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+#comprasAddSelector select{
+  flex:7 1 0;
+  width:1px;
+  min-width:0;
+  max-width:100%;
+  border-radius:14px;
+  border:1.5px solid #e2def5;
+  padding:11px 10px;
+  background:#fff;
+  font-family:inherit;
+  font-size:.88rem;
+  color:#1e1b2e;
+}
+#comprasAddSelector button{
+  flex:3 1 0;
+  min-width:0;
+  border-radius:14px !important;
+  border:none;
+  color:#fff;
+  font-weight:700;
+  padding:12px 8px;
+  font-size:.82rem;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  background:linear-gradient(135deg,#7c5fe6,#5d3fd1);
+  box-shadow:0 6px 16px rgba(124,95,230,.30);
+}
+
 /* Reporte: tarjetas con mejor respiración */
 .reportCard{
  margin:14px 0;
@@ -2878,16 +2928,27 @@ document.addEventListener('DOMContentLoaded',()=>{
 <!-- /PROYECCIONES -->
 
 <div class="sheet" id="comprasSheet">
- <h2>Compras</h2>
- 
+ <h2>🛒 Compras</h2>
 
- <div class="kpiBox" style="margin:0 0 14px">
-  <div class="t">TOTAL A COMPRAR</div>
-  <div class="v" id="comprasTotal" style="font-size:2rem;color:var(--info)">$0.00</div>
-  <div class="subhead" style="margin:6px 0 0;font-weight:900">Marca con X lo que ya tienes para que cuente $0</div>
+ <div class="tableCard" style="background:linear-gradient(135deg,#eef2ff,#fdf4ff);border:none;overflow:hidden">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;min-width:0">
+   <div style="flex:1;min-width:0">
+    <div class="lbl" style="color:#6d5acd">TOTAL A COMPRAR</div>
+    <div class="v" id="comprasTotal" style="font-size:2.2rem;font-weight:700;color:#5d3fd1">$0.00</div>
+   </div>
+   <button onclick="comprasShareWhatsapp()" title="Compartir por WhatsApp" style="flex-shrink:0;width:44px;height:44px;min-width:44px;max-width:44px;padding:0;border-radius:50%;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;border:none;box-shadow:0 6px 16px rgba(37,211,102,.35);display:flex;align-items:center;justify-content:center">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.6-.8-1.9-.9-.3-.1-.4-.1-.6.1-.2.2-.7.9-.9 1.1-.2.2-.3.2-.6.1-.3-.1-1.3-.5-2.5-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6.1-.1.3-.4.5-.5.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5-.1-.1-.5-1.4-.7-1.9-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.4-.2.3-.9.9-.9 2.1s.9 2.5 1.1 2.7c.2.2 1.7 2.6 4.1 3.5 2.4.9 2.4.6 2.8.6.4 0 1.3-.5 1.5-1 .2-.5.2-.9.1-1z"/><path d="M12 2C6.5 2 2 6.5 2 12c0 1.9.5 3.7 1.5 5.2L2 22l4.9-1.5C8.3 21.5 10.1 22 12 22c5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18c-1.7 0-3.3-.5-4.6-1.3l-.3-.2-3.2 1 1-3.1-.2-.3C3.6 14.9 3 13.5 3 12c0-5 4-9 9-9s9 4 9 9-4 9-9 9z"/></svg>
+   </button>
+  </div>
+  <div class="subhead" style="margin:8px 0 0;font-weight:600;font-size:.82rem;color:#7c7a8c">Marca ✓ lo que ya tienes para que cuente $0</div>
  </div>
 
- <div class="tableCard">
+ <div class="tableCard" style="margin-top:14px;overflow:hidden">
+  <div class="lbl" style="margin-bottom:10px">AGREGAR SABOR A LA LISTA</div>
+  <div id="comprasAddSelector" style="display:flex;gap:8px;align-items:center;min-width:0"></div>
+ </div>
+
+ <div class="tableCard" style="margin-top:12px">
   <div class="lbl" style="margin-bottom:10px">SABORES A REALIZAR</div>
   <div id="comprasSabores"></div>
  </div>
@@ -3995,6 +4056,34 @@ function comprasSetHave(obj){
   try{ localStorage.setItem('compras_have_v1', JSON.stringify(obj||{})); }catch(e){}
 }
 
+// ✅ Sabores agregados MANUALMENTE a la lista de compra (independiente de punto crítico)
+function comprasGetManual(){
+  return safeParseJSON(localStorage.getItem('compras_manual_v1')||"[]", []) || [];
+}
+function comprasSetManual(arr){
+  try{ localStorage.setItem('compras_manual_v1', JSON.stringify(arr||[])); }catch(e){}
+}
+function comprasAddManual(flavorName){
+  const key = toUpperSafe(flavorName||"");
+  if(!key) return;
+  const list = comprasGetManual();
+  if(!list.map(toUpperSafe).includes(key)) list.push(key);
+  comprasSetManual(list);
+  saveSilent();
+  renderCompras();
+}
+function comprasRemoveManual(flavorName){
+  const key = toUpperSafe(flavorName||"");
+  let list = comprasGetManual().filter(n => toUpperSafe(n) !== key);
+  comprasSetManual(list);
+  // también limpiar su litros del plan para que no se quede "fantasma"
+  const plan = comprasGetPlan();
+  delete plan[key];
+  comprasSetPlan(plan);
+  saveSilent();
+  renderCompras();
+}
+
 function comprasPiecesPerLiter(flavorName){
   // ✅ "Piezas por 1L" (hielitos que salen por litro) tomando la receta CU del sabor.
   // Regla:
@@ -4042,31 +4131,51 @@ function renderCompras(){
   const wrapSab = document.getElementById('comprasSabores');
   const wrapIns = document.getElementById('comprasInsumos');
   const totalEl = document.getElementById('comprasTotal');
+  const wrapAdd = document.getElementById('comprasAddSelector');
   if(!wrapSab || !wrapIns || !totalEl) return;
 
-  const críticos = (inventory||[])
-    .filter(p=> Number(p.critical)>0 && Number(p.qty) <= Number(p.critical))
-    .sort((a,b)=> (Number(a.qty)-Number(b.qty)) || a.name.localeCompare(b.name));
+  // Solo sabores agregados MANUALMENTE — el punto crítico ya no decide esta lista
+  const manualKeys = comprasGetManual();
+  const combined = manualKeys.map(k => {
+    const found = (inventory||[]).find(p=>toUpperSafe(p.name)===toUpperSafe(k));
+    return {name: found ? found.name : toTitleCase(k), key: toUpperSafe(k)};
+  }).sort((a,b)=>a.name.localeCompare(b.name));
 
   const plan = comprasGetPlan();
 
-  if(!críticos.length){
-    wrapSab.innerHTML = `<div class="smallnote">No hay sabores en punto crítico ahorita ✅</div>`;
-    wrapIns.innerHTML = `<div class="smallnote">Selecciona litros cuando haya críticos para calcular insumos.</div>`;
+  // Selector para agregar sabores (los que no están ya en la lista)
+  if(wrapAdd){
+    const yaEnLista = new Set(combined.map(c=>c.key));
+    const disponibles = (inventory||[]).filter(p => !yaEnLista.has(toUpperSafe(p.name)));
+    if(disponibles.length){
+      wrapAdd.innerHTML = `
+        <select id="comprasAddSelect">
+          <option value="">Elige un sabor…</option>
+          ${disponibles.map(p=>`<option value="${escapeHtmlAttr(p.name)}">${escapeHtml(p.name)}</option>`).join('')}
+        </select>
+        <button onclick="const v=document.getElementById('comprasAddSelect').value; if(v) comprasAddManual(v);">Agregar</button>
+      `;
+    } else {
+      wrapAdd.innerHTML = `<div class="smallnote">Todos los sabores ya están en la lista 👍</div>`;
+    }
+  }
+
+  if(!combined.length){
+    wrapSab.innerHTML = `<div class="smallnote">Agrega un sabor arriba para empezar tu lista de compras 🛒</div>`;
+    wrapIns.innerHTML = `<div class="smallnote">Aquí verás los insumos a comprar en cuanto agregues un sabor con litros.</div>`;
     totalEl.textContent = '$0.00';
     return;
   }
 
-  wrapSab.innerHTML = críticos.map(p=>{
-    const key = toUpperSafe(p.name);
-    const val = comprasSanitizeLitros(plan[key] ?? 0);
+  wrapSab.innerHTML = combined.map(p=>{
+    const val = comprasSanitizeLitros(plan[p.key] ?? 0);
     return `
-      <div class="tableCard comprasFlavorRow" style="display:grid;grid-template-columns:1fr 120px 70px;align-items:center;gap:10px">
+      <div class="tableCard comprasFlavorRow" style="display:grid;grid-template-columns:1fr 110px 30px;align-items:center;gap:10px">
         <div style="font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.name)}</div>
         <input class="comprasLitrosInput" type="number" inputmode="decimal" step="0.5" min="0" value="${val}"
-          style="width:120px;margin:0"
+          style="width:110px;margin:0"
           oninput="comprasOnLitrosChange('${escapeHtmlAttr(p.name)}', this.value)">
-        <div class="subhead" style="margin:0;font-weight:900;font-size:.82rem;letter-spacing:.08em;text-align:right">LITROS</div>
+        <button onclick="comprasRemoveManual('${escapeHtmlAttr(p.name)}')" style="margin:0;padding:0;width:30px;height:30px;border-radius:999px;background:#fef2f2;color:#dc2626;font-weight:900;border:none;font-size:1rem;line-height:1">✕</button>
       </div>
     `;
   }).join('');
@@ -4119,13 +4228,11 @@ function comprasComputeInsumos(){
   // acumuladores por insumo
   const acc = new Map();
 
-  // Solo sabores críticos (para evitar que se mezclen sabores no críticos guardados en plan)
-  const críticosSet = new Set((inventory||[])
-    .filter(p=> Number(p.critical)>0 && Number(p.qty) <= Number(p.critical))
-    .map(p=>toUpperSafe(p.name)));
+  // Solo sabores agregados MANUALMENTE a la lista de compras
+  const permitidos = new Set(comprasGetManual().map(toUpperSafe));
 
   Object.keys(plan||{}).forEach(k=>{
-    if(!críticosSet.has(toUpperSafe(k))) return;
+    if(!permitidos.has(toUpperSafe(k))) return;
     const litros = comprasSanitizeLitros(plan[k]);
     if(litros<=0) return;
 
@@ -4204,6 +4311,198 @@ function comprasRenderInsumosTable(items){
     `;
   }).join('');
   return head + rows;
+}
+
+// =============================================
+//  COMPARTIR LISTA DE COMPRAS POR WHATSAPP (imagen)
+// =============================================
+function comprasGetSaboresList(){
+  // Misma lógica que renderCompras: solo sabores agregados manualmente, con sus litros
+  const manualKeys = comprasGetManual();
+  const plan = comprasGetPlan();
+  return manualKeys.map(k => {
+    const found = (inventory||[]).find(p=>toUpperSafe(p.name)===toUpperSafe(k));
+    const name = found ? found.name : toTitleCase(k);
+    const litros = comprasSanitizeLitros(plan[toUpperSafe(k)] ?? 0);
+    return {name, key:toUpperSafe(k), litros};
+  }).sort((a,b)=>a.name.localeCompare(b.name));
+}
+
+function comprasGenerateImage(){
+  const calc = comprasComputeInsumos();
+  const items = calc.items || [];
+  const total = calc.total || 0;
+  const sabores = comprasGetSaboresList();
+
+  // Tamaño dinámico según cantidad de items
+  const headerH = 170;
+  const sectionTitleH = 46;
+  const saborRowH = 50;
+  const rowH = 64;
+  const footerH = 90;
+  const gapBetween = 18;
+  const width = 720;
+  const saboresBlockH = sectionTitleH + Math.max(sabores.length,1)*saborRowH;
+  const insumosBlockH = sectionTitleH + Math.max(items.length,1)*rowH;
+  const height = headerH + saboresBlockH + gapBetween + insumosBlockH + footerH + 40;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+
+  // Fondo
+  const bgGrad = ctx.createLinearGradient(0,0,0,height);
+  bgGrad.addColorStop(0,'#fdfdfe');
+  bgGrad.addColorStop(1,'#f5f6f8');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0,0,width,height);
+
+  // Header con degradado morado/rosa
+  const headGrad = ctx.createLinearGradient(0,0,width,0);
+  headGrad.addColorStop(0,'#7c5fe6');
+  headGrad.addColorStop(1,'#c45ee8');
+  ctx.fillStyle = headGrad;
+  ctx.fillRect(0,0,width,headerH);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 34px Quicksand, sans-serif';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('🛒 Lista de Compras', 32, 60);
+
+  ctx.font = '600 16px Quicksand, sans-serif';
+  ctx.globalAlpha = .9;
+  const fecha = new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'long',year:'numeric'});
+  ctx.fillText(fecha, 32, 90);
+  ctx.globalAlpha = 1;
+
+  ctx.font = '700 30px Quicksand, sans-serif';
+  ctx.fillText('Total: ' + money(total), 32, 138);
+
+  let y = headerH + 8;
+  ctx.textBaseline = 'middle';
+
+  // ---- Sección: Sabores a realizar ----
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#6d5acd';
+  ctx.font = '700 20px Quicksand, sans-serif';
+  ctx.fillText('🍦 SABORES A REALIZAR', 32, y + 28);
+  y += sectionTitleH;
+  ctx.textBaseline = 'middle';
+
+  if(!sabores.length){
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '600 18px Quicksand, sans-serif';
+    ctx.fillText('Sin sabores agregados', 40, y + saborRowH/2);
+    y += saborRowH;
+  } else {
+    sabores.forEach((s, idx)=>{
+      const rowY = y + idx*saborRowH;
+      ctx.fillStyle = idx % 2 === 0 ? '#ffffff' : '#f3f1fb';
+      ctx.fillRect(20, rowY, width-40, saborRowH-6);
+
+      ctx.fillStyle = '#1e1b2e';
+      ctx.font = '700 20px Quicksand, sans-serif';
+      ctx.fillText(s.name, 40, rowY + (saborRowH-6)/2);
+
+      ctx.font = '700 20px Quicksand, sans-serif';
+      ctx.fillStyle = '#5d3fd1';
+      ctx.textAlign = 'right';
+      ctx.fillText(s.litros + ' L', width-40, rowY + (saborRowH-6)/2);
+      ctx.textAlign = 'left';
+    });
+    y += sabores.length*saborRowH;
+  }
+
+  y += gapBetween;
+
+  // ---- Sección: Insumos ----
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#6d5acd';
+  ctx.font = '700 20px Quicksand, sans-serif';
+  ctx.fillText('📦 INSUMOS', 32, y + 28);
+  y += sectionTitleH;
+  ctx.textBaseline = 'middle';
+
+  if(!items.length){
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '600 18px Quicksand, sans-serif';
+    ctx.fillText('Sin insumos por comprar', 40, y + rowH/2);
+    y += rowH;
+  } else {
+    items.forEach((it, idx)=>{
+      const rowY = y + idx*rowH;
+      // fondo de fila alterno
+      ctx.fillStyle = idx % 2 === 0 ? '#ffffff' : '#f3f1fb';
+      ctx.fillRect(20, rowY, width-40, rowH-6);
+
+      // nombre
+      ctx.fillStyle = '#1e1b2e';
+      ctx.font = '700 22px Quicksand, sans-serif';
+      let name = it.name;
+      if(it.hasIt) name += '  ✓ (ya tienes)';
+      ctx.fillText(name, 40, rowY + (rowH-6)/2);
+
+      // cantidad
+      ctx.font = '600 20px Quicksand, sans-serif';
+      ctx.fillStyle = '#6d5acd';
+      ctx.textAlign = 'center';
+      ctx.fillText('x' + it.qty, width-220, rowY + (rowH-6)/2);
+      ctx.textAlign = 'left';
+
+      // costo
+      ctx.font = '700 22px Quicksand, sans-serif';
+      ctx.fillStyle = it.hasIt ? '#94a3b8' : '#16a34a';
+      ctx.textAlign = 'right';
+      ctx.fillText(it.hasIt ? '$0.00' : money(it.total), width-40, rowY + (rowH-6)/2);
+      ctx.textAlign = 'left';
+    });
+    y += items.length*rowH;
+  }
+
+  // Footer
+  const footY = y + 30;
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '600 16px Quicksand, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Generado con Hieli Cream 🍦', width/2, footY);
+  ctx.textAlign = 'left';
+
+  return canvas;
+}
+
+async function comprasShareWhatsapp(){
+  try{
+    const calc = comprasComputeInsumos();
+    if(!calc.items || !calc.items.length){
+      AppUI.toast('Agrega sabores y litros primero 🛒');
+      return;
+    }
+    const canvas = comprasGenerateImage();
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    const file = new File([blob], 'lista_compras_hielicream.png', {type:'image/png'});
+
+    // Intentar Web Share API con archivo (funciona en la mayoría de móviles → abre WhatsApp directo)
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({
+        files: [file],
+        title: 'Lista de Compras',
+        text: 'Lista de compras Hieli Cream — Total: ' + money(calc.total)
+      });
+      return;
+    }
+
+    // Fallback: descargar imagen y abrir WhatsApp con texto
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'lista_compras_hielicream.png';
+    a.click();
+    AppUI.toast('📥 Imagen descargada — compártela en WhatsApp');
+  }catch(e){
+    console.warn('comprasShareWhatsapp', e);
+    AppUI.toast('⚠️ No se pudo generar la imagen');
+  }
 }
 
 
