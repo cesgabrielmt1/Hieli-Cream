@@ -2406,9 +2406,15 @@ align-items:center;text-align:center;}
 .cuCatInfo{min-width:0}
 .cuCatName{font-weight:900;font-size:18px;color:#101826}
 .cuCatCost{margin-top:4px;font-size:13px;color:rgba(16,24,38,.75)}
-.cuCatActions{display:flex;gap:10px;align-items:center;flex-shrink:0}
-.cuBtnEdit{border:none;border-radius:999px;padding:10px 14px;font-weight:800;background:rgba(99,102,241,.14);color:#3f46d5}
-.cuBtnDel{border:none;border-radius:999px;padding:10px 14px;font-weight:800;background:#ef4444;color:#fff}
+.cuCatActions{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.cuBtnEdit{border:none;border-radius:10px;padding:8px 14px;font-weight:700;font-size:13px;background:#e0e7ff;color:#3730a3}
+.cuBtnDel{border:none;border-radius:10px;padding:8px 14px;font-weight:700;font-size:13px;background:#fef2f2;color:#dc2626}
+.cuCatInlinePrice{
+  width:80px;padding:5px 8px;border-radius:10px;
+  border:1.5px solid #e2def5;font-size:14px;font-weight:700;
+  font-family:inherit;text-align:center;
+  transition:background .15s,color .15s;
+}
 .ghostBtn{border:none;border-radius:999px;padding:10px 14px;font-weight:800;background:rgba(16,24,38,.08);color:#101826}
 
 /* Ajuste proporcional botones CU */
@@ -2843,7 +2849,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   <button class="menuBtn mBtn-2" onclick="goTo('stats')">
     <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M8 19V11"/><path d="M12 19V7"/><path d="M16 19V13"/><path d="M20 19V9"/></svg></div>
     <div class="mTitle">Productos vendidos</div>
-    <div class="mSub">Ventas + total</div>
+    <div class="mSub">Análisis por sabor</div>
   </button>
   <button class="menuBtn mBtn-3" onclick="goTo('ventas')">
     <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14.5a3.5 3.5 0 0 1 0 7H7"/></svg></div>
@@ -3006,68 +3012,81 @@ document.addEventListener('DOMContentLoaded',()=>{
 <!-- VENTAS -->
 
 <div class="sheet" id="ventasSheet">
- <h2>Ventas</h2><div class="smallnote">Compara ingresos, gastos y ganancias automáticamente.</div>
+ <h2 style="margin-bottom:4px">Ventas</h2>
+ <p style="font-size:13px;color:#64748b;margin-top:0;margin-bottom:14px">Compara ingresos, gastos y ganancias automáticamente.</p>
 
- <div style="display:flex;gap:10px;margin:12px 0 16px;">
-   <button type="button" onclick="showVentasTab('registro')" id="ventasTabRegistro">Registro</button>
-   <button type="button" onclick="showVentasTab('comparativa')" id="ventasTabComparativa">Comparativa</button>
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+   <button type="button" onclick="showVentasTab('registro')" id="ventasTabRegistro" style="border-radius:14px;padding:11px 8px;font-size:.83rem;background:linear-gradient(135deg,#7c5fe6,#5d3fd1)">Registro</button>
+   <button type="button" onclick="showVentasTab('comparativa')" id="ventasTabComparativa" style="border-radius:14px;padding:11px 8px;font-size:.83rem;background:#e0e7ff;color:#3730a3;font-weight:700">Comparativa</button>
  </div>
 
  <div id="ventasRegistroTab">
-   <div class="kpi2" style="display:block;">
-    <div class="kpiBox" style="width:100%;max-width:100%;"><div class="t">Ingreso</div><div class="v" id="ventasIngresos">$0.00</div></div>
-    <div class="kpiBox" style="display:none"><div class="kpiBox"><div class="t">Costo</div><div class="v" id="ventasCosto">$0.00</div></div></div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+     <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px">
+       <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">INGRESO</div>
+       <div style="font-size:1.4rem;font-weight:900;color:#1e1b2e" id="ventasIngresos">$0.00</div>
+     </div>
+     <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px">
+       <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">GANANCIA</div>
+       <div style="font-size:1.4rem;font-weight:900;color:#16a34a" id="ventasGanancias">$0.00</div>
+     </div>
    </div>
-   <div class="kpi2" style="margin-top:10px;width:100%;display:block;">
-    <div class="kpiBox"><div class="t">Ganancia</div><div class="v" id="ventasGanancias">$0.00</div></div>
-   </div>
+   <div id="ventasCosto" style="display:none"></div>
 
-   <div class="chartPanel" style="padding:15px; margin-bottom:20px;">
-    <h3 style="margin-top:0;">Registro Diario</h3>
-<button type="button" onclick="adminPVs()" style="margin-bottom:10px;">PVs</button>
-<div id="pvRows"></div>
-<button type="button" id="agregarPVBtn" onclick="if(document.getElementById('agregarPVBtn').style.opacity==='0.3'){return;} agregarPVRow()">+</button>
-<canvas id="pvChart" height="500" style="margin-top:20px;width:100%;max-height:500px;"></canvas>
-
-    <input type="date" id="ventaFecha">
-    <input type="number" id="ventaMonto" placeholder="Dinero vendido" style="display:none">
-    <button id="ventasBtnGuardar" onclick="ventaBtnAction()" style="transition:background .3s">Guardar venta</button>
+   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
+     <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">REGISTRO DIARIO</div>
+     <button type="button" onclick="adminPVs()" style="background:#f3f0ff;color:#5d3fd1;border:1.5px solid #ede9fe;border-radius:10px;padding:7px 14px;font-size:.8rem;font-weight:700;margin-bottom:10px">Gestionar PVs</button>
+     <div id="pvRows"></div>
+     <button type="button" id="agregarPVBtn" onclick="if(document.getElementById('agregarPVBtn').style.opacity==='0.3'){return;} agregarPVRow()" style="background:#e0e7ff;color:#3730a3;border:none;border-radius:10px;padding:7px 18px;font-weight:800;font-size:1rem;margin-bottom:10px">+</button>
+     <div style="background:#f8f7ff;border-radius:12px;padding:10px;margin-bottom:10px">
+       <canvas id="pvChart" height="500" style="width:100%;max-height:500px;"></canvas>
+     </div>
+     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
+       <input type="date" id="ventaFecha" style="font-size:.84rem;padding:7px 10px">
+       <input type="number" id="ventaMonto" placeholder="Monto" style="display:none;font-size:.84rem;padding:7px 10px">
+     </div>
+     <button id="ventasBtnGuardar" onclick="ventaBtnAction()" style="margin-top:10px;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:12px;font-size:.88rem;transition:background .3s">Guardar venta</button>
    </div>
    <div id="ventasHistorial" style="display:none!important;margin-top:18px"></div>
  </div>
 
  <div id="ventasComparativaTab" style="display:none;">
-   <div class="kpi2">
-    <div class="kpiBox"><div class="t">Ingreso Total</div><div class="v" id="ventasCompIngresos">$0.00</div></div>
-    <div class="kpiBox"><div class="t">Costo Total</div><div class="v" id="ventasCompCosto">$0.00</div></div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+     <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px">
+       <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">INGRESO TOTAL</div>
+       <div style="font-size:1.3rem;font-weight:900;color:#1e1b2e" id="ventasCompIngresos">$0.00</div>
+     </div>
+     <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px">
+       <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">COSTO TOTAL</div>
+       <div style="font-size:1.3rem;font-weight:900;color:#1e1b2e" id="ventasCompCosto">$0.00</div>
+     </div>
    </div>
-   <div class="kpi2" style="margin-top:10px;width:100%;display:block;">
-    <div class="kpiBox"><div class="t">Ganancia Total</div><div class="v" id="ventasCompGanancia">$0.00</div></div>
-   </div>
-
-   <div class="chartPanel" style="padding:15px; margin-bottom:20px;">
-    <h3 style="margin-top:0;">Comparar Periodo</h3>
-    <div style="display:flex; gap:10px; margin-bottom:10px;">
-        <input type="date" id="fechaInicio">
-        <input type="date" id="fechaFin">
-    </div>
-    <div style="display:flex; gap:10px; margin-bottom:10px;">
-      <select id="tipoComparacion" onchange="document.getElementById('pvComparativa').style.display=this.value==='pv'?'':'none'; if(this.value==='pv' && typeof llenarPVs==='function') llenarPVs();">
-        <option value="dia">Por Día</option>
-        <option value="pv">Por PV</option>
-      </select>
-      <select id="pvComparativa" style="display:none"></select>
-    </div>
-    <button onclick="compararPeriodo()">Comparar</button>
+   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px;margin-bottom:12px">
+     <div style="font-size:10px;font-weight:700;color:#16a34a;letter-spacing:.06em;margin-bottom:4px">GANANCIA TOTAL</div>
+     <div style="font-size:1.5rem;font-weight:900;color:#16a34a" id="ventasCompGanancia">$0.00</div>
    </div>
 
-   <div class="chartPanel">
-    <div class="chartScroll">
+   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
+     <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">COMPARAR PERIODO</div>
+     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+       <input type="date" id="fechaInicio" style="font-size:.84rem;padding:7px 10px">
+       <input type="date" id="fechaFin" style="font-size:.84rem;padding:7px 10px">
+     </div>
+     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+       <select id="tipoComparacion" onchange="document.getElementById('pvComparativa').style.display=this.value==='pv'?'':'none'; if(this.value==='pv' && typeof llenarPVs==='function') llenarPVs();" style="font-size:.84rem;padding:7px 10px">
+         <option value="dia">Por Día</option>
+         <option value="pv">Por PV</option>
+       </select>
+       <select id="pvComparativa" style="display:none;font-size:.84rem;padding:7px 10px"></select>
+     </div>
+     <button onclick="compararPeriodo()" style="background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:12px;font-size:.88rem">Comparar</button>
+   </div>
+
+   <div class="chartPanel"><div class="chartScroll">
      <div class="moneyChartScroll"><div class="moneyChartInner"><div class="chart-wrap-ventas" id="wrap-ventas"><div class="moneyChartScroll">
-      <div class="moneyChartInner"><canvas id="ventasChart"></canvas></div>
+       <div class="moneyChartInner"><canvas id="ventasChart"></canvas></div>
      </div></div></div></div>
-    </div>
-   </div>
+   </div></div>
  </div>
 
  <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
@@ -3075,77 +3094,70 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 <!-- STATS -->
 <div class="sheet" id="statsSheet">
- <h2>Gráficas</h2>
+ <h2 style="margin-bottom:4px">Productos vendidos</h2>
+ <p style="font-size:13px;color:#64748b;margin-top:0;margin-bottom:14px">Analiza tus ventas por sabor y periodo.</p>
 
- <div class="toggleRow">
-  <button class="pill active" id="pillVentas" onclick="setStatsMode('ventas')">Ventas</button>
-  <button class="pill" id="pillSabores" onclick="setStatsMode('cu')">Sabores (CU)</button>
- </div>
-
- <div id="statsVentasBlock">
-
-   <!-- filtros (alineados) -->
-   <div class="filtersGrid" style="margin-top:10px">
-     <div class="fItem">
-       <div class="lbl">Tipo</div>
-       <select id="statsRangeType" onchange="setStatsRangeType(this.value)">
+ <!-- Filtros -->
+ <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
+   <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">FILTROS</div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+     <div>
+       <div class="lbl" style="font-size:10px">TIPO</div>
+       <select id="statsRangeType" onchange="setStatsRangeType(this.value)" style="font-size:.84rem;padding:7px 10px">
          <option value="range">Rango (fechas)</option>
          <option value="week">Semana (Lun–Dom)</option>
+         <option value="month">Mes</option>
+         <option value="year">Año</option>
        </select>
      </div>
-
-     <div class="fItem">
-       <div class="lbl">Sabor</div>
-       <select id="statsCompare"></select>
-     </div>
-
-     <div class="fItem" id="weekPickWrap" style="display:none;grid-column:1 / -1">
-       <div class="lbl">Semana</div>
-       <select id="statsWeek" onchange="onWeekPickChange()"></select>
-     </div>
-
-     <div class="fItem">
-       <div class="lbl">Desde</div>
-       <input type="date" id="from">
-     </div>
-
-     <div class="fItem">
-       <div class="lbl">Hasta</div>
-       <input type="date" id="to">
+     <div>
+       <div class="lbl" style="font-size:10px">SABOR</div>
+       <select id="statsCompare" style="font-size:.84rem;padding:7px 10px"></select>
      </div>
    </div>
-  <button onclick="generateChart()">Generar</button>
-
-<div class="kpi2">
-   <div class="kpiBox">
-    <div class="t">Total vendidos (rango)</div>
-    <div class="v" id="statsTotal">0</div>
+   <div id="weekPickWrap" style="display:none;margin-bottom:8px">
+     <div class="lbl" style="font-size:10px">SEMANA</div>
+     <select id="statsWeek" onchange="onWeekPickChange()" style="font-size:.84rem;padding:7px 10px"></select>
    </div>
-   <div class="kpiBox">
-    <div class="t">Total gastado (rango)</div>
-    <div class="v" id="statsSpend">$0.00</div>
+   <div id="monthPickWrap" style="display:none;margin-bottom:8px">
+     <div class="lbl" style="font-size:10px">MES</div>
+     <select id="statsMonth" onchange="onMonthPickChange()" style="font-size:.84rem;padding:7px 10px"></select>
    </div>
-  </div>
+   <div id="yearPickWrap" style="display:none;margin-bottom:8px">
+     <div class="lbl" style="font-size:10px">AÑO</div>
+     <select id="statsYear" onchange="onYearPickChange()" style="font-size:.84rem;padding:7px 10px"></select>
+   </div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+     <div>
+       <div class="lbl" style="font-size:10px">DESDE</div>
+       <input type="date" id="from" style="font-size:.84rem;padding:7px 10px">
+     </div>
+     <div>
+       <div class="lbl" style="font-size:10px">HASTA</div>
+       <input type="date" id="to" style="font-size:.84rem;padding:7px 10px">
+     </div>
+   </div>
+   <button onclick="generateChart()" style="background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:12px;padding:10px;font-size:.88rem">Generar</button>
+ </div>
 
-  <div class="top3Row" id="top3Wrap"></div>
+ <!-- KPIs -->
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px">
+     <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">TOTAL VENDIDOS</div>
+     <div style="font-size:1.5rem;font-weight:900;color:#1e1b2e" id="statsTotal">0</div>
+   </div>
+   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px">
+     <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">TOTAL GASTADO</div>
+     <div style="font-size:1.5rem;font-weight:900;color:#1e1b2e" id="statsSpend">$0.00</div>
+   </div>
+ </div>
 
-  <div class="chartHeading">Ventas</div><div class="chartSectionTitle">Ventas</div><div class="chartPanel"><div class="chartScroll">
+ <div class="top3Row" id="top3Wrap"></div>
+
+ <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:8px;margin-top:4px">GRÁFICA — VENTAS POR SABOR</div>
+ <div class="chartPanel"><div class="chartScroll">
    <div class="chart-wrap" id="wrap-chart"><canvas id="chart"></canvas></div>
-  </div></div><!-- /chartPanel -->
- </div>
-
- <div id="statsCUBlock" style="display:none">
-  <div class="smallnote" style="margin:6px 0 12px">
-   Ranking por <b>costo unitario</b> (independiente de fechas). <br>
-   🥇 = más barato
-  </div>
-
-  <div class="top3Row" id="top3CUWrap"></div>
-
-  <div class="chartHeading">Sabores (CU)</div><div class="chartSectionTitle">Costo unitario</div><div class="chartPanel"><div class="chartScroll">
-   <div class="chart-wrap" id="wrap-chartCU"><canvas id="chartCU"></canvas></div>
-  </div></div><!-- /chartPanel -->
- </div>
+ </div></div>
 
  <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
 </div>
@@ -3230,50 +3242,71 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 <!-- CU -->
 <div class="sheet" id="cuSheet">
- <h2>Costo unitario</h2>
- 
+ <h2 style="margin-bottom:4px">Recetas</h2>
+ <p style="font-size:13px;color:#64748b;margin-top:0;margin-bottom:14px">Calcula cuánto te cuesta hacer cada sabor.</p>
 
- <select id="cuFlavor"></select>
- <div style="display:grid;grid-template-columns:1fr;gap:12px;margin-top:10px"><button onclick="cuAddInsumo()">＋ Agregar insumo</button><div class="row3" style="grid-template-columns: repeat(3, 1fr);gap:12px;margin:0"><button style="background:#e0e7ff;color:#1e293b" onclick="cuOpenCatalog()">Catálogo de insumos</button><button style="background:#111827" onclick="cuSaveCost()">Guardar CU</button></div></div>
+ <div class="lbl" style="margin-bottom:6px">SABOR</div>
+ <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
+   <select id="cuFlavor"></select>
+   <button onclick="cuToggleChart()" id="cuChartBtn" style="margin:0;padding:9px 13px;background:#f3f0ff;color:#5d3fd1;border:1.5px solid #ede9fe;border-radius:14px;font-size:.78rem;font-weight:700;white-space:nowrap;flex-shrink:0">Ver gráfica</button>
+ </div>
+
+ <!-- TOTAL ARRIBA -->
+ <div style="display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:16px;padding:14px 18px;margin-top:14px">
+   <span style="color:rgba(255,255,255,.8);font-size:13px;font-weight:600">COSTO UNITARIO</span>
+   <span style="color:#fff;font-size:1.9rem;font-weight:900" id="cuTotal">$0.00</span>
+ </div>
+
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+   <button style="background:#e0e7ff;color:#3730a3;font-weight:700;border-radius:14px;padding:11px 8px;font-size:.83rem" onclick="cuOpenCatalog()">Catálogo de insumos</button>
+   <button style="background:#111827;border-radius:14px;padding:11px 8px;font-size:.83rem" onclick="cuSaveCost()">Guardar CU</button>
+ </div>
+
+ <button onclick="cuAddInsumo()" style="margin-top:10px;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:14px;font-size:.88rem">+ Agregar insumo</button>
 
  <div id="cuLista" style="margin-top:14px"></div>
 
- <div class="kpiBox" style="text-align:center">
-  <div class="t">Costo unitario (calculado)</div>
-  <div class="v" style="font-size:2.4rem;color:#7c3aed" id="cuTotal">$0.00</div>
- </div>
-
- <button style="background:var(--violet);display:none" onclick="cuSaveCost()">Guardar costo unitario</button>
  <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
+
+ <!-- Panel gráfica CU: overlay independiente, no empuja el contenido del sabor -->
+ <div id="cuChartPanel" style="display:none;position:fixed;inset:0;background:#fff;z-index:9999;overflow-y:auto;padding:18px">
+   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+     <h2 style="margin:0;font-size:1.1rem">Gráfica de costos por sabor</h2>
+     <button onclick="cuToggleChart()" style="margin:0;padding:8px 14px;background:#f3f0ff;color:#5d3fd1;border:1.5px solid #ede9fe;border-radius:14px;font-size:.8rem;font-weight:700">✕ Ocultar</button>
+   </div>
+   <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:8px">COSTO POR SABOR</div>
+   <div class="top3Row" id="top3CUWrap"></div>
+   <div class="chartPanel"><div class="chartScroll">
+     <div class="chart-wrap" id="wrap-chartCU"><canvas id="chartCU"></canvas></div>
+   </div></div>
+ </div>
 </div>
 
 <!-- CU CATALOGO -->
 <div class="sheet" id="cuCatalogSheet">
- <h2>Catálogo de insumos</h2>
- 
+ <h2 style="margin-bottom:4px">Catálogo de insumos</h2>
+ <p style="font-size:13px;color:#64748b;margin-top:0;margin-bottom:14px">Agrega aquí tus insumos y su costo para usarlos en las recetas.</p>
 
- <div class="row3" style="grid-template-columns:1.4fr .8fr;gap:12px">
-  <div>
-   <div class="lbl">Nombre del insumo</div>
-   <input id="cuCatName" placeholder="Ej. Leche evaporada">
+ <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
+  <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px" id="cuCatFormTitle">NUEVO INSUMO</div>
+  <div style="display:grid;grid-template-columns:1.4fr .9fr;gap:8px;margin-bottom:10px">
+   <div>
+    <div class="lbl" style="font-size:10px">NOMBRE</div>
+    <input id="cuCatName" placeholder="Ej. Leche evaporada" style="font-size:.84rem;padding:7px 10px">
+   </div>
+   <div>
+    <div class="lbl" style="font-size:10px">COSTO ($)</div>
+    <input id="cuCatPack" type="number" step="0.01" min="0" placeholder="0.00" style="font-size:.84rem;padding:7px 10px">
+   </div>
   </div>
-  <div>
-   <div class="lbl">Costo paquete ($)</div>
-   <input id="cuCatPack" type="number" step="0.01" min="0" placeholder="0.00">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+   <button id="cuCatSaveBtn" onclick="cuSaveCatalogItem()" style="background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:12px;padding:9px;font-size:.83rem">Guardar</button>
+   <button id="cuCatCancelBtn" onclick="cuCancelEditCatalog()" style="display:none;background:#f1f5f9;color:#475569;border:none;border-radius:12px;padding:9px;font-size:.83rem;font-weight:700">Cancelar</button>
   </div>
  </div>
 
- <button id="cuCatSaveBtn" onclick="cuSaveCatalogItem()">Guardar insumo</button>
-          <button id="cuCatCancelBtn" class="ghostBtn" style="display:none" onclick="cuCancelEditCatalog()">Cancelar edición</button>
-
- <div class="smallnote" style="margin-top:10px">
-  Tip: luego en cada <b>INSUMO</b> elige del catálogo para rellenar nombre y costo sin escribir.
- </div>
-
- <div style="margin-top:14px">
-  <div class="lbl">Insumos guardados:</div>
-  <div id="cuCatalogList" style="margin-top:10px"></div>
- </div>
+ <div class="lbl" style="margin-bottom:8px">INSUMOS GUARDADOS</div>
+ <div id="cuCatalogList"></div>
 
  <button class="closeBtn" onclick="goTo('cu')">Volver</button>
 </div>
@@ -4552,6 +4585,7 @@ function initStatsDefaults(){
    - Cada opción representa lunes a domingo
 ========================= */
 let __statsRangeType = "range";
+let __periodAgg = null; // null | "month" | "year" -> activado al elegir "Todos los meses/años (total)"
 
 function loadSales(){
   // En algunas versiones no existía; esto evita que truene initStatsDefaults
@@ -4644,26 +4678,160 @@ function initWeekPicker(){
   }
 }
 
+const MES_NOMBRES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+function initMonthPicker(){
+  const sel = document.getElementById("statsMonth");
+  const fromEl = document.getElementById("from");
+  const toEl   = document.getElementById("to");
+  if(!sel || !fromEl || !toEl) return;
+
+  const rows = loadSales().map(s=> normalizeISODate(s.date)).filter(Boolean);
+  if(!rows.length){ sel.innerHTML = ""; return; }
+
+  // Solo meses que realmente tienen datos
+  const seen = new Map(); // key "YYYY-MM" -> {y,m}
+  rows.forEach(d=>{
+    const y = parseInt(d.slice(0,4),10);
+    const m = parseInt(d.slice(5,7),10);
+    if(!y||!m) return;
+    const key = `${y}-${String(m).padStart(2,"0")}`;
+    if(!seen.has(key)) seen.set(key,{y,m});
+  });
+
+  const months = [...seen.entries()].sort((a,b)=> a[0].localeCompare(b[0]));
+  if(!months.length){ sel.innerHTML = ""; return; }
+
+  sel.innerHTML = `<option value="__ALL__">📊 Todos los meses (total)</option>` + months.map(([key,{y,m}])=>{
+    const label = `${MES_NOMBRES[m-1]} ${y}`;
+    return `<option value="${escapeHtmlAttr(key)}">${escapeHtml(label)}</option>`;
+  }).join("");
+
+  // default: el más reciente (mes individual)
+  const last = months[months.length-1][0];
+  sel.value = last;
+  if(__statsRangeType==="month" && __periodAgg!=="month"){
+    const [y,m] = last.split("-").map(Number);
+    const r = monthRangeISO(y,m);
+    if(r){ fromEl.value = r.from; toEl.value = r.to; }
+  }
+}
+
+function initYearPicker(){
+  const sel = document.getElementById("statsYear");
+  const fromEl = document.getElementById("from");
+  const toEl   = document.getElementById("to");
+  if(!sel || !fromEl || !toEl) return;
+
+  const rows = loadSales().map(s=> normalizeISODate(s.date)).filter(Boolean);
+  if(!rows.length){ sel.innerHTML = ""; return; }
+
+  // Solo años que realmente tienen datos
+  const years = [...new Set(rows.map(d=> parseInt(d.slice(0,4),10)).filter(Boolean))].sort((a,b)=>a-b);
+  if(!years.length){ sel.innerHTML = ""; return; }
+
+  sel.innerHTML = `<option value="__ALL__">📊 Todos los años (total)</option>` + years.map(y=> `<option value="${y}">${y}</option>`).join("");
+
+  // default: el más reciente (año individual)
+  const last = years[years.length-1];
+  sel.value = String(last);
+  if(__statsRangeType==="year" && __periodAgg!=="year"){
+    fromEl.value = `${last}-01-01`;
+    toEl.value   = `${last}-12-31`;
+  }
+}
+
+function onMonthPickChange(){
+  if(__statsRangeType!=="month") return;
+  const sel = document.getElementById("statsMonth");
+  const fromEl = document.getElementById("from");
+  const toEl   = document.getElementById("to");
+  if(!sel || !fromEl || !toEl || !sel.value) return;
+
+  if(sel.value==="__ALL__"){
+    __periodAgg = "month";
+    // Rango completo: desde el primer dato hasta el último
+    const rows = loadSales().map(s=> normalizeISODate(s.date)).filter(Boolean).sort();
+    if(rows.length){ fromEl.value = rows[0]; toEl.value = rows[rows.length-1]; }
+    try{ generateChart(); }catch(e){}
+    return;
+  }
+  __periodAgg = null;
+  const [y,m] = sel.value.split("-").map(Number);
+  const r = monthRangeISO(y,m);
+  if(r){ fromEl.value = r.from; toEl.value = r.to; }
+  try{ generateChart(); }catch(e){}
+}
+
+function onYearPickChange(){
+  if(__statsRangeType!=="year") return;
+  const sel = document.getElementById("statsYear");
+  const fromEl = document.getElementById("from");
+  const toEl   = document.getElementById("to");
+  if(!sel || !fromEl || !toEl || !sel.value) return;
+
+  if(sel.value==="__ALL__"){
+    __periodAgg = "year";
+    const rows = loadSales().map(s=> normalizeISODate(s.date)).filter(Boolean).sort();
+    if(rows.length){ fromEl.value = rows[0]; toEl.value = rows[rows.length-1]; }
+    try{ generateChart(); }catch(e){}
+    return;
+  }
+  __periodAgg = null;
+  fromEl.value = `${sel.value}-01-01`;
+  toEl.value   = `${sel.value}-12-31`;
+  try{ generateChart(); }catch(e){}
+}
+
 function setStatsRangeType(type){
-  __statsRangeType = (type==="week") ? "week" : "range";
-  const wrap = document.getElementById("weekPickWrap");
-  const weekSel = document.getElementById("statsWeek");
+  __statsRangeType = (["week","month","year"].includes(type)) ? type : "range";
+  const weekWrap  = document.getElementById("weekPickWrap");
+  const monthWrap = document.getElementById("monthPickWrap");
+  const yearWrap  = document.getElementById("yearPickWrap");
+  const weekSel  = document.getElementById("statsWeek");
+  const monthSel = document.getElementById("statsMonth");
+  const yearSel  = document.getElementById("statsYear");
   const fromEl = document.getElementById("from");
   const toEl   = document.getElementById("to");
   if(!fromEl || !toEl) return;
 
+  // Ocultar todos los pickers especiales primero
+  if(weekWrap)  weekWrap.style.display  = "none";
+  if(monthWrap) monthWrap.style.display = "none";
+  if(yearWrap)  yearWrap.style.display  = "none";
+  fromEl.disabled = false;
+  toEl.disabled   = false;
+  if(__statsRangeType!=="month" && __statsRangeType!=="year") __periodAgg = null;
+
   if(__statsRangeType==="week"){
-    if(wrap) wrap.style.display = "block";
-    // cargar semanas si aún no están
+    if(weekWrap) weekWrap.style.display = "block";
     try{ initWeekPicker(); }catch(e){}
-    // bloquear fechas (las controla la semana)
     fromEl.disabled = true;
     toEl.disabled   = true;
-    onWeekPickChange(); // setea from/to y dibuja
+    onWeekPickChange();
+  }else if(__statsRangeType==="month"){
+    if(monthWrap) monthWrap.style.display = "block";
+    try{ initMonthPicker(); }catch(e){}
+    if(monthSel && !monthSel.options.length){
+      monthSel.innerHTML = `<option value="">Sin datos por mes</option>`;
+      try{ generateChart(); }catch(e){}
+      return;
+    }
+    fromEl.disabled = true;
+    toEl.disabled   = true;
+    onMonthPickChange();
+  }else if(__statsRangeType==="year"){
+    if(yearWrap) yearWrap.style.display = "block";
+    try{ initYearPicker(); }catch(e){}
+    if(yearSel && !yearSel.options.length){
+      yearSel.innerHTML = `<option value="">Sin datos por año</option>`;
+      try{ generateChart(); }catch(e){}
+      return;
+    }
+    fromEl.disabled = true;
+    toEl.disabled   = true;
+    onYearPickChange();
   }else{
-    if(wrap) wrap.style.display = "none";
-    fromEl.disabled = false;
-    toEl.disabled   = false;
     try{ generateChart(); }catch(e){}
   }
 }
@@ -5151,11 +5319,11 @@ let __statsMode="ventas";
 
 function setStatsMode(mode){
  __statsMode = (mode==="cu") ? "cu" : "ventas";
+ // pills ya no existen en statsSheet, los IDs pueden no existir — tolerante
  const pv=document.getElementById("pillVentas");
  const ps=document.getElementById("pillSabores");
  const bV=document.getElementById("statsVentasBlock");
  const bC=document.getElementById("statsCUBlock");
-
  if(pv&&ps){
   pv.classList.toggle("active", __statsMode==="ventas");
   ps.classList.toggle("active", __statsMode==="cu");
@@ -5165,6 +5333,24 @@ function setStatsMode(mode){
   bC.style.display = (__statsMode==="cu") ? "block" : "none";
  }
  if(__statsMode==="cu") renderCUChart();
+}
+
+let __cuChartVisible = false;
+function cuToggleChart(){
+  __cuChartVisible = !__cuChartVisible;
+  const panel = document.getElementById("cuChartPanel");
+  const btn   = document.getElementById("cuChartBtn");
+  const sel   = document.getElementById("cuFlavor");
+  if(panel){
+    panel.style.display = __cuChartVisible ? "block" : "none";
+    // Renderizar DESPUÉS de hacer visible para que el canvas tenga clientWidth
+    if(__cuChartVisible){
+      requestAnimationFrame(()=>{ renderCUChart(); });
+    }
+  }
+  // Bloquea el selector de sabor mientras la gráfica está abierta
+  if(sel) sel.disabled = __cuChartVisible;
+  if(btn) btn.textContent = __cuChartVisible ? "Ocultar gráfica" : "Ver gráfica";
 }
 
 /* =========================
@@ -5372,20 +5558,94 @@ function generateChart(){
   return;
  }
 
- // ===== MODO: 1 sabor (comparar días) =====
+ // ===== MODO: TOTAL por Mes o por Año (gráfica aparte, no es comparar sabores) =====
+ if((rangeType==="month" || rangeType==="year") && __periodAgg===rangeType){
+  let subset = filtered;
+  let titleFlavor = "TOTAL";
+  if(compareVal && compareVal!=="__ALL__"){
+   const pickUpper = toUpperSafe(compareVal);
+   subset = filtered.filter(s=> toUpperSafe(s.product)===pickUpper);
+   titleFlavor = toTitleCase(compareVal);
+  }
+
+  const byBucket = new Map(); // key -> qty
+  subset.forEach(s=>{
+   const key = (rangeType==="month") ? s.date.slice(0,7) : s.date.slice(0,4);
+   byBucket.set(key, (byBucket.get(key)||0) + s.qty);
+  });
+
+  const keys = [...byBucket.keys()].sort();
+  const labels = keys.map(k=>{
+   if(rangeType==="month"){
+    const [y,m] = k.split("-").map(Number);
+    return `${MES_NOMBRES[m-1].slice(0,3)} ${y}`;
+   }
+   return k;
+  });
+  const data = keys.map(k=> byBucket.get(k));
+
+  const totalVendidos = data.reduce((a,b)=>a+b,0);
+  const totalGastado  = subset.reduce((a,b)=> a + (Number(b.qty)||0)*(Number(b.costUnit)||0), 0);
+  document.getElementById("statsTotal").textContent = totalVendidos;
+  document.getElementById("statsSpend").textContent = money(totalGastado);
+
+  // Top3 no aplica aquí: el eje X son periodos, no sabores
+  const topWrap=document.getElementById("top3Wrap");
+  if(topWrap){ topWrap.innerHTML=""; topWrap.style.display="none"; }
+
+  let baseColor = PASTELS[0];
+  if(compareVal && compareVal!=="__ALL__"){
+   const pickUpper = toUpperSafe(compareVal);
+   const pickedInv = inventory.find(x=>toUpperSafe(x.name)===pickUpper);
+   baseColor = (pickedInv && pickedInv.color) ? pickedInv.color : PASTELS[0];
+  }
+  const colors = labels.map(()=> baseColor);
+
+  const canvas=document.getElementById("chart");
+  fitCanvasForBars(canvas, labels.length, 520);
+
+  drawBarChartFallback(canvas, labels, data, colors, {
+   title: ``,
+   valueSuffix: "",
+   yLabel: "Vendidos",
+   valuePlacement: "above",
+   medals: false,
+   rotateDeg: (labels.length>3 ? 45 : 0),
+   xLabelAnchor: (labels.length>3 ? "endAtBarCenter" : "center"),
+   animate: true,
+   duration: 480
+  });
+  return;
+ }
+
+ // ===== MODO: 1 sabor (comparar días, o meses si es modo Año) =====
  if(compareVal && compareVal!=="__ALL__"){
   const pickUpper=toUpperSafe(compareVal);
   const only=filtered.filter(s=> toUpperSafe(s.product)===pickUpper);
 
-  // agrupar por día
-  const byDay=new Map();
-  only.forEach(s=>{
-   const d=s.date;
-   byDay.set(d, (byDay.get(d)||0) + s.qty);
-  });
-  const days=[...byDay.entries()].sort((a,b)=> a[0].localeCompare(b[0]));
-  const labels = days.map(([d])=>d);
-  const data   = days.map(([,q])=>q);
+  let labels, data;
+  if(rangeType==="year"){
+   // Agrupar por mes (12 barras), mucho más legible que por día
+   const byMonth=new Map();
+   only.forEach(s=>{
+    const m = parseInt(s.date.slice(5,7),10);
+    if(!m) return;
+    byMonth.set(m, (byMonth.get(m)||0) + s.qty);
+   });
+   const months=[...byMonth.keys()].sort((a,b)=>a-b);
+   labels = months.map(m=> MES_NOMBRES[m-1].slice(0,3));
+   data   = months.map(m=> byMonth.get(m));
+  } else {
+   // agrupar por día
+   const byDay=new Map();
+   only.forEach(s=>{
+    const d=s.date;
+    byDay.set(d, (byDay.get(d)||0) + s.qty);
+   });
+   const days=[...byDay.entries()].sort((a,b)=> a[0].localeCompare(b[0]));
+   labels = days.map(([d])=>d);
+   data   = days.map(([,q])=>q);
+  }
 
   const totalVendidos = data.reduce((a,b)=>a+b,0);
   const totalGastado  = only.reduce((a,b)=> a + (b.qty*(Number(b.costUnit)||0)),0);
@@ -5849,22 +6109,50 @@ function cuRenderCatalog(){
   if(!wrap) return;
 
   if(!arr.length){
-    wrap.innerHTML='<div class="smallnote">No hay insumos guardados todavía.</div>';
+    wrap.innerHTML='<div class="smallnote" style="text-align:center;padding:16px 0">Sin insumos aún. Agrégalos arriba.</div>';
     return;
   }
 
+  const trashSVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>`;
+  const editSVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3730a3" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+
   wrap.innerHTML=arr.map((it,idx)=>`
-    <div class="tableCard cuCatRow">
-      <div class="cuCatInfo">
-        <div class="cuCatName">${escapeHtml(it.name)}</div>
-        <div class="cuCatCost">Costo: <b>${money(it.pack)}</b> / paquete</div>
-      </div>
-      <div class="cuCatActions">
-        <button class="cuBtnEdit" onclick="cuStartEditCatalog(${idx})">Editar</button>
-        <button class="cuBtnDel" onclick="cuDeleteCatalog(${idx})">Eliminar</button>
+    <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:10px 14px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div style="min-width:0;flex:1">
+          <div style="font-weight:800;font-size:15px;color:#101826;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(it.name)}</div>
+          <div style="display:flex;align-items:center;gap:5px">
+            <span style="font-size:12px;color:#94a3b8">$</span>
+            <input
+              type="number" step="0.01" min="0"
+              value="${it.pack}"
+              class="cuCatInlinePrice"
+              data-idx="${idx}"
+              readonly
+              style="width:72px;padding:5px 7px;font-size:13px;font-weight:700;border-radius:9px;border:1.5px solid #e2def5;text-align:center;font-family:inherit;background:#f1f5f9;color:#475569;cursor:not-allowed;transition:background .15s,color .15s"
+              onchange="cuUpdateInlinePrice(${idx}, this.value)"
+              onkeydown="if(event.key==='Enter'){this.blur();}"
+            >
+            <span style="font-size:12px;color:#94a3b8">/ paq.</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button onclick="cuStartEditCatalog(${idx})" style="margin:0;padding:6px;width:30px;height:30px;border-radius:8px;background:#e0e7ff;border:1.5px solid #c7d2fe;display:flex;align-items:center;justify-content:center">${editSVG}</button>
+          <button onclick="cuDeleteCatalog(${idx})" style="margin:0;padding:6px;width:30px;height:30px;border-radius:8px;background:#fef2f2;border:1.5px solid #fecaca;display:flex;align-items:center;justify-content:center">${trashSVG}</button>
+        </div>
       </div>
     </div>
   `).join("");
+}
+
+function cuUpdateInlinePrice(idx, rawVal){
+  const arr = cuNormalizeCatalog(cuGetCatalog());
+  if(!arr[idx]) return;
+  const pack = Math.max(0, Number(rawVal)||0);
+  arr[idx] = {...arr[idx], pack};
+  cuSetCatalog(arr);
+  cuApplyCatalogUpdates();
+  AppUI.toast('✅ Precio actualizado en todas las recetas');
 }
 function cuOpenCatalog(){
   closeSheets();
@@ -5907,13 +6195,14 @@ async function cuDeleteCatalog(idx){
   // Si hay filas usando ese catálogo, no las borro; solo se quedan con nombre/costo ya escrito.
 }
 
-/* Si editas un insumo en Catálogo, actualiza costo en CU si ya lo elegiste */
+/* Si editas un insumo en Catálogo, actualiza costo en TODAS las recetas (abiertas y cerradas) */
 function cuApplyCatalogUpdates(){
   try{
     const catalog = cuNormalizeCatalog(cuGetCatalog());
     const map = new Map(catalog.map(it => [cuNormKey(it.name), it]));
-    let changed = false;
 
+    // 1) Actualizar cuRows (receta abierta en pantalla)
+    let changedRows = false;
     cuRows.forEach(r=>{
       const key = cuNormKey(r.cat || r.name);
       const it = map.get(key);
@@ -5923,14 +6212,34 @@ function cuApplyCatalogUpdates(){
           r.pack = pack;
           r.name = it.name;
           r.cat  = it.name;
-          changed = true;
+          changedRows = true;
         }
       }
     });
+    if(changedRows) cuRender();
 
-    if(changed){
-      cuRender();
-    }
+    // 2) Actualizar TODAS las recetas guardadas en localStorage (aunque no estén abiertas)
+    const recipes = cuGetRecipes();
+    let changedRecipes = false;
+    Object.keys(recipes).forEach(recipeKey=>{
+      const rows = recipes[recipeKey];
+      if(!Array.isArray(rows)) return;
+      rows.forEach(r=>{
+        const key = cuNormKey(r.cat || r.name);
+        const it = map.get(key);
+        if(it){
+          const pack = Number(it.pack)||0;
+          if(r.pack !== pack || r.name !== it.name){
+            r.pack = pack;
+            r.name = it.name;
+            r.cat  = it.name;
+            changedRecipes = true;
+          }
+        }
+      });
+    });
+    if(changedRecipes) cuSetRecipes(recipes);
+
   }catch(e){
     console.warn("cuApplyCatalogUpdates:", e);
   }
@@ -5939,8 +6248,10 @@ function cuApplyCatalogUpdates(){
 function cuSetEditMode(on){
   const saveBtn=document.getElementById("cuCatSaveBtn");
   const cancelBtn=document.getElementById("cuCatCancelBtn");
-  if(saveBtn) saveBtn.textContent = on ? "Actualizar insumo" : "Guardar insumo";
-  if(cancelBtn) cancelBtn.style.display = on ? "inline-flex" : "none";
+  const title=document.getElementById("cuCatFormTitle");
+  if(saveBtn) saveBtn.textContent = on ? "Actualizar" : "Guardar";
+  if(cancelBtn) cancelBtn.style.display = on ? "block" : "none";
+  if(title) title.textContent = on ? "EDITANDO INSUMO" : "NUEVO INSUMO";
 }
 function cuStartEditCatalog(idx){
   const arr=cuNormalizeCatalog(cuGetCatalog());
@@ -5952,10 +6263,27 @@ function cuStartEditCatalog(idx){
   if(nameEl) nameEl.value = it.name || "";
   if(packEl) packEl.value = (it.pack ?? "");
   cuSetEditMode(true);
-  // sube al inicio de la hoja para editar cómodo
+
+  // Habilitar el input inline de precio de esta fila
+  document.querySelectorAll('.cuCatInlinePrice').forEach(el=>{
+    const i = parseInt(el.dataset.idx);
+    if(i === idx){
+      el.removeAttribute('readonly');
+      el.style.background = '#f5f3ff';
+      el.style.color = '#3f46d5';
+      el.style.cursor = 'text';
+      el.focus();
+    } else {
+      el.setAttribute('readonly','');
+      el.style.background = '#f1f5f9';
+      el.style.color = '#475569';
+      el.style.cursor = 'not-allowed';
+    }
+  });
+
   const sheet=document.getElementById("cuCatalogSheet");
   if(sheet) sheet.scrollTo({top:0, behavior:"smooth"});
-  AppUI.toast("✏️ Editando insumo");
+  AppUI.toast("Editando: " + it.name);
 }
 function cuCancelEditCatalog(silent){
   cuCatEditIndex=null;
@@ -5964,6 +6292,13 @@ function cuCancelEditCatalog(silent){
   if(nameEl) nameEl.value="";
   if(packEl) packEl.value="";
   cuSetEditMode(false);
+  // Restaurar todos los inputs inline a readonly
+  document.querySelectorAll('.cuCatInlinePrice').forEach(el=>{
+    el.setAttribute('readonly','');
+    el.style.background = '#f1f5f9';
+    el.style.color = '#475569';
+    el.style.cursor = 'not-allowed';
+  });
   if(!silent) AppUI.toast("Edición cancelada");
 }
 
@@ -6184,56 +6519,57 @@ function cuRender(){
  const catalog=cuNormalizeCatalog(cuGetCatalog());
 
  if(!cuRows.length){
-  list.innerHTML=`<div class="smallnote">Este sabor no tiene receta guardada. Agrega insumos y guarda.</div>`;
+  list.innerHTML=`<div class="smallnote" style="text-align:center;padding:16px 0">Sin insumos. Presiona <b>+ Agregar insumo</b> para empezar.</div>`;
   document.getElementById("cuTotal").textContent="$0.00";
   return;
  }
 
- list.innerHTML=cuRows.map((r,i)=>`
-  <div class="tableCard">
-   <div class="lbl">INSUMO ${i+1}</div>
+ const trashSVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>`;
 
-   
-   
-   <div style="margin-top:8px">
-    <div class="lbl">INSUMO</div>
-    <select onchange="cuPickCatalog(${i}, this.value)">
-      ${cuCatalogOptionsHTML((r.cat||r.name||""))}
-    </select>
-    <div class="smallnote" style="margin-top:-6px">Tip: agrega insumos en <b>Catálogo</b> y luego selecciónalos aquí.</div>
+ list.innerHTML=cuRows.map((r,i)=>`
+  <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:10px">
+   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+     <span style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em">INSUMO ${i+1}</span>
+     <button onclick="cuRemoveInsumo(${i})" style="margin:0;padding:6px;width:30px;height:30px;border-radius:8px;background:#fef2f2;border:1.5px solid #fecaca;display:flex;align-items:center;justify-content:center;flex-shrink:0">${trashSVG}</button>
    </div>
 
+   <select onchange="cuPickCatalog(${i}, this.value)" style="margin-bottom:8px;font-size:.84rem;padding:8px 10px">
+     ${cuCatalogOptionsHTML((r.cat||r.name||""))}
+   </select>
 
-<div class="row3 cuBtns" style="margin-top:10px">
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
     <div>
-     <div class="lbl">COSTO PAQUETE ($)</div>
+     <div class="lbl" style="font-size:10px">COSTO PAQUETE ($)</div>
      ${r.cat ? `
       <input type="text" readonly value="${money(Number(r.pack)||0)}"
-       style="background:#e2e8f0;color:#475569;font-weight:800">
+       style="background:#f1f5f9;color:#475569;font-weight:700;cursor:not-allowed;font-size:.84rem;padding:7px 10px">
      ` : `
       <input type="number" step="0.01" min="0" value="${Number(r.pack)||0}"
+       style="font-size:.84rem;padding:7px 10px"
        oninput="cuRows[${i}].pack=this.value; cuCalc()">
      `}
     </div>
     <div>
-     <div class="lbl">CANTIDAD USADA</div>
+     <div class="lbl" style="font-size:10px">CANTIDAD USADA</div>
      <input type="number" step="0.01" min="0" value="${Number(r.qty)||0}"
+      style="font-size:.84rem;padding:7px 10px"
       oninput="cuRows[${i}].qty=this.value; cuCalc()">
     </div>
+   </div>
+
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
     <div>
-     <div class="lbl">RINDE (HIELITOS)</div>
+     <div class="lbl" style="font-size:10px">RINDE (HIELITOS)</div>
      <input type="number" step="1" min="1" value="${Math.max(1,Number(r.yield)||1)}"
+      style="font-size:.84rem;padding:7px 10px"
       oninput="cuRows[${i}].yield=this.value; cuCalc()">
     </div>
+    <div>
+     <div class="lbl" style="font-size:10px">$ / INSUMO</div>
+     <input class="cuPer" data-i="${i}" readonly value="${money(cuPerInsumo(r))}"
+       style="background:#eef2ff;color:#4338ca;font-weight:800;cursor:not-allowed;font-size:.84rem;padding:7px 10px">
+    </div>
    </div>
-
-   <div style="margin-top:10px">
-    <div class="lbl">$/INSUMO (AUTOMÁTICO)</div>
-    <input class="cuPer" data-i="${i}" readonly value="${money(cuPerInsumo(r))}"
-      style="background:#eef2ff;color:#1e40af;font-weight:950">
-   </div>
-
-   <button style="margin-top:12px;background:var(--danger)" onclick="cuRemoveInsumo(${i})">Quitar insumo</button>
   </div>
  `).join("");
 
