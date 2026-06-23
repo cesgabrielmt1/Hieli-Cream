@@ -1183,16 +1183,41 @@ button:not(.menuBtn):not(.iconBtn){
 .card:not(.collapsed) .colorStrip{height:100px}
 
 
-/* flash visual al presionar botones */
+/* Flash visual al presionar botones — resplandor de color que se desvanece suave */
 .cardFlash{
  position:absolute;
  inset:0;
  border-radius:48px;
  opacity:0;
  pointer-events:none;
- transition:.18s;
+ z-index:2;
 }
-.cardFlash.show{opacity:.18}
+.cardFlash.show-add{
+  background: radial-gradient(circle, rgba(99,102,241,.20), rgba(99,102,241,0) 72%);
+  box-shadow: inset 0 0 0 2px rgba(99,102,241,.40), inset 0 0 22px 4px rgba(99,102,241,.22);
+  animation: cardGlowFade .85s cubic-bezier(.22,.9,.3,1) forwards;
+}
+.cardFlash.show-sub{
+  background: radial-gradient(circle, rgba(239,68,68,.20), rgba(239,68,68,0) 72%);
+  box-shadow: inset 0 0 0 2px rgba(239,68,68,.40), inset 0 0 22px 4px rgba(239,68,68,.22);
+  animation: cardGlowFade .85s cubic-bezier(.22,.9,.3,1) forwards;
+}
+.cardFlash.show-sell{
+  background: radial-gradient(circle, rgba(34,197,94,.20), rgba(34,197,94,0) 72%);
+  box-shadow: inset 0 0 0 2px rgba(34,197,94,.40), inset 0 0 22px 4px rgba(34,197,94,.22);
+  animation: cardGlowFade .85s cubic-bezier(.22,.9,.3,1) forwards;
+}
+@keyframes cardGlowFade{
+  0%{   opacity:1;   }
+  55%{  opacity:.6;  }
+  100%{ opacity:0;   }
+}
+@keyframes cardPopScale{
+  0%{   transform:scale(1);    }
+  30%{  transform:scale(1.018); }
+  100%{ transform:scale(1);    }
+}
+.card.pop-anim{ animation: cardPopScale .35s ease-out; }
 
 .card.low{
  border:2px solid var(--danger);
@@ -1268,6 +1293,56 @@ button:not(.menuBtn):not(.iconBtn){
  transition:.25s;
 }
 .main-fab.active{transform:scale(0.98)}
+
+/* BOTTOM NAV: accesos directos + menú */
+body{ padding-bottom: 92px; }
+.bottomNav{
+  position:fixed;
+  left:0; right:0; bottom:0;
+  z-index:1000;
+  display:flex;
+  align-items:stretch;
+  justify-content:space-between;
+  gap:4px;
+  padding:10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: rgba(255,255,255,.92);
+  border-top:1px solid rgba(148,163,184,.20);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 -12px 30px rgba(2,6,23,.08);
+}
+.bnBtn{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  background:none;
+  border:none;
+  padding:6px 2px;
+  border-radius:14px;
+  color:#64748b;
+  font-size:.68rem;
+  font-weight:700;
+  cursor:pointer;
+  transition:.15s;
+}
+.bnBtn svg{
+  width:22px;height:22px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:2;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.bnBtn:active{ transform:scale(.94); }
+.bnBtn.bnMenu{ color:#fff; background:var(--primary); box-shadow:0 10px 22px rgba(99,102,241,.35); }
+.bnBtn.bnMenu.active{ transform:scale(.94); }
+@media (max-width:360px){
+  .bnBtn{ font-size:.62rem; }
+  .bnBtn svg{ width:20px;height:20px; }
+}
 
 /* SHEETS */
 .sheet{
@@ -1634,8 +1709,7 @@ h1{letter-spacing:.02em}
 }
 .btn:active{animation: pressPop .14s ease}
 
-/* Flash más elegante */
-.cardFlash.show{opacity:.14}
+/* (animación de tarjeta ahora controlada arriba por .show-add/.show-sub/.show-sell) */
 
 /* FAB más premium */
 .main-fab{
@@ -2072,13 +2146,15 @@ align-items:center;text-align:center;}
 .menuGrid{
   grid-template-columns: repeat(3, 1fr) !important;
   gap: 12px !important;
+  align-items: stretch !important;
 }
 .menuBtn{
-  border-radius: 28px !important;
-  aspect-ratio: 1 / 1 !important;
-  height: auto !important;
+  border-radius: 22px !important;
+  aspect-ratio: unset !important;
+  height: 100% !important;
+  min-height: 118px !important;
   width: 100% !important;
-  padding: 0 !important;
+  padding: 16px 10px !important;
   border: none !important;
   background: #f0f1f5 !important;
   box-shadow:
@@ -2121,6 +2197,10 @@ align-items:center;text-align:center;}
   line-height: 1.2 !important;
   text-align: center !important;
   padding: 0 6px !important;
+  min-height: 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 .menuBtn .mSub{ display: none !important; }
 
@@ -2382,22 +2462,25 @@ align-items:center;text-align:center;}
 
 
 
-@media (max-width: 360px){
-  .menuGrid{grid-template-columns: repeat(2, 1fr); .menuBtn{height:140px;}}
-}
-
 /* Base de datos: chips de fechas visibles */
-.dateChip{
-  width:auto;
-  padding:10px 14px;
-  border-radius:999px;
-  border:1px solid rgba(15,23,42,.10);
-  background:rgba(255,255,255,.92);
-  color:#0f172a;
-  font-weight:900;
+.dateChipWrap{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:10px;
+}
+.sheet .dateChip{
+  width:auto !important;
+  padding:8px 13px !important;
+  margin-top:0 !important;
+  border-radius:999px !important;
+  border:1.5px solid #ede9fe !important;
+  background:#fff !important;
+  color:#5d3fd1 !important;
+  font-weight:700 !important;
+  font-size:.8rem !important;
   cursor:pointer;
-  box-shadow:0 10px 22px rgba(2,6,23,.10);
-  backdrop-filter: blur(10px);
+  box-shadow:none !important;
 }
 .dateChip:active{transform:translateY(1px) scale(.99)}
 
@@ -2824,71 +2907,76 @@ document.addEventListener('DOMContentLoaded',()=>{
 <div id="savedStamp" class="savedStamp"></div>
 <div id="cloudStamp" style="text-align:center;font-size:12px;color:rgba(100,116,139,.75);margin-bottom:8px">☁️ Conectando...</div>
 
-<!-- FAB -->
-<div class="speed-dial">
- <button class="main-fab" id="fab" onclick="toggleMenu()">
-  <svg class="fabIcon" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M5 7h14M5 12h14M5 17h14" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round"/>
-  </svg>
-  <span class="fabHint">Menú</span>
-</button>
+<!-- BOTTOM NAV: accesos directos a lo más usado + Menú completo -->
+<div class="bottomNav" id="bottomNav">
+  <button class="bnBtn" onclick="goTo('stats')">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M8 19V11"/><path d="M12 19V7"/><path d="M16 19V13"/><path d="M20 19V9"/></svg>
+    <span>Vendidos</span>
+  </button>
+  <button class="bnBtn" onclick="goTo('ventas')">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14.5a3.5 3.5 0 0 1 0 7H7"/></svg>
+    <span>Ventas</span>
+  </button>
+  <button class="bnBtn" onclick="goTo('io')">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+    <span>Guardado</span>
+  </button>
+  <button class="bnBtn bnMenu" id="fab" onclick="toggleMenu()">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+    <span>Menú</span>
+  </button>
 </div>
 
 <!-- MENU -->
 <div class="sheet" id="menuSheet">
- <h2>Menú</h2>
- 
+ <h2 style="margin-bottom:4px">Menú</h2>
+ <div class="smallnote" style="margin-bottom:14px">Todos los módulos.</div>
 
  <div class="menuGrid">
-  <!-- Fila 1 -->
-  <button class="menuBtn mBtn-1" onclick="goTo('add')">
-    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 21h8"/><path d="M12 21v-5"/><path d="M7 10.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5c0 2.6-1.6 4.7-3.8 5.3H10.8C8.6 15.2 7 13.1 7 10.5Z"/></svg></div>
-    <div class="mTitle">Nuevo Sabor</div>
-    <div class="mSub">Agregar sabores</div>
+  <button class="menuBtn mBtn-3" onclick="goTo('ventas')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14.5a3.5 3.5 0 0 1 0 7H7"/></svg></div>
+    <div class="mTitle">Ventas</div>
+    <div class="mSub">Ingresos diarios</div>
   </button>
   <button class="menuBtn mBtn-2" onclick="goTo('stats')">
     <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M8 19V11"/><path d="M12 19V7"/><path d="M16 19V13"/><path d="M20 19V9"/></svg></div>
     <div class="mTitle">Productos vendidos</div>
     <div class="mSub">Análisis por sabor</div>
   </button>
-  <button class="menuBtn mBtn-3" onclick="goTo('ventas')">
-    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14.5a3.5 3.5 0 0 1 0 7H7"/></svg></div>
-    <div class="mTitle">Ventas</div>
-    <div class="mSub">Ingresos diarios</div>
-  </button>
-
-  <!-- Fila 2 -->
-  <button class="menuBtn mBtn-4" onclick="goTo('cu')">
-    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><path d="M9 12h6"/><path d="M9 16h4"/></svg></div>
-    <div class="mTitle">Recetas</div>
-    <div class="mSub">Receta por sabor</div>
+  <button class="menuBtn mBtn-1" onclick="goTo('add')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 21h8"/><path d="M12 21v-5"/><path d="M7 10.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5c0 2.6-1.6 4.7-3.8 5.3H10.8C8.6 15.2 7 13.1 7 10.5Z"/></svg></div>
+    <div class="mTitle">Nuevo Sabor</div>
+    <div class="mSub">Agregar sabores</div>
   </button>
   <button class="menuBtn mBtn-5" onclick="goTo('db')">
     <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5"/><path d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg></div>
     <div class="mTitle">Base de datos</div>
     <div class="mSub">Editar vendidos</div>
   </button>
-  <button class="menuBtn mBtn-6" onclick="goTo('io')">
-    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></div>
-    <div class="mTitle">Guardado</div>
-    <div class="mSub">Copias de seguridad</div>
-  </button>
-
-  <!-- Fila 3 -->
   <button class="menuBtn mBtn-7" onclick="goTo('history')">
     <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l3 3v15a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v4h4"/><path d="M8 12h8"/><path d="M8 16h8"/></svg></div>
     <div class="mTitle">Reportes</div>
     <div class="mSub">Historial + PDF</div>
+  </button>
+  <button class="menuBtn mBtn-9" onclick="goTo('proyecciones')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 20h20"/><path d="M5 20V10l5-5 4 4 5-7"/><circle cx="10" cy="10" r="1" fill="currentColor"/><circle cx="14" cy="14" r="1" fill="currentColor"/><circle cx="19" cy="7" r="1" fill="currentColor"/></svg></div>
+    <div class="mTitle">Proyecciones</div>
+    <div class="mSub">Estimado de ventas</div>
+  </button>
+  <button class="menuBtn mBtn-4" onclick="goTo('cu')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><path d="M9 12h6"/><path d="M9 16h4"/></svg></div>
+    <div class="mTitle">Recetas</div>
+    <div class="mSub">Receta por sabor</div>
   </button>
   <button class="menuBtn mBtn-8" onclick="goTo('compras')">
     <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h15l-1.5 8.5a2 2 0 0 1-2 1.6H8.2a2 2 0 0 1-2-1.6L4 2H2"/><path d="M9 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/><path d="M18 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg></div>
     <div class="mTitle">Compras</div>
     <div class="mSub">OC por críticos</div>
   </button>
-  <button class="menuBtn mBtn-9" onclick="goTo('proyecciones')">
-    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 20h20"/><path d="M5 20V10l5-5 4 4 5-7"/><circle cx="10" cy="10" r="1" fill="currentColor"/><circle cx="14" cy="14" r="1" fill="currentColor"/><circle cx="19" cy="7" r="1" fill="currentColor"/></svg></div>
-    <div class="mTitle">Proyecciones</div>
-    <div class="mSub">Estimado de ventas</div>
+  <button class="menuBtn mBtn-6" onclick="goTo('io')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></div>
+    <div class="mTitle">Guardado</div>
+    <div class="mSub">Copias de seguridad</div>
   </button>
  </div>
 
@@ -3190,14 +3278,30 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 <!-- DB -->
 <div class="sheet" id="editDbSheet">
- <h2>Base de datos</h2>
- 
+ <h2 style="margin-bottom:4px">Base de datos</h2>
+ <div class="smallnote" style="margin-bottom:14px">Edita o borra registros de ventas guardados.</div>
 
- <input type="date" id="dbDate" onchange="renderSalesDB()">
- <input id="dbSearch" placeholder="Buscar producto o fecha AAAA-MM-DD" oninput="renderSalesDB()">
+ <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:14px">
+   <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">FILTRAR</div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+     <div>
+       <div class="lbl" style="font-size:10px">FECHA</div>
+       <input type="date" id="dbDate" onchange="renderSalesDB()" style="font-size:.84rem;padding:7px 10px">
+     </div>
+     <div>
+       <div class="lbl" style="font-size:10px">BUSCAR</div>
+       <input id="dbSearch" placeholder="Sabor o fecha (ej: fresa, 2026-06)" oninput="renderSalesDB()" style="font-size:.84rem;padding:7px 10px">
+     </div>
+   </div>
+   <button type="button" onclick="document.getElementById('dbDate').value=''; document.getElementById('dbSearch').value=''; renderSalesDB();"
+     style="margin:0;width:100%;padding:9px;background:#f3f0ff;color:#5d3fd1;border:1.5px solid #ede9fe;border-radius:12px;font-size:.78rem;font-weight:700">
+     ✕ Quitar filtros
+   </button>
+ </div>
 
- <button onclick="normalizeSales(true)">Normalizar</button>
- <button style="background:var(--danger)" onclick="clearSales()">Vaciar ventas</button>
+ <button type="button" style="margin:0;width:100%;padding:10px;background:#fef2f2;color:#dc2626;border:1.5px solid #fecaca;border-radius:14px;font-size:.78rem;font-weight:700;margin-bottom:14px" onclick="clearSales()">
+   🗑️ Vaciar ventas
+ </button>
 
  <div id="salesList" style="margin-top:14px"></div>
 
@@ -3206,35 +3310,36 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 <!-- IO -->
 <div class="sheet" id="ioSheet">
- <h2>💾 Guardado</h2>
+ <h2 style="margin-bottom:4px">💾 Guardado</h2>
+ <div class="smallnote" style="margin-bottom:14px">Copias de seguridad, exportar e importar tus datos.</div>
 
  <!-- Indicador de conexión -->
- <div id="ioConnectionBadge" style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;background:#f1f5f9;margin-bottom:16px;font-size:14px;font-weight:700">
-   <span id="ioConnectionDot" style="font-size:18px">🟢</span>
+ <div id="ioConnectionBadge" style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;background:#f0fdf4;border:1.5px solid #bbf7d0;margin-bottom:14px;font-size:13px;font-weight:700;color:#166534">
+   <span id="ioConnectionDot" style="font-size:16px">🟢</span>
    <span id="ioConnectionText">En línea — cambios se sincronizan con la nube</span>
  </div>
 
  <!-- COPIAS DE SEGURIDAD -->
- <div style="background:#f8fafc;border-radius:16px;padding:16px;margin-bottom:16px">
-   <div style="font-weight:800;font-size:15px;color:#0f172a;margin-bottom:4px">📦 Copias de seguridad locales</div>
-   <div style="font-size:12px;color:#64748b;margin-bottom:14px">Se guardan en este dispositivo. Puedes restaurar cualquier día.</div>
-   <button onclick="guardarCopiaSeguridad()" style="background:#7c3aed;margin-bottom:12px">💾 Guardar copia ahora</button>
+ <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
+   <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:8px">📦 COPIAS DE SEGURIDAD LOCALES</div>
+   <div class="smallnote" style="margin-bottom:12px">Se guardan en este dispositivo. Puedes restaurar cualquier día.</div>
+   <button onclick="guardarCopiaSeguridad()" style="margin:0;width:100%;padding:11px;border-radius:14px;border:none;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);color:#fff;font-weight:700;font-size:.84rem;box-shadow:0 6px 16px rgba(124,95,230,.30);margin-bottom:12px">💾 Guardar copia ahora</button>
    <div id="backupList"></div>
  </div>
 
  <!-- EXPORTAR JSON -->
- <div style="background:#f8fafc;border-radius:16px;padding:16px;margin-bottom:16px">
-   <div style="font-weight:800;font-size:15px;color:#0f172a;margin-bottom:4px">📤 Exportar archivo</div>
-   <div style="font-size:12px;color:#64748b;margin-bottom:12px">Descarga un JSON con todo tu inventario y ventas.</div>
-   <button onclick="exportData()">Exportar JSON</button>
+ <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
+   <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:8px">📤 EXPORTAR ARCHIVO</div>
+   <div class="smallnote" style="margin-bottom:12px">Descarga un JSON con todo tu inventario y ventas.</div>
+   <button onclick="exportData()" style="margin:0;width:100%;padding:11px;border-radius:14px;border:1.5px solid #e2def5;background:#f3f0ff;color:#5d3fd1;font-weight:700;font-size:.84rem">Exportar JSON</button>
  </div>
 
  <!-- IMPORTAR JSON -->
- <div style="background:#f8fafc;border-radius:16px;padding:16px;margin-bottom:16px">
-   <div style="font-weight:800;font-size:15px;color:#0f172a;margin-bottom:4px">📥 Importar archivo</div>
-   <div style="font-size:12px;color:#64748b;margin-bottom:12px">Importa un archivo <b>hieli_cream_backup.json</b> exportado por esta app.</div>
-   <input id="importFile" type="file" accept=".json,application/json">
-   <button style="background:var(--success);margin-top:8px" onclick="triggerImport()">Importar datos</button>
+ <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:14px">
+   <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:8px">📥 IMPORTAR ARCHIVO</div>
+   <div class="smallnote" style="margin-bottom:12px">Importa un archivo <b>hieli_cream_backup.json</b> exportado por esta app.</div>
+   <input id="importFile" type="file" accept=".json,application/json" style="font-size:.84rem;padding:7px 10px;margin-bottom:10px">
+   <button style="margin:0;width:100%;padding:11px;border-radius:14px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:700;font-size:.84rem" onclick="triggerImport()">Importar datos</button>
  </div>
 
  <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
@@ -4928,17 +5033,21 @@ function render(){
  scheduleChartsAnimated();
 }
 
-/* Flash en la tarjeta */
+/* Flash en la tarjeta — resplandor de color (más bonito y no tan rápido) */
 function flash(i, type){
  const el=document.getElementById(`fx_${i}`);
+ const card=el ? el.closest(".card") : null;
  if(!el) return;
- el.classList.remove("show");
- el.style.background = type==="add" ? "rgba(99,102,241,.55)" :
-                      type==="sub" ? "rgba(239,68,68,.55)" :
-                                    "rgba(34,197,94,.55)";
+ const cls = type==="add" ? "show-add" : type==="sub" ? "show-sub" : "show-sell";
+ el.classList.remove("show-add","show-sub","show-sell");
+ if(card) card.classList.remove("pop-anim");
  void el.offsetWidth;
- el.classList.add("show");
- setTimeout(()=>el.classList.remove("show"), 140);
+ el.classList.add(cls);
+ if(card){ void card.offsetWidth; card.classList.add("pop-anim"); }
+ setTimeout(()=>{
+   el.classList.remove(cls);
+   if(card) card.classList.remove("pop-anim");
+ }, 850);
 }
 
 // Bloqueo anti-tap-rápido: evita que +/- se dispare más de 1 vez cada 80ms por producto
@@ -4953,17 +5062,23 @@ function _btnThrottle(key){
 function increase(i, btn){
  if(!_btnThrottle("inc_"+i)) return;
  vibrateSafe(12);
- flash(i,"add");
  inventory[i].qty++;
  saveSilent(); render();
+ flash(i,"add");
+ try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, +1); }catch(_){}
  try{ cloudSaveNow(); }catch(_){}
 }
 
 function decrease(i, btn){
  if(!_btnThrottle("dec_"+i)) return;
  vibrateSafe(10);
- flash(i,"sub");
- if(inventory[i].qty>0){inventory[i].qty--;saveSilent();render();try{ cloudSaveNow(); }catch(_){}}
+ if(inventory[i].qty>0){
+   inventory[i].qty--;
+   saveSilent();render();
+   flash(i,"sub");
+   try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, -1); }catch(_){}
+   try{ cloudSaveNow(); }catch(_){}
+ }
 }
 
 /* VENDER + hold cantidad */
@@ -5024,7 +5139,6 @@ function doSell(i, qty, btn){
   sales.push({product:p,date:d,qty:qty,costUnit:cu});
  }
 
- flash(i,"sell");
  vibrateSafe([10,30,10]);
  playPop();
 
@@ -5038,6 +5152,8 @@ function doSell(i, qty, btn){
 
  saveSilent();
  render();
+ flash(i,"sell");
+ try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, -qty); }catch(_){}
  try{ cloudSaveNow(); }catch(_){}
 }
 
@@ -5102,7 +5218,7 @@ function saveConfig(){
 /* ✅ ELIMINAR SABOR (A): no borra ventas, solo lo quita de inventario y CU */
 async function deleteFlavor(){
  const name = inventory[currentIndex]?.name || "";
- if(!(await AppUI.confirm(`¿Eliminar el sabor "${name}"?\n\n✅ Tus ventas y reportes NO se borran.\n❌ Se quitará del inventario y del botón de Costo unitario.`, 'Eliminar sabor', true))) return;
+ if(!(await AppUI.confirm(`¿Eliminar el sabor "${name}"?\n\n✅ Tus ventas y reportes NO se borran.\n❌ Se quitará del inventario y del botón de Costo unitario.`, {title:'Eliminar sabor', danger:true}))) return;
 
  const key = toUpperSafe(name);
 
@@ -5800,49 +5916,46 @@ function renderSalesDB(){
  const wrap=document.getElementById("salesList");
 
  if(rows.length===0){
-  // Fechas disponibles (para que no “se oculten”)
-  const dates=[...new Set(normalized.map(x=>x.date))].sort();
-  const chips = dates.slice(-10).reverse().map(d=>`
-    <button class="dateChip" onclick="document.getElementById('dbDate').value='${d}'; renderSalesDB();">
-      ${d}
-    </button>
-  `).join("");
-
   wrap.innerHTML=`
-    <div class="smallnote">
-      No hay registros para ese filtro.<br>
-      ${dates.length ? `<div style="margin-top:10px;font-weight:950">Fechas disponibles (toca una):</div>
-      <div class="dateChipWrap">${chips}</div>` : ""}
+    <div class="smallnote" style="text-align:center;padding:10px 0">
+      No hay registros para ese filtro.
     </div>`;
   return;
  }
 
  wrap.innerHTML=rows.map((r,i)=>`
-  <div class="tableCard">
+  <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:10px">
+   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+     <span style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em">REGISTRO ${i+1}</span>
+     <span class="smallnote" style="margin:0">CU: <b>${money(r.costUnit)}</b></span>
+   </div>
+
    <div class="row3">
     <div>
      <div class="lbl">FECHA</div>
-     <input type="date" id="dbD_${i}" value="${r.date}">
+     <input type="date" id="dbD_${i}" value="${r.date}" style="font-size:.84rem;padding:7px 10px">
     </div>
     <div>
      <div class="lbl">PRODUCTO</div>
-     <select id="dbP_${i}">
+     <select id="dbP_${i}" style="font-size:.84rem;padding:7px 10px">
       ${inventory.map(p=>`<option ${toUpperSafe(p.name)===r.product?"selected":""}>${p.name}</option>`).join("")}
      </select>
     </div>
     <div>
      <div class="lbl">VENDIDOS</div>
-     <input type="number" id="dbQ_${i}" value="${r.qty}">
+     <input type="number" id="dbQ_${i}" value="${r.qty}" style="font-size:.84rem;padding:7px 10px">
     </div>
    </div>
 
    <div style="display:flex;gap:10px;margin-top:12px">
-    <button type="button" onclick="dbSave(${i})">Guardar</button>
-    <button type="button" style="background:var(--danger)" type="button" onclick="dbDelete(${i})">Borrar</button>
-   </div>
-
-   <div class="smallnote" style="margin-top:10px">
-    CU histórico: <b>${money(r.costUnit)}</b>
+    <button type="button" onclick="dbSave(${i})"
+      style="margin:0;flex:1;padding:10px;border-radius:14px;border:none;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);color:#fff;font-weight:700;font-size:.84rem;box-shadow:0 6px 16px rgba(124,95,230,.30)">
+      Guardar
+    </button>
+    <button type="button" onclick="dbDelete(${i})"
+      style="margin:0;flex:1;padding:10px;border-radius:14px;background:#fef2f2;color:#dc2626;border:1.5px solid #fecaca;font-weight:700;font-size:.84rem">
+      Borrar
+    </button>
    </div>
   </div>
  `).join("");
@@ -5851,8 +5964,6 @@ function renderSalesDB(){
 }
 
 async function dbSave(i){
-  if(!(await AppUI.confirm("¿Guardar cambios en este registro?", 'Guardar', false))) return;
-
   const r=window.__dbRows[i];
   if(!r) return;
   const id = r.__id;
@@ -5860,6 +5971,8 @@ async function dbSave(i){
   const newDate = document.getElementById(`dbD_${i}`).value;
   const newProd = document.getElementById(`dbP_${i}`).value;
   const newQty  = parseInt(document.getElementById(`dbQ_${i}`).value)||0;
+
+  if(!(await AppUI.confirm(`Vas a guardar: ${newProd}, ${newQty} vendidos el ${newDate}.`, {title:'Guardar cambios', danger:false}))) return;
 
   // Si ponen 0 o negativo, lo tratamos como borrado
   if(newQty<=0){
@@ -5877,14 +5990,15 @@ async function dbSave(i){
   }
 
   saveSilent();
+  try{ cloudSaveNow(); }catch(_){}
   renderSalesDB();
 }
 
 async function dbDelete(i){
-  if(!(await AppUI.confirm("¿Borrar este registro?", 'Borrar', true))) return;
-
   const r=window.__dbRows[i];
   if(!r) return;
+  if(!(await AppUI.confirm(`Vas a borrar: ${r.displayName}, ${r.qty} vendidos el ${r.date}. Esta acción no se puede deshacer.`, {title:'Borrar registro', danger:true}))) return;
+
   const id = r.__id;
 
   if(id!=null && id>=0 && id < sales.length){
@@ -5892,6 +6006,7 @@ async function dbDelete(i){
   }
 
   saveSilent();
+  try{ cloudSaveNow(); }catch(_){}
   renderSalesDB();
 }
 
@@ -6186,7 +6301,7 @@ function cuSaveCatalogItem(){
   AppUI.toast(wasEditing ? "✅ Insumo actualizado" : "✅ Insumo guardado en catálogo");
 }
 async function cuDeleteCatalog(idx){
-  if(!(await AppUI.confirm("¿Eliminar este insumo del catálogo?", "Eliminar", true))) return;
+  if(!(await AppUI.confirm("¿Eliminar este insumo del catálogo?", {title:"Eliminar insumo", danger:true}))) return;
   const arr=cuNormalizeCatalog(cuGetCatalog());
   arr.splice(idx,1);
   cuSetCatalog(arr);
@@ -6509,7 +6624,7 @@ function cuAddInsumo(){
 }
 
 async function cuRemoveInsumo(i){
- if(!(await AppUI.confirm("¿Quitar este insumo?", 'Eliminar sabor', true))) return;
+ if(!(await AppUI.confirm("¿Quitar este insumo de la receta?", {title:'Quitar insumo', danger:true}))) return;
  cuRows.splice(i,1);
  cuRender();
 }
@@ -6631,13 +6746,15 @@ function normalizeSales(showAlert=false){
   return {product,date,qty:v.qty,costUnit:v.costUnit};
  });
  saveSilent();
+ try{ cloudSaveNow(); }catch(_){}
  if(showAlert) AppUI.toast(String("✅ Normalizado"));
 }
 
 async function clearSales(){
- if(!(await AppUI.confirm("¿Seguro que quieres borrar TODAS las ventas?", 'Eliminar sabor', true))) return;
+ if(!(await AppUI.confirm(`Vas a borrar TODOS los registros de ventas (${(sales||[]).length}). Esta acción no se puede deshacer.`, {title:'Vaciar ventas', danger:true}))) return;
  sales=[];
  saveSilent();
+ try{ cloudSaveNow(); }catch(_){}
  renderSalesDB();
 }
 
@@ -6828,23 +6945,23 @@ function renderBackupList(){
   el.innerHTML = slots.map(s => {
     const raw = localStorage.getItem(s.key);
     if(!raw) return `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #e2e8f0">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #f1eefb">
         <div>
-          <div style="font-weight:700;font-size:14px;color:#0f172a">${s.label}</div>
-          <div style="font-size:12px;color:#94a3b8">Sin copia guardada</div>
+          <div style="font-weight:700;font-size:13.5px;color:#0f172a">${s.label}</div>
+          <div style="font-size:11.5px;color:#94a3b8">Sin copia guardada</div>
         </div>
-        <span style="font-size:20px">⬜</span>
+        <span style="font-size:18px;opacity:.5">⬜</span>
       </div>`;
     let d; try{ d = JSON.parse(raw); }catch(_){ d={}; }
     const when = d.savedAt ? new Date(d.savedAt).toLocaleString("es-MX",{hour:"2-digit",minute:"2-digit",day:"2-digit",month:"short"}) : "—";
     const total = (d.inventory||[]).reduce((a,p)=>a+Number(p.qty||0),0);
     return `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #e2e8f0">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #f1eefb">
         <div>
-          <div style="font-weight:700;font-size:14px;color:#0f172a">${s.label}</div>
-          <div style="font-size:12px;color:#64748b">${when} · ${total} hielitos</div>
+          <div style="font-weight:700;font-size:13.5px;color:#0f172a">${s.label}</div>
+          <div style="font-size:11.5px;color:#64748b">${when} · ${total} hielitos</div>
         </div>
-        <button onclick="restaurarCopia('${s.key}')" style="padding:6px 14px;font-size:12px;font-weight:700;background:#7c3aed;border-radius:20px;min-width:unset;margin:0">Restaurar</button>
+        <button type="button" onclick="restaurarCopia('${s.key}')" style="margin:0;padding:7px 14px;font-size:.74rem;font-weight:700;background:#f3f0ff;color:#5d3fd1;border:1.5px solid #ede9fe;border-radius:20px;min-width:unset">Restaurar</button>
       </div>`;
   }).join("");
 }
@@ -8400,9 +8517,11 @@ options:{
 
   // HUD: muestra +1 +2 -1 acumulado si picas rápido
   const acc = new Map(); // key (data-i) -> {t, v}
+  const HUD_HOLD_MS = 2200; // tiempo visible Y ventana de acumulación (van de la mano)
   function showDelta(btn, delta){
-    // buscamos la card contenedora si existe
-    const card = btn.closest('.card') || btn.closest('.menuBtn') || btn;
+    // buscamos la card contenedora si existe (o usamos el elemento si ya es la card)
+    const card = (btn.classList && btn.classList.contains('card')) ? btn
+                : (btn.closest('.card') || btn.closest('.menuBtn') || btn);
     if(!card) return;
 
     let hud = card.querySelector('.deltaHUD');
@@ -8431,7 +8550,8 @@ options:{
     // ✅ Usa el índice del sabor (data-i) para NO perder acumulación aunque la card se re-renderice
     const key = (card && card.dataset && card.dataset.i!=null) ? String(card.dataset.i) : 'global';
     const prev = acc.get(key) || {t:0, v:0};
-    const v = (now - prev.t < 900) ? (prev.v + delta) : delta; // ventana más amplia
+    // Mientras el HUD anterior siga visible (misma ventana que su duración), se sigue acumulando.
+    const v = (now - prev.t < HUD_HOLD_MS) ? (prev.v + delta) : delta;
     acc.set(key, {t: now, v});
     hud.textContent = (v>0? '+'+v : ''+v);
     hud.style.color = v>0 ? '#16a34a' : '#ef4444';
@@ -8446,8 +8566,13 @@ options:{
     hud.__tm = setTimeout(()=>{
       hud.classList.remove('show');
       hud.classList.add('hide');
-    }, 2200); // dura más
+    }, HUD_HOLD_MS); // dura más, y coincide con la ventana de acumulación
   }
+  window.__showDelta = showDelta;
+  window.__showDeltaByIndex = function(i, delta){
+    const card = document.querySelector(`.card[data-i="${i}"]`);
+    if(card) showDelta(card, delta);
+  };
 
   function enhanceButton(btn){
     if(btn.__enhanced) return;
@@ -8468,11 +8593,8 @@ options:{
         }
       }catch(_){ }
 
-      // Detectar botones de + / - / vender por clase (solo UI)
-      if(btn.classList.contains('plus'))  showDelta(btn, +1);
-      if(btn.classList.contains('minus')) showDelta(btn, -1);
-      // Vender: solo muestra un pequeño "flash" visual (sin tocar lógica)
-      if(btn.classList.contains('sell'))  showDelta(btn, -1);
+      // (El contador +1/-1 ahora se dispara después de render(), dentro de increase/decrease/doSell,
+      //  para que no se destruya cuando la tarjeta se redibuja)
 
       setTimeout(()=>btn.classList.remove('tapFX'), 160);
     }, {passive:true});
