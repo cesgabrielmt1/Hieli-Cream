@@ -1344,6 +1344,46 @@ body{ padding-bottom: 92px; }
   .bnBtn svg{ width:20px;height:20px; }
 }
 
+/* Barra superior fija con flecha de regreso (en todos los módulos) — pequeña y discreta */
+.sheetBackBar{
+  position:sticky;
+  top:-24px;
+  z-index:60;
+  background:rgba(255,255,255,.88);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  margin:-24px -24px 10px -24px;
+  padding:14px 24px 10px 24px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.sheetBackBar button{
+  width:32px !important;
+  height:32px !important;
+  min-width:32px !important;
+  max-width:32px !important;
+  padding:0 !important;
+  margin:0 !important;
+  border-radius:50% !important;
+  background:rgba(124,95,230,.12) !important;
+  border:none !important;
+  box-shadow:none !important;
+  display:flex;align-items:center;justify-content:center;
+  flex:0 0 32px;
+  cursor:pointer;
+}
+.sheetBackBar button svg{ width:17px;height:17px; stroke:#7c5fe6; fill:none; }
+.sheetBackBar button:active{ transform:scale(.9); background:rgba(124,95,230,.22) !important; }
+.sheetBackBar .sbTitle{
+  font-size:.86rem;
+  font-weight:700;
+  color:#94a3b8;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
 /* SHEETS */
 .sheet{
  position:fixed;
@@ -2980,7 +3020,6 @@ document.addEventListener('DOMContentLoaded',()=>{
   </button>
  </div>
 
- <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
 </div>
 
 <!-- PROYECCIONES -->
@@ -3016,7 +3055,6 @@ document.addEventListener('DOMContentLoaded',()=>{
  <!-- Tarjetas por sabor -->
  <div id="proyCards"></div>
 
- <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
 </div>
 
 <!-- /PROYECCIONES -->
@@ -3052,7 +3090,6 @@ document.addEventListener('DOMContentLoaded',()=>{
   <div id="comprasInsumos"></div>
  </div>
 
- <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
 </div>
 
 <!-- ADD -->
@@ -3062,7 +3099,6 @@ document.addEventListener('DOMContentLoaded',()=>{
  <input id="newQty" type="number" placeholder="Cantidad inicial">
  <input id="newCritical" type="number" placeholder="Punto crítico">
  <button onclick="addFlavor()">Guardar</button>
- <button class="closeBtn" onclick="closeSheets()">Cancelar</button>
 </div>
 
 <!-- CONFIG -->
@@ -3088,7 +3124,6 @@ document.addEventListener('DOMContentLoaded',()=>{
  <!-- ✅ ELIMINAR SABOR (con confirmación). NO borra ventas, solo lo quita de inventario y CU -->
  <button style="background:var(--danger)" type="button" onclick="deleteFlavor()">Eliminar sabor</button>
 
- <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
 </div>
 <!-- ====== (sigue PARTE 2) ====== -->
 <!-- =========================
@@ -3115,19 +3150,25 @@ document.addEventListener('DOMContentLoaded',()=>{
        <div style="font-size:1.4rem;font-weight:900;color:#1e1b2e" id="ventasIngresos">$0.00</div>
      </div>
      <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px">
-       <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">GANANCIA</div>
-       <div style="font-size:1.4rem;font-weight:900;color:#16a34a" id="ventasGanancias">$0.00</div>
+       <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">GASTADO</div>
+       <div style="font-size:1.4rem;font-weight:900;color:#dc2626" id="ventasGastado">$0.00</div>
      </div>
    </div>
-   <div id="ventasCosto" style="display:none"></div>
+   <div style="background:linear-gradient(135deg,#f0fdf4,#fff);border:1.5px solid #bbf7d0;border-radius:14px;padding:12px 14px;margin-bottom:12px">
+     <div style="font-size:10px;font-weight:700;color:#16a34a;letter-spacing:.06em;margin-bottom:4px">GANANCIA DEL DÍA</div>
+     <div style="font-size:1.6rem;font-weight:900;color:#16a34a" id="ventasGanancias">$0.00</div>
+   </div>
 
    <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
      <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">REGISTRO DIARIO</div>
      <button type="button" onclick="adminPVs()" style="background:#f3f0ff;color:#5d3fd1;border:1.5px solid #ede9fe;border-radius:10px;padding:7px 14px;font-size:.8rem;font-weight:700;margin-bottom:10px">Gestionar PVs</button>
      <div id="pvRows"></div>
      <button type="button" id="agregarPVBtn" onclick="if(document.getElementById('agregarPVBtn').style.opacity==='0.3'){return;} agregarPVRow()" style="background:#e0e7ff;color:#3730a3;border:none;border-radius:10px;padding:7px 18px;font-weight:800;font-size:1rem;margin-bottom:10px">+</button>
-     <div style="background:#f8f7ff;border-radius:12px;padding:10px;margin-bottom:10px">
-       <canvas id="pvChart" height="500" style="width:100%;max-height:500px;"></canvas>
+     <div style="background:#f8f7ff;border-radius:12px;padding:14px 10px;margin-bottom:10px">
+       <div style="font-size:.78rem;font-weight:800;color:#7c5fe6;text-align:center;margin-bottom:8px;letter-spacing:.03em">🍩 PUNTOS DE VENTA DEL DÍA</div>
+       <div style="position:relative;width:100%;height:340px">
+         <canvas id="pvChart"></canvas>
+       </div>
      </div>
      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
        <input type="date" id="ventaFecha" style="font-size:.84rem;padding:7px 10px">
@@ -3177,7 +3218,6 @@ document.addEventListener('DOMContentLoaded',()=>{
    </div></div>
  </div>
 
- <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
 </div>
 
 <!-- STATS -->
@@ -3247,33 +3287,57 @@ document.addEventListener('DOMContentLoaded',()=>{
    <div class="chart-wrap" id="wrap-chart"><canvas id="chart"></canvas></div>
  </div></div>
 
- <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
 </div>
 
 <!-- HISTORY -->
 <div class="sheet" id="historySheet">
- <h2>Reportes</h2>
+ <h2 style="margin-bottom:4px">Reportes</h2>
+ <div class="smallnote" style="margin-bottom:14px">Resumen de ventas, gastos y ganancia por rango de fechas.</div>
 
- <input type="date" id="hFrom">
- <input type="date" id="hTo">
-<button onclick="renderHistory()">Aplicar</button>
-
- <div class="kpi2">
-  <div class="kpiBox">
-   <div class="t">Total vendidos</div>
-   <div class="v" id="hTotal">0</div>
-  </div>
-  <div class="kpiBox">
-   <div class="t">Total gastado</div>
-   <div class="v" id="hSpend">$0.00</div>
-  </div>
+ <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:14px">
+   <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">FILTRAR POR FECHA</div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+     <div>
+       <div class="lbl" style="font-size:10px">DESDE</div>
+       <input type="date" id="hFrom" style="font-size:.84rem;padding:7px 10px">
+     </div>
+     <div>
+       <div class="lbl" style="font-size:10px">HASTA</div>
+       <input type="date" id="hTo" style="font-size:.84rem;padding:7px 10px">
+     </div>
+   </div>
+   <button type="button" onclick="renderHistory()"
+     style="margin:0;width:100%;padding:10px;border-radius:14px;border:none;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);color:#fff;font-weight:700;font-size:.84rem;box-shadow:0 6px 16px rgba(124,95,230,.30)">
+     Aplicar filtro
+   </button>
  </div>
 
- <button style="background:#111827" onclick="downloadPDF()">📄 Descargar PDF</button>
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px">
+     <div style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">VENDIDOS</div>
+     <div style="font-size:1.5rem;font-weight:800;color:#101826" id="hTotal">0</div>
+   </div>
+   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px">
+     <div style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">GASTADO</div>
+     <div style="font-size:1.5rem;font-weight:800;color:#dc2626" id="hSpend">$0.00</div>
+   </div>
+   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px">
+     <div style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">INGRESOS</div>
+     <div style="font-size:1.5rem;font-weight:800;color:#2563eb" id="hIncome">$0.00</div>
+   </div>
+   <div style="background:linear-gradient(135deg,#f0fdf4,#fff);border:1.5px solid #bbf7d0;border-radius:16px;padding:12px 14px">
+     <div style="font-size:10px;font-weight:800;color:#16a34a;letter-spacing:.06em;margin-bottom:4px">GANANCIA</div>
+     <div style="font-size:1.5rem;font-weight:800;color:#16a34a" id="hProfit">$0.00</div>
+   </div>
+ </div>
+
+ <button type="button" onclick="downloadPDF()"
+   style="margin:0;width:100%;padding:12px;border-radius:14px;border:none;background:#111827;color:#fff;font-weight:700;font-size:.86rem;margin-bottom:14px">
+   📄 Descargar PDF
+ </button>
 
  <div id="historyWrap" style="margin-top:14px"></div>
 
- <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
 </div>
 
 <!-- DB -->
@@ -3305,7 +3369,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 
  <div id="salesList" style="margin-top:14px"></div>
 
- <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
 </div>
 
 <!-- IO -->
@@ -3342,7 +3405,6 @@ document.addEventListener('DOMContentLoaded',()=>{
    <button style="margin:0;width:100%;padding:11px;border-radius:14px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:700;font-size:.84rem" onclick="triggerImport()">Importar datos</button>
  </div>
 
- <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
 </div>
 
 <!-- CU -->
@@ -3371,7 +3433,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 
  <div id="cuLista" style="margin-top:14px"></div>
 
- <button class="closeBtn" onclick="closeSheets()">Cerrar</button>
 
  <!-- Panel gráfica CU: overlay independiente, no empuja el contenido del sabor -->
  <div id="cuChartPanel" style="display:none;position:fixed;inset:0;background:#fff;z-index:9999;overflow-y:auto;padding:18px">
@@ -3413,7 +3474,6 @@ document.addEventListener('DOMContentLoaded',()=>{
  <div class="lbl" style="margin-bottom:8px">INSUMOS GUARDADOS</div>
  <div id="cuCatalogList"></div>
 
- <button class="closeBtn" onclick="goTo('cu')">Volver</button>
 </div>
 
 <script>
@@ -7436,8 +7496,21 @@ function renderHistory(){
  const total=arr.reduce((a,b)=>a+b.qty,0);
  const gasto=arr.reduce((a,b)=>a+(b.qty*(Number(b.costUnit)||0)),0);
 
+ // ✅ Ingresos reales registrados en el módulo de Ventas, dentro del rango
+ const ingresos = (ventasDinero||[])
+   .filter(v=> v.fecha && (!from || v.fecha>=from) && (!to || v.fecha<=to))
+   .reduce((a,b)=> a + (Number(b.vendido)||0), 0);
+ const ganancia = ingresos - gasto;
+
  hTotal.textContent=total;
  hSpend.textContent=money(gasto);
+ const hIncomeEl = document.getElementById("hIncome");
+ const hProfitEl = document.getElementById("hProfit");
+ if(hIncomeEl) hIncomeEl.textContent = money(ingresos);
+ if(hProfitEl){
+   hProfitEl.textContent = money(ganancia);
+   hProfitEl.style.color = ganancia < 0 ? "#dc2626" : "#16a34a";
+ }
 
  // Sumatoria por sabor (para que se vea pro)
  const byFlavor=new Map();
@@ -7451,62 +7524,79 @@ function renderHistory(){
  });
  const sumArr=[...byFlavor.values()].sort((a,b)=> b.qty-a.qty || a.name.localeCompare(b.name,"es"));
 
+ const gananciaColor = ganancia < 0 ? "#dc2626" : "#16a34a";
+ const margenPct = ingresos>0 ? ((ganancia/ingresos)*100) : 0;
+
  historyWrap.innerHTML = `
-  <div class="card">
+  <div style="background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:18px;padding:18px;margin-bottom:14px;color:#fff">
    <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start">
     <div>
-     <div style="font-weight:700;font-size:1.2rem">Reporte</div>
-     <div class="smallnote">Rango: <b>${from}</b> → <b>${to}</b></div>
+     <div style="font-weight:800;font-size:1.05rem;opacity:.92">Reporte</div>
+     <div style="font-size:.78rem;opacity:.8;margin-top:2px">Rango: <b>${from}</b> → <b>${to}</b></div>
     </div>
     <div style="text-align:right">
-     <div class="smallnote">Vendidos</div>
-     <div style="font-weight:700;font-size:2rem">${total}</div>
-     <div class="smallnote" style="margin-top:4px">Gastado</div>
-     <div style="font-weight:700;font-size:2rem">${money(gasto)}</div>
+     <div style="font-size:.7rem;opacity:.8;letter-spacing:.05em">VENDIDOS</div>
+     <div style="font-weight:800;font-size:1.7rem;line-height:1.1">${total}</div>
+    </div>
+   </div>
+   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.25)">
+    <div>
+     <div style="font-size:.68rem;opacity:.8">Ingresos</div>
+     <div style="font-weight:800;font-size:1rem">${money(ingresos)}</div>
+    </div>
+    <div>
+     <div style="font-size:.68rem;opacity:.8">Gastado</div>
+     <div style="font-weight:800;font-size:1rem">${money(gasto)}</div>
+    </div>
+    <div>
+     <div style="font-size:.68rem;opacity:.8">Ganancia</div>
+     <div style="font-weight:800;font-size:1rem">${money(ganancia)} ${ingresos>0 ? `<span style="font-size:.68rem;opacity:.85">(${margenPct.toFixed(0)}%)</span>` : ""}</div>
     </div>
    </div>
   </div>
 
-  <div class="card">
-   <div style="font-weight:700;margin-bottom:10px">Sumatoria por sabor</div>
+  <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:14px;margin-bottom:14px">
+   <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">SUMATORIA POR SABOR</div>
    <div style="overflow:auto">
     <table style="width:100%;border-collapse:collapse">
      <thead>
-      <tr style="text-align:left;color:#64748b;font-weight:900;font-size:12px">
-       <th style="padding:10px 6px;border-bottom:1px solid #e5e7eb">Sabor</th>
-       <th style="padding:10px 6px;border-bottom:1px solid #e5e7eb;text-align:right">Vendidos</th>
-       <th style="padding:10px 6px;border-bottom:1px solid #e5e7eb;text-align:right">CU</th>
-       <th style="padding:10px 6px;border-bottom:1px solid #e5e7eb;text-align:right">Gastado</th>
+      <tr style="text-align:left;color:#94a3b8;font-weight:800;font-size:11px">
+       <th style="padding:8px 6px;border-bottom:1px solid #f1eefb">SABOR</th>
+       <th style="padding:8px 6px;border-bottom:1px solid #f1eefb;text-align:right">VENDIDOS</th>
+       <th style="padding:8px 6px;border-bottom:1px solid #f1eefb;text-align:right">CU</th>
+       <th style="padding:8px 6px;border-bottom:1px solid #f1eefb;text-align:right">GASTADO</th>
       </tr>
      </thead>
      <tbody>
       ${
        sumArr.length ? sumArr.map(r=>`
         <tr>
-         <td style="padding:10px 6px;border-bottom:1px solid #f1f5f9;font-weight:950">${r.name}</td>
-         <td style="padding:10px 6px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:900">${r.qty}</td>
-         <td style="padding:10px 6px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:900">${money(r.costUnit)}</td>
-         <td style="padding:10px 6px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:900">${money(r.spent)}</td>
+         <td style="padding:9px 6px;border-bottom:1px solid #f8f7fc;font-weight:700;font-size:.86rem">${r.name}</td>
+         <td style="padding:9px 6px;border-bottom:1px solid #f8f7fc;text-align:right;font-weight:700;font-size:.86rem">${r.qty}</td>
+         <td style="padding:9px 6px;border-bottom:1px solid #f8f7fc;text-align:right;font-weight:700;font-size:.86rem">${money(r.costUnit)}</td>
+         <td style="padding:9px 6px;border-bottom:1px solid #f8f7fc;text-align:right;font-weight:700;font-size:.86rem">${money(r.spent)}</td>
         </tr>
-       `).join("") : `<tr><td colspan="4" style="padding:12px;color:#64748b">No hay ventas en ese rango.</td></tr>`
+       `).join("") : `<tr><td colspan="4" style="padding:14px;color:#94a3b8;text-align:center">No hay ventas en ese rango.</td></tr>`
       }
      </tbody>
     </table>
    </div>
   </div>
 
-  <div class="card">
-   <div style="font-weight:700;margin-bottom:10px">Detalle</div>
+  <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:14px">
+   <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">DETALLE</div>
    ${
     arr.length ? arr.map(r=>`
-     <div class="reportCard">
-      <b>${r.name}</b><br>
-      <span class="subhead">${r.date}</span><br><br>
-      Vendidos: <b>${r.qty}</b><br>
-      Costo unitario: <b>${money(r.costUnit)}</b><br>
-      Gastado: <b>${money(r.qty*r.costUnit)}</b>
+     <div style="background:#faf9ff;border:1px solid #f1eefb;border-radius:12px;padding:10px 12px;margin-bottom:8px">
+      <div style="font-weight:700;font-size:.88rem;color:#101826">${r.name}</div>
+      <div style="font-size:.72rem;color:#94a3b8;margin-bottom:6px">${r.date}</div>
+      <div style="display:flex;gap:16px;font-size:.78rem;color:#475569">
+       <span>Vendidos: <b style="color:#101826">${r.qty}</b></span>
+       <span>CU: <b style="color:#101826">${money(r.costUnit)}</b></span>
+       <span>Gastado: <b style="color:#101826">${money(r.qty*r.costUnit)}</b></span>
+      </div>
      </div>
-    `).join("") : `<div class="smallnote">No hay registros.</div>`
+    `).join("") : `<div class="smallnote" style="text-align:center;padding:10px 0">No hay registros.</div>`
    }
   </div>
  `;
@@ -7559,6 +7649,13 @@ function downloadPDF(){
     const totalGastado  = rows.reduce((a,b)=>a+(b.qty*(Number(b.costUnit)||0)),0);
     const totalSabores  = resumen.length;
 
+    // ✅ Ingresos reales registrados en Ventas, dentro del rango + ganancia
+    const totalIngresos = (ventasDinero||[])
+      .filter(v=> v.fecha && (!from || v.fecha>=from) && (!to || v.fecha<=to))
+      .reduce((a,b)=> a + (Number(b.vendido)||0), 0);
+    const totalGanancia = totalIngresos - totalGastado;
+    const margenPct = totalIngresos>0 ? ((totalGanancia/totalIngresos)*100) : 0;
+
     // ----- Gráfica del REPORTE: SIEMPRE VENTAS por sabor (del rango elegido) -----
     const labels = resumen.map(r=>r.name);
     const values = resumen.map(r=>Number(r.qty)||0);
@@ -7570,9 +7667,11 @@ function downloadPDF(){
     let y=0;
 
     const COLOR_NAVY=[15,23,42];
-    const COLOR_BLUE=[30,64,175];
+    const COLOR_BLUE=[93,63,209];   // ✅ morado de marca (antes azul)
     const COLOR_MUTED=[100,116,139];
     const COLOR_LINE=[226,232,240];
+    const COLOR_GREEN=[22,163,74];
+    const COLOR_RED=[220,38,38];
 
     function ensure(hNeed){
       if(y + hNeed > H-56){
@@ -7630,18 +7729,18 @@ function header(){
       doc.setLineWidth(0.7);
     }
 
-    function card(x, yTop, w, h, title, value){
+    function card(x, yTop, w, h, title, value, valueColor){
       doc.setFillColor(248,250,252);
       doc.setDrawColor(...COLOR_LINE);
       doc.roundedRect(x, yTop, w, h, 12, 12, 'FD');
       doc.setTextColor(...COLOR_MUTED);
       doc.setFont('helvetica','bold');
-      doc.setFontSize(10);
-      doc.text(title, x+14, yTop+22);
-      doc.setTextColor(...COLOR_NAVY);
+      doc.setFontSize(9.5);
+      doc.text(title, x+12, yTop+20);
+      doc.setTextColor(...(valueColor||COLOR_NAVY));
       doc.setFont('helvetica','bold');
-      doc.setFontSize(18);
-      doc.text(value, x+14, yTop+48);
+      doc.setFontSize(16);
+      doc.text(value, x+12, yTop+44);
     }
 
     function sectionTitle(txt){
@@ -7747,13 +7846,21 @@ function header(){
     header();
     y = 120;
 
-    // tarjetas
+    // tarjetas KPI: 2 filas x 2 columnas (Vendidos/Sabores, Ingresos/Ganancia)
     const gap=12;
-    const w=(W-mx*2 - gap*2)/3;
-    card(mx, y, w, 64, 'Total vendidos', String(totalVendidos));
-    card(mx+w+gap, y, w, 64, 'Total gastado', money(totalGastado));
-    card(mx+(w+gap)*2, y, w, 64, 'Sabores en rango', String(totalSabores));
-    y += 88;
+    const w2=(W-mx*2 - gap)/2;
+    card(mx,        y, w2, 56, 'TOTAL VENDIDOS', String(totalVendidos));
+    card(mx+w2+gap, y, w2, 56, 'SABORES EN RANGO', String(totalSabores));
+    y += 56+gap;
+
+    const gananciaTxt = money(totalGanancia) + (totalIngresos>0 ? `  (${margenPct.toFixed(0)}%)` : '');
+    card(mx,        y, w2, 56, 'INGRESOS', money(totalIngresos), COLOR_BLUE);
+    card(mx+w2+gap, y, w2, 56, 'GANANCIA', gananciaTxt, totalGanancia<0 ? COLOR_RED : COLOR_GREEN);
+    y += 56+gap;
+
+    // tarjeta de gasto, ancho completo, discreta
+    card(mx, y, W-mx*2, 44, 'TOTAL GASTADO (COSTO)', money(totalGastado));
+    y += 44 + 18;
 
     drawResumen();
     drawDetalle();
@@ -7790,6 +7897,24 @@ function header(){
 ========================= */
 render();
 updateSavedStamp();
+
+// ✅ Flecha de regreso (cierra el módulo) arriba de TODOS los sheets,
+//    fija aunque el contenido sea largo y haya que bajar mucho.
+(function injectSheetBackBars(){
+  const backSVG = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>`;
+  document.querySelectorAll('.sheet').forEach(sheet=>{
+    if(sheet.querySelector('.sheetBackBar')) return; // ya tiene una
+    const h2 = sheet.querySelector('h2');
+    const title = h2 ? h2.textContent.trim() : '';
+    if(h2) h2.style.display = 'none';
+    const bar = document.createElement('div');
+    bar.className = 'sheetBackBar';
+    const backAction = (sheet.id === 'cuCatalogSheet') ? "goTo('cu')" : "closeSheets()";
+    bar.innerHTML = `<button type="button" onclick="${backAction}" aria-label="Cerrar">${backSVG}</button><div class="sbTitle">${title}</div>`;
+    sheet.insertBefore(bar, sheet.firstChild);
+  });
+})();
+
 (function(){
  // defaults fechas de reportes
  if(!hFrom.value) hFrom.value=todayLocalISO();
@@ -9064,43 +9189,90 @@ function eliminarPVVenta(btn){
     }
   }
 }
+const PV_PASTEL_COLORS = ['#A5B4FC','#FBCFE8','#BBF7D0','#FDE68A','#BFDBFE','#FCA5A5','#DDD6FE','#99F6E4','#FED7AA','#C4B5FD'];
+
 function renderPVChart(){
 const cv=document.getElementById('pvChart');
 if(!cv||!window.Chart)return;
-const data=getPVsData();
+const data=getPVsData().filter(x=>x.nombre && Number(x.monto)>0);
 const ctx=cv.getContext('2d');
 if(window.pvChartObj) window.pvChartObj.destroy();
+
+const total = data.reduce((a,b)=>a+(Number(b.monto)||0),0);
+const colors = data.map((_,i)=> PV_PASTEL_COLORS[i % PV_PASTEL_COLORS.length]);
+
+if(!data.length){
+  // limpio: sin datos no dibujamos nada (evita un donut vacío feo)
+  window.pvChartObj = null;
+  return;
+}
+
 window.pvChartObj=new Chart(ctx,{
-type:'bar',
+type:'doughnut',
 data:{
-labels:data.map(x=>x.nombre),
-datasets:[{
-label:'PVs',
-data:data.map(x=>x.monto),
-barThickness:55,
-borderRadius:14
-}]
+  labels: data.map(x=>x.nombre),
+  datasets:[{
+    data: data.map(x=>x.monto),
+    backgroundColor: colors,
+    borderColor: '#ffffff',
+    borderWidth: 3,
+    hoverOffset: 10,
+  }]
 },
 options:{
-responsive:true,
-maintainAspectRatio:false,
-plugins:{
-legend:{display:false},
-title:{display:true,text:'Puntos de Venta del día',font:{size:22}}
+  responsive:true,
+  maintainAspectRatio:false,
+  cutout: '58%',
+  layout:{ padding: 24 },
+  plugins:{
+    legend:{ display:false },
+    tooltip:{
+      backgroundColor:'#1e1b2e',
+      padding:12,
+      titleFont:{size:14,weight:'bold'},
+      bodyFont:{size:13},
+      callbacks:{
+        label:(ctx)=>{
+          const v = Number(ctx.parsed)||0;
+          const pct = total>0 ? (v/total*100) : 0;
+          return ` $${v.toFixed(2)}  ·  ${pct.toFixed(0)}% del ingreso`;
+        }
+      }
+    },
+    datalabels:{
+      color:'#1e1b2e',
+      font:{ weight:'800', size:12 },
+      formatter:(value, ctx)=>{
+        const pct = total>0 ? (value/total*100) : 0;
+        const nombre = ctx.chart.data.labels[ctx.dataIndex] || '';
+        return [nombre, `$${Number(value).toFixed(0)} · ${pct.toFixed(0)}%`];
+      },
+      textAlign:'center',
+      backgroundColor:(ctx)=>'rgba(255,255,255,.85)',
+      borderRadius:8,
+      padding:6,
+    }
+  }
 },
-layout:{padding:20},
-scales:{
-x:{
-ticks:{
-font:{size:18},
-autoSkip:false,
-maxRotation:55,
-minRotation:55
-}
-},
-y:{beginAtZero:true,ticks:{font:{size:16}}}
-}
-}
+plugins:[{
+  id:'pvCenterText',
+  afterDraw(chart){
+    const {ctx, chartArea} = chart;
+    if(!chartArea) return;
+    const cx = (chartArea.left+chartArea.right)/2;
+    const cy = (chartArea.top+chartArea.bottom)/2;
+    ctx.save();
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillStyle='#94a3b8';
+    ctx.font='700 11px sans-serif';
+    ctx.fillText('TOTAL', cx, cy-12);
+    ctx.fillStyle='#1e1b2e';
+    ctx.font='800 20px sans-serif';
+    ctx.fillText('$'+total.toFixed(2), cx, cy+10);
+    ctx.restore();
+  }
+}]
 });
 }
 function guardarVentaDia(){
@@ -9157,9 +9329,12 @@ function renderVentas(){
  const registroDia = ventasDinero.find(v => v.fecha === chosenDate);
  let ingresosDia = registroDia ? (Number(registroDia.vendido) || 0) : 0;
  let gananciasDia = registroDia ? (Number(registroDia.ganancia) || 0) : 0;
+ let gastoDia = registroDia ? (Number(registroDia.gasto) || 0) : calcularGastoPorFecha(chosenDate);
 
  ingresos.textContent = `$${ingresosDia.toFixed(2)}`;
  ganancias.textContent = `$${gananciasDia.toFixed(2)}`;
+ const gastadoEl = document.getElementById("ventasGastado");
+ if(gastadoEl) gastadoEl.textContent = `$${gastoDia.toFixed(2)}`;
 
  // Renderizar lista general abajo
  historial.innerHTML=ventasDinero.map(v=>{
