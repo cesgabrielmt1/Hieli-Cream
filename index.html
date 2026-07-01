@@ -78,6 +78,7 @@ function _doCloudSave(){
       sales:        JSON.parse(localStorage.getItem("sales")          || "[]"),
       ventasDinero: JSON.parse(localStorage.getItem("ventasDinero")   || "[]"),
       listaPVs:     JSON.parse(localStorage.getItem("listaPVs")       || "[]"),
+      pvColores:    JSON.parse(localStorage.getItem("pvColores")      || "{}"),
       cu_catalog:   JSON.parse(localStorage.getItem("cu_catalog_v1")  || "[]"),
       cu_recipes:   JSON.parse(localStorage.getItem("cu_recipes_v1")  || "{}"),
       compras_plan: JSON.parse(localStorage.getItem("compras_plan_v1")|| "{}"),
@@ -97,6 +98,7 @@ function _applyCloudData(d){
   if(d.sales)        localStorage.setItem("sales",           JSON.stringify(d.sales));
   if(d.ventasDinero) localStorage.setItem("ventasDinero",    JSON.stringify(d.ventasDinero));
   if(d.listaPVs)     localStorage.setItem("listaPVs",        JSON.stringify(d.listaPVs));
+  if(d.pvColores)    localStorage.setItem("pvColores",       JSON.stringify(d.pvColores));
   if(d.cu_catalog)   localStorage.setItem("cu_catalog_v1",   JSON.stringify(d.cu_catalog));
   if(d.cu_recipes)   localStorage.setItem("cu_recipes_v1",   JSON.stringify(d.cu_recipes));
   if(d.compras_plan) localStorage.setItem("compras_plan_v1", JSON.stringify(d.compras_plan));
@@ -106,10 +108,12 @@ function _applyCloudData(d){
     sales        = JSON.parse(localStorage.getItem("sales")        || "[]");
     ventasDinero = JSON.parse(localStorage.getItem("ventasDinero") || "[]");
     listaPVs     = JSON.parse(localStorage.getItem("listaPVs")     || "[]");
+    pvColores    = JSON.parse(localStorage.getItem("pvColores")    || "{}");
     render();
     try{ renderVentas && renderVentas(); }catch(_){}
     try{ renderVentasChart && renderVentasChart(); }catch(_){}
     try{ actualizarTextoVentaBtn && actualizarTextoVentaBtn(); }catch(_){}
+    try{ renderPVChart && renderPVChart(); }catch(_){}
   }catch(e){ console.warn("applyCloudData:", e); }
 }
 
@@ -2254,6 +2258,7 @@ align-items:center;text-align:center;}
 .mBtn-7 .mIcon{ background: linear-gradient(135deg,#c45ee8,#7c5fe6) !important; }
 .mBtn-8 .mIcon{ background: linear-gradient(135deg,#38c6f5,#4db8ff) !important; }
 .mBtn-9 .mIcon{ background: linear-gradient(135deg,#9b6fe8,#f06fc4) !important; }
+.mBtn-10 .mIcon{ background: linear-gradient(135deg,#22c55e,#16a34a) !important; }
 
 .sheet .menuBtn{ border-radius: 28px !important; background: #f0f1f5 !important; }
 
@@ -3018,6 +3023,11 @@ document.addEventListener('DOMContentLoaded',()=>{
     <div class="mTitle">Guardado</div>
     <div class="mSub">Copias de seguridad</div>
   </button>
+  <button class="menuBtn mBtn-10" onclick="goTo('vg')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+    <div class="mTitle">Ventas Grandes</div>
+    <div class="mSub">Venta por lote</div>
+  </button>
  </div>
 
 </div>
@@ -3165,10 +3175,11 @@ document.addEventListener('DOMContentLoaded',()=>{
      <div id="pvRows"></div>
      <button type="button" id="agregarPVBtn" onclick="if(document.getElementById('agregarPVBtn').style.opacity==='0.3'){return;} agregarPVRow()" style="background:#e0e7ff;color:#3730a3;border:none;border-radius:10px;padding:7px 18px;font-weight:800;font-size:1rem;margin-bottom:10px">+</button>
      <div style="background:#f8f7ff;border-radius:12px;padding:14px 10px;margin-bottom:10px">
-       <div style="font-size:.78rem;font-weight:800;color:#7c5fe6;text-align:center;margin-bottom:8px;letter-spacing:.03em">🍩 PUNTOS DE VENTA DEL DÍA</div>
+       <div style="font-size:.78rem;font-weight:800;color:#7c5fe6;text-align:center;margin-bottom:8px;letter-spacing:.03em">🌸 PUNTOS DE VENTA DEL DÍA</div>
        <div style="position:relative;width:100%;height:340px">
          <canvas id="pvChart"></canvas>
        </div>
+       <div style="text-align:center;margin-top:8px;font-size:.78rem;font-weight:700;color:#94a3b8">TOTAL <span id="pvChartTotal" style="color:#1e1b2e;font-weight:900;font-size:1rem">$0.00</span></div>
      </div>
      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
        <input type="date" id="ventaFecha" style="font-size:.84rem;padding:7px 10px">
@@ -3212,6 +3223,10 @@ document.addEventListener('DOMContentLoaded',()=>{
    </div>
 
    <div class="chartPanel"><div class="chartScroll">
+     <div id="ventasPillLegend" style="display:none;justify-content:center;gap:22px;margin-bottom:10px;font-size:.8rem;font-weight:800;color:#334155">
+       <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:50%;background:linear-gradient(180deg,#f472b6,#f97316)"></span>Costos</span>
+       <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:50%;background:linear-gradient(180deg,#c4b5fd,#6366f1)"></span>Ingreso</span>
+     </div>
      <div class="moneyChartScroll"><div class="moneyChartInner"><div class="chart-wrap-ventas" id="wrap-ventas"><div class="moneyChartScroll">
        <div class="moneyChartInner"><canvas id="ventasChart"></canvas></div>
      </div></div></div></div>
@@ -3339,6 +3354,47 @@ document.addEventListener('DOMContentLoaded',()=>{
  <div id="historyWrap" style="margin-top:14px"></div>
 
 </div>
+
+<!-- VENTAS GRANDES -->
+<div class="sheet" id="ventasGrandesSheet">
+ <h2>🛒 Ventas Grandes</h2>
+ <div class="smallnote" style="margin-bottom:14px">Selecciona cantidades de varios sabores y véndelos de un solo golpe.</div>
+
+ <!-- Resumen del pedido -->
+ <div style="background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:18px;padding:16px;margin-bottom:14px;color:#fff">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+   <div style="font-size:.8rem;font-weight:800;opacity:.85">PEDIDO ACTUAL</div>
+   <button type="button" onclick="vgLimpiar()" style="margin:0;padding:5px 12px;border-radius:20px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:.72rem;font-weight:700">✕ Limpiar</button>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+   <div>
+    <div style="font-size:.68rem;opacity:.8">TOTAL PIEZAS</div>
+    <div style="font-size:1.8rem;font-weight:900;line-height:1" id="vgTotalPiezas">0</div>
+   </div>
+   <div>
+    <div style="font-size:.68rem;opacity:.8">COSTO ESTIMADO</div>
+    <div style="font-size:1.8rem;font-weight:900;line-height:1" id="vgTotalCosto">$0.00</div>
+   </div>
+  </div>
+ </div>
+
+ <!-- Lista de sabores -->
+ <div id="vgLista" style="margin-bottom:14px"></div>
+
+ <!-- Botones acción -->
+ <div style="display:flex;gap:10px">
+  <button type="button" onclick="vgCompartir()"
+   style="margin:0;flex:1;padding:15px;border-radius:16px;border:none;background:#25D366;color:#fff;font-weight:800;font-size:.9rem;box-shadow:0 8px 20px rgba(37,211,102,.30)">
+   <svg style="width:18px;height:18px;vertical-align:middle;margin-right:5px;fill:white" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+   Compartir
+  </button>
+  <button type="button" id="vgBtnVender" onclick="vgVenderTodo()"
+   style="margin:0;flex:2;padding:15px;border-radius:16px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:800;font-size:.9rem;box-shadow:0 8px 20px rgba(34,197,94,.35)">
+   💰 Vender todo
+  </button>
+ </div>
+</div>
+
 
 <!-- DB -->
 <div class="sheet" id="editDbSheet">
@@ -4224,9 +4280,9 @@ function goTo(where){
  if(where==="cu"){cuSheet.classList.add("active"); cuInit();}
  if(where==="proyecciones"){document.getElementById("proyeccionesSheet").classList.add("active"); initProyecciones();}
  if(where==="compras"){comprasSheet.classList.add("active"); renderCompras();}
+ if(where==="vg"){document.getElementById("ventasGrandesSheet").classList.add("active"); vgInit();}
  if(where==="ventas"){
     ventasSheet.classList.add("active");
-    // Reset a hoy al abrir
     const fInput=document.getElementById('ventaFecha');
     if(fInput && !fInput.value) fInput.value=todayLocalISO();
     ventaModoEdicion=false;
@@ -5124,11 +5180,28 @@ function _btnThrottle(key){
   return true;
 }
 
+function _updateCardQty(i){
+  // Actualiza solo el número visible sin reconstruir el DOM entero
+  const card = document.querySelector(`.card[data-i="${i}"]`);
+  if(!card) { render(); return; }
+  const qtyEl = card.querySelector('.qty');
+  if(qtyEl) qtyEl.textContent = inventory[i].qty;
+  // Actualizar el estilo de la tarjeta según stock (low, empty, ok)
+  card.classList.remove('low','empty');
+  const qty = inventory[i].qty;
+  const critical = inventory[i].critical ?? 0;
+  if(qty <= 0) card.classList.add('empty');
+  else if(qty <= critical) card.classList.add('low');
+  // Actualizar el contador grande del header si existe
+  try{ if(typeof actualizarContadorGrande==='function') actualizarContadorGrande(); }catch(_){}
+}
+
 function increase(i, btn){
  if(!_btnThrottle("inc_"+i)) return;
  vibrateSafe(12);
  inventory[i].qty++;
- saveSilent(); render();
+ _updateCardQty(i);
+ saveSilent();
  flash(i,"add");
  try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, +1); }catch(_){}
  try{ cloudSaveNow(); }catch(_){}
@@ -5139,7 +5212,8 @@ function decrease(i, btn){
  vibrateSafe(10);
  if(inventory[i].qty>0){
    inventory[i].qty--;
-   saveSilent();render();
+   _updateCardQty(i);
+   saveSilent();
    flash(i,"sub");
    try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, -1); }catch(_){}
    try{ cloudSaveNow(); }catch(_){}
@@ -5216,7 +5290,7 @@ function doSell(i, qty, btn){
  }
 
  saveSilent();
- render();
+ _updateCardQty(i);
  flash(i,"sell");
  try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, -qty); }catch(_){}
  try{ cloudSaveNow(); }catch(_){}
@@ -6839,6 +6913,7 @@ function exportData(){
   sales,
   ventasDinero,
   listaPVs,
+  pvColores,
   cu_catalog: cuGetCatalog(),
   cu_recipes: cuGetRecipes(),
   compras: {
@@ -6863,7 +6938,7 @@ function _autoBackup(slot){
   try{
     saveSilent();
     const payload = JSON.stringify({
-      inventory, sales, ventasDinero, listaPVs,
+      inventory, sales, ventasDinero, listaPVs, pvColores,
       cu_catalog: cuGetCatalog(),
       cu_recipes: cuGetRecipes(),
       compras: { plan: comprasGetPlan(), have: comprasGetHave() },
@@ -6943,6 +7018,7 @@ function guardarCopiaSeguridad(){
     sales,
     ventasDinero,
     listaPVs,
+    pvColores,
     cu_catalog: cuGetCatalog(),
     cu_recipes: cuGetRecipes(),
     compras: { plan: comprasGetPlan(), have: comprasGetHave() },
@@ -6992,7 +7068,9 @@ function restaurarCopia(key){
       if(d.sales)        { sales = d.sales; localStorage.setItem("sales", JSON.stringify(sales)); }
       if(d.ventasDinero) { ventasDinero = d.ventasDinero; localStorage.setItem("ventasDinero", JSON.stringify(ventasDinero)); }
       if(d.listaPVs)     { listaPVs = d.listaPVs; localStorage.setItem("listaPVs", JSON.stringify(listaPVs)); }
+      if(d.pvColores)    { pvColores = d.pvColores; localStorage.setItem("pvColores", JSON.stringify(pvColores)); }
       render();
+      try{ renderPVChart(); }catch(_){}
       try{ cloudSaveNow(); }catch(_){}
       AppUI.toast("✅ Copia restaurada y subida a la nube");
     }catch(e){ AppUI.toast("⚠️ Error al restaurar: "+e.message); }
@@ -7085,6 +7163,11 @@ function triggerImport(){
    if(Array.isArray(d.ventasDinero)){
     ventasDinero=d.ventasDinero;
     localStorage.setItem("ventasDinero", JSON.stringify(ventasDinero));
+   }
+
+   if(d.pvColores && typeof d.pvColores==='object'){
+    pvColores={...d.pvColores};
+    localStorage.setItem("pvColores", JSON.stringify(pvColores));
    }
 
    if(Array.isArray(d.listaPVs)){
@@ -7891,6 +7974,194 @@ function header(){
   }
 }
 
+
+/* =========================
+   VENTAS GRANDES
+========================= */
+const VG_KEY = 'vg_sel_v1';
+
+function vgLoad(){ return safeParseJSON(localStorage.getItem(VG_KEY)||'{}', {}); }
+function vgSave(){ try{ localStorage.setItem(VG_KEY, JSON.stringify(__vgSel)); }catch(_){} }
+
+let __vgSel = vgLoad(); // persiste hasta que el usuario limpia
+
+function vgInit(){
+  __vgSel = vgLoad();
+  vgRender();
+}
+
+function vgRender(){
+  const lista = document.getElementById('vgLista');
+  if(!lista) return;
+
+  const items = (inventory||[]).filter(p => (p.qty||0) > 0);
+
+  if(!items.length){
+    lista.innerHTML = `<div class="smallnote" style="text-align:center;padding:16px 0">No hay sabores con existencia.</div>`;
+    vgUpdateTotals();
+    return;
+  }
+
+  lista.innerHTML = items.map((p,idx)=>{
+    const key = toUpperSafe(p.name);
+    const sel = __vgSel[key] || 0;
+    const pct = p.qty > 0 ? Math.round((sel/p.qty)*100) : 0;
+    const color = p.color || '#e0e7ff';
+    const strip = color + 'cc';
+    const isMax = sel >= p.qty;
+    const isEmpty = sel === 0;
+    return `
+    <div style="background:#fff;border:1.5px solid #ede9fe;border-left:5px solid ${strip};border-radius:16px;padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div>
+          <div style="font-weight:800;font-size:.95rem;color:#101826">${p.name}</div>
+          <div style="font-size:.72rem;color:#94a3b8">Disponibles: <b style="color:${isMax?'#dc2626':'#475569'}">${p.qty}</b></div>
+        </div>
+        <div style="font-size:1.05rem;font-weight:900;color:${isEmpty?'#94a3b8':'#5d3fd1'}">${sel}</div>
+      </div>
+
+      ${sel>0 ? `<div style="height:4px;background:#f1f0ff;border-radius:4px;margin-bottom:10px;overflow:hidden">
+        <div style="height:100%;width:${Math.min(pct,100)}%;background:${isMax?'#dc2626':'linear-gradient(90deg,#7c5fe6,#5d3fd1)'};border-radius:4px;transition:width .2s"></div>
+      </div>` : ''}
+
+      <div style="display:flex;gap:8px;align-items:center">
+        <button type="button" onclick="vgDec('${key}')"
+          style="margin:0;flex:0 0 42px;height:42px;border-radius:12px;background:#fef2f2;border:1.5px solid #fecaca;color:#dc2626;font-size:1.3rem;font-weight:800;display:flex;align-items:center;justify-content:center;${isEmpty?'opacity:.3;pointer-events:none':''}" ${isEmpty?'disabled':''}>−</button>
+        <input type="number" min="0" max="${p.qty}" value="${sel}"
+          onchange="vgSetManual('${key}',this.value,'${p.qty}')"
+          oninput="vgSetManual('${key}',this.value,'${p.qty}')"
+          style="flex:1;text-align:center;font-size:1.1rem;font-weight:800;border-radius:12px;border:1.5px solid #ede9fe;padding:8px 4px;font-family:inherit;color:#1e1b2e;background:${isEmpty?'#faf9ff':'#f5f3ff'}">
+        <button type="button" onclick="vgInc('${key}','${p.qty}')"
+          style="margin:0;flex:0 0 42px;height:42px;border-radius:12px;background:#f3f0ff;border:1.5px solid #ede9fe;color:#5d3fd1;font-size:1.3rem;font-weight:800;display:flex;align-items:center;justify-content:center;${isMax?'opacity:.3;pointer-events:none':''}" ${isMax?'disabled':''}>+</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  vgUpdateTotals();
+}
+
+function vgInc(key, maxQty){
+  const max = parseInt(maxQty)||0;
+  const cur = __vgSel[key]||0;
+  if(cur >= max) return;
+  __vgSel[key] = cur + 1;
+  vgSave(); vgRender();
+}
+
+function vgDec(key){
+  const cur = __vgSel[key]||0;
+  if(cur <= 0) return;
+  __vgSel[key] = cur - 1;
+  if(__vgSel[key] === 0) delete __vgSel[key];
+  vgSave(); vgRender();
+}
+
+function vgSetManual(key, rawVal, maxQty){
+  const max = parseInt(maxQty)||0;
+  let v = parseInt(rawVal)||0;
+  if(v < 0) v = 0;
+  if(v > max){ v = max; }
+  if(v === 0) delete __vgSel[key];
+  else __vgSel[key] = v;
+  vgSave(); vgUpdateTotals();
+}
+
+function vgUpdateTotals(){
+  let totalPiezas = 0;
+  let totalCosto = 0;
+  Object.entries(__vgSel).forEach(([key, qty])=>{
+    totalPiezas += qty;
+    const item = (inventory||[]).find(p=> toUpperSafe(p.name)===key);
+    if(item) totalCosto += qty * (Number(item.cost)||0);
+  });
+  const pEl = document.getElementById('vgTotalPiezas');
+  const cEl = document.getElementById('vgTotalCosto');
+  const bEl = document.getElementById('vgBtnVender');
+  if(pEl) pEl.textContent = totalPiezas;
+  if(cEl) cEl.textContent = money(totalCosto);
+  if(bEl){
+    bEl.style.opacity = totalPiezas > 0 ? '1' : '0.4';
+    bEl.style.pointerEvents = totalPiezas > 0 ? 'auto' : 'none';
+    bEl.textContent = totalPiezas > 0
+      ? `💰 Vender ${totalPiezas} pieza${totalPiezas!==1?'s':''}`
+      : '💰 Vender todo';
+  }
+}
+
+function vgLimpiar(){
+  __vgSel = {};
+  vgSave();
+  vgRender();
+}
+
+function vgCompartir(){
+  const entries = Object.entries(__vgSel).filter(([,q])=>q>0);
+  if(!entries.length){ AppUI.toast("No hay nada seleccionado"); return; }
+
+  const fecha = todayLocalISO();
+  let totalPiezas = 0;
+  const lineas = entries.map(([key, qty])=>{
+    const item = (inventory||[]).find(p=>toUpperSafe(p.name)===key);
+    totalPiezas += qty;
+    return `• ${item ? item.name : key}: ${qty} pz`;
+  });
+
+  const texto = [
+    `🧊 *HIELI CREAM – Pedido ${fecha}*`,
+    ``,
+    ...lineas,
+    ``,
+    `*TOTAL: ${totalPiezas} piezas*`
+  ].join('\n');
+
+  const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
+  window.open(url, '_blank');
+}
+
+async function vgVenderTodo(){
+  const entries = Object.entries(__vgSel).filter(([,q])=>q>0);
+  if(!entries.length){ AppUI.toast("Selecciona al menos un sabor"); return; }
+
+  const resumen = entries.map(([key,q])=>{
+    const item = (inventory||[]).find(p=>toUpperSafe(p.name)===key);
+    return `${item?item.name:key}: ${q}`;
+  }).join('\n');
+
+  const ok = await AppUI.confirm(`Vas a vender:\n${resumen}\n\n¿Confirmar?`, {title:'Confirmar venta grande', danger:false});
+  if(!ok) return;
+
+  const d = todayLocalISO();
+  let totalVendido = 0;
+
+  entries.forEach(([key, qty])=>{
+    const idx = (inventory||[]).findIndex(p=>toUpperSafe(p.name)===key);
+    if(idx<0) return;
+    const p = inventory[idx];
+    const realQty = Math.min(qty, p.qty||0);
+    if(realQty<=0) return;
+
+    inventory[idx].qty -= realQty;
+    totalVendido += realQty;
+
+    const cu = Number(p.cost)||0;
+    const existing = sales.find(x=>normalizeISODate(x.date)===d && toUpperSafe(x.product)===toUpperSafe(p.name));
+    if(existing){
+      existing.qty = (parseInt(existing.qty)||0) + realQty;
+      if(existing.costUnit==null) existing.costUnit = cu;
+    }else{
+      sales.push({product:p.name, date:d, qty:realQty, costUnit:cu});
+    }
+  });
+
+  saveSilent();
+  try{ cloudSaveNow(); }catch(_){}
+  render();
+  vibrateSafe([12,40,12]);
+  AppUI.toast(`✅ Vendidas ${totalVendido} piezas`);
+  __vgSel = {};
+  vgSave();
+  vgRender();
+}
 
 /* =========================
    INICIO
@@ -9115,6 +9386,19 @@ function calcularGastoPorFecha(fecha){
 
 
 let listaPVs=JSON.parse(localStorage.getItem('listaPVs')||'[]');
+let pvColores=JSON.parse(localStorage.getItem('pvColores')||'{}');
+function getColorPV(nombre){
+  if(pvColores && pvColores[nombre]) return pvColores[nombre];
+  const idx = (listaPVs||[]).indexOf(nombre);
+  return PV_PASTEL_COLORS[(idx>=0?idx:0) % PV_PASTEL_COLORS.length];
+}
+function setColorPV(nombre, color){
+  pvColores = pvColores || {};
+  pvColores[nombre] = color;
+  localStorage.setItem('pvColores', JSON.stringify(pvColores));
+  try{ cloudSaveNow(); }catch(_){}
+  try{ renderPVChart(); }catch(_){}
+}
 function adminPVs(){
 const accion=prompt('Escribe: AGREGAR o ELIMINAR');
 if(!accion)return;
@@ -9199,7 +9483,7 @@ const ctx=cv.getContext('2d');
 if(window.pvChartObj) window.pvChartObj.destroy();
 
 const total = data.reduce((a,b)=>a+(Number(b.monto)||0),0);
-const colors = data.map((_,i)=> PV_PASTEL_COLORS[i % PV_PASTEL_COLORS.length]);
+const colors = data.map(x=> getColorPV(x.nombre));
 
 if(!data.length){
   // limpio: sin datos no dibujamos nada (evita un donut vacío feo)
@@ -9207,25 +9491,47 @@ if(!data.length){
   return;
 }
 
+// Gráfica tipo "rosa" (polar area): cada PV toma un radio proporcional a su
+// monto (los porcentajes más grandes se ven más grandes), con un pequeño
+// espacio entre rebanadas y color propio por PV (elegible en "Puntos de Venta").
 window.pvChartObj=new Chart(ctx,{
-type:'doughnut',
+type:'polarArea',
 data:{
   labels: data.map(x=>x.nombre),
   datasets:[{
     data: data.map(x=>x.monto),
-    backgroundColor: colors,
+    backgroundColor: colors.map(c=>c+'E6'),
     borderColor: '#ffffff',
     borderWidth: 3,
-    hoverOffset: 10,
+    offset: 10,
+    hoverOffset: 18,
   }]
 },
 options:{
   responsive:true,
   maintainAspectRatio:false,
-  cutout: '58%',
-  layout:{ padding: 24 },
+  layout:{ padding: 34 },
+  scales:{
+    r:{
+      display:false,
+      // Dejamos ~22% de margen extra en el radio para que los % quepan
+      // AFUERA de cada rebanada, incluso cuando el PV casi no vendió.
+      max: (data.reduce((m,x)=>Math.max(m,Number(x.monto)||0),0) || 1) * 1.28,
+      grid:{ display:false },
+      ticks:{ display:false }
+    }
+  },
   plugins:{
-    legend:{ display:false },
+    legend:{
+      display:true,
+      position:'bottom',
+      labels:{
+        usePointStyle:true,
+        pointStyle:'circle',
+        padding:14,
+        font:{ size:12, weight:'700' }
+      }
+    },
     tooltip:{
       backgroundColor:'#1e1b2e',
       padding:12,
@@ -9233,7 +9539,7 @@ options:{
       bodyFont:{size:13},
       callbacks:{
         label:(ctx)=>{
-          const v = Number(ctx.parsed)||0;
+          const v = Number(ctx.parsed.r ?? ctx.parsed)||0;
           const pct = total>0 ? (v/total*100) : 0;
           return ` $${v.toFixed(2)}  ·  ${pct.toFixed(0)}% del ingreso`;
         }
@@ -9241,39 +9547,27 @@ options:{
     },
     datalabels:{
       color:'#1e1b2e',
-      font:{ weight:'800', size:12 },
+      font:{ weight:'900', size:14 },
       formatter:(value, ctx)=>{
         const pct = total>0 ? (value/total*100) : 0;
-        const nombre = ctx.chart.data.labels[ctx.dataIndex] || '';
-        return [nombre, `$${Number(value).toFixed(0)} · ${pct.toFixed(0)}%`];
+        return `${pct.toFixed(0)}%`;
       },
+      anchor:'end',
+      align:'end',
+      offset:6,
+      clamp:true,
+      clip:false,
       textAlign:'center',
-      backgroundColor:(ctx)=>'rgba(255,255,255,.85)',
-      borderRadius:8,
-      padding:6,
+      backgroundColor:'rgba(255,255,255,.94)',
+      borderRadius:10,
+      padding:{top:5,bottom:5,left:8,right:8},
     }
   }
-},
-plugins:[{
-  id:'pvCenterText',
-  afterDraw(chart){
-    const {ctx, chartArea} = chart;
-    if(!chartArea) return;
-    const cx = (chartArea.left+chartArea.right)/2;
-    const cy = (chartArea.top+chartArea.bottom)/2;
-    ctx.save();
-    ctx.textAlign='center';
-    ctx.textBaseline='middle';
-    ctx.fillStyle='#94a3b8';
-    ctx.font='700 11px sans-serif';
-    ctx.fillText('TOTAL', cx, cy-12);
-    ctx.fillStyle='#1e1b2e';
-    ctx.font='800 20px sans-serif';
-    ctx.fillText('$'+total.toFixed(2), cx, cy+10);
-    ctx.restore();
-  }
-}]
+}
 });
+
+const totalEl = document.getElementById('pvChartTotal');
+if(totalEl) totalEl.textContent = '$'+total.toFixed(2);
 }
 function guardarVentaDia(){
  const fecha=document.getElementById("ventaFecha").value || todayLocalISO();
@@ -9369,12 +9663,12 @@ function compararPeriodo(){
     const cantidad = rango.length;
 
     const anchoDinamico =
-      cantidad <= 4 ? 800 : cantidad * 90;
+      cantidad <= 6 ? '100%' : (cantidad * 55) + 'px';
 
     const moneyInner = document.querySelector('.moneyChartInner');
 
     if(moneyInner){
-      moneyInner.style.width = anchoDinamico + 'px';
+      moneyInner.style.width = anchoDinamico;
     }
 
 // Calculamos totales del rango
@@ -9385,39 +9679,163 @@ function compararPeriodo(){
     if(window.ventasChartObj) window.ventasChartObj.destroy();
     const canvas = document.getElementById('ventasChart');
     canvas.closest('.chartPanel').style.display = 'block';
-    
+    const legendPill = document.getElementById('ventasPillLegend');
+    if(legendPill) legendPill.style.display = 'flex';
+
+    // ---- Gráfica "barra rellena" tipo cápsula para la comparación POR DÍA ----
+    // Cada día es UNA barra con dos tramos apilados, cada uno con su propio
+    // degradado pastel y puntas redondeadas: abajo Costos (rojo->naranja),
+    // arriba Ingreso (morado->azul). Chart.js dibuja las barras invisibles
+    // (solo para tooltips/hitbox) y un plugin propio pinta las cápsulas.
+    function _pillGradient(ctx, y0, y1, hexTop, hexBottom){
+      const g = ctx.createLinearGradient(0, y0, 0, y1);
+      g.addColorStop(0, hexTop);
+      g.addColorStop(1, hexBottom);
+      return g;
+    }
+    function _drawPill(ctx, x, y, w, h, r, fill){
+      if(h <= 0.5 || w <= 0.5) return;
+      r = Math.max(0, Math.min(r, w/2, h/2));
+      ctx.save();
+      ctx.beginPath();
+      if(typeof ctx.roundRect === 'function'){
+        ctx.roundRect(x, y, w, h, r);
+      }else{
+        ctx.moveTo(x+r, y);
+        ctx.arcTo(x+w, y, x+w, y+h, r);
+        ctx.arcTo(x+w, y+h, x, y+h, r);
+        ctx.arcTo(x, y+h, x, y, r);
+        ctx.arcTo(x, y, x+w, y, r);
+        ctx.closePath();
+      }
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.restore();
+    }
+    // Etiqueta tipo "cápsula" oscura flotando arriba de su tramo, igual
+    // estilo que las de la comparativa Por PV. Encoge letra y relleno
+    // automáticamente si el espacio con la barra vecina es angosto, para
+    // que dos cápsulas nunca se empalmen entre sí.
+    function _drawValueBubble(ctx, cx, bottomY, text, maxWidth){
+      ctx.save();
+      let fontSize = 8.5;
+      const minFont = 6.5;
+      let padX = 4;
+      let textW, w;
+      while(true){
+        ctx.font = `800 ${fontSize}px system-ui, -apple-system, sans-serif`;
+        textW = ctx.measureText(text).width;
+        w = textW + padX*2;
+        if(!maxWidth || w <= maxWidth || fontSize <= minFont) break;
+        fontSize -= 0.5;
+        padX = Math.max(2.5, padX - 0.2);
+      }
+      const h = fontSize + 6;
+      const x = cx - w/2;
+      const y = bottomY - h;
+      ctx.beginPath();
+      if(typeof ctx.roundRect === 'function'){
+        ctx.roundRect(x, y, w, h, h/2);
+      }else{
+        const r = h/2;
+        ctx.moveTo(x+r, y);
+        ctx.arcTo(x+w, y, x+w, y+h, r);
+        ctx.arcTo(x+w, y+h, x, y+h, r);
+        ctx.arcTo(x, y+h, x, y, r);
+        ctx.arcTo(x, y, x+w, y, r);
+        ctx.closePath();
+      }
+      ctx.fillStyle = 'rgba(15,23,42,.88)';
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, cx, y + h/2 + 0.5);
+      ctx.restore();
+      return y;
+    }
+    const pillStackPlugin = {
+      id: 'pillStack',
+      afterDatasetsDraw(chart){
+        const {ctx} = chart;
+        const metaCostos  = chart.getDatasetMeta(0);
+        const metaIngreso = chart.getDatasetMeta(1);
+        const n = metaCostos.data.length;
+        // Espacio entre Costos e Ingreso: lo suficientemente ancho para
+        // que la cápsula de "Costo" quepa justo encima de lo naranja,
+        // sin pisar la cápsula morada de arriba.
+        const GAP = 26;
+        const LABEL_GAP = 3;
+        const LABEL_MARGIN = 6;
+        for(let i=0;i<n;i++){
+          const elC = metaCostos.data[i];
+          const elI = metaIngreso.data[i];
+          if(!elC || !elI) continue;
+          const pC = elC.getProps(['x','y','base','width'], true);
+          const pI = elI.getProps(['x','y','base','width'], true);
+          const w = Math.min(pC.width, pI.width);
+          const r = w/2;
+
+          // Tramo COSTOS (abajo): rojo/rosa pastel -> naranja
+          const hC = pC.base - pC.y;
+          _drawPill(ctx, pC.x - w/2, pC.y, w, hC, r,
+            _pillGradient(ctx, pC.y, pC.base, '#f9a8d4', '#fb923c'));
+
+          // Tramo INGRESO (arriba): morado pastel -> azul, con espacio
+          // respecto a Costos para que se note la separación.
+          const bottomI = pI.base - GAP;
+          const hI = bottomI - pI.y;
+          _drawPill(ctx, pI.x - w/2, pI.y, w, hI, r,
+            _pillGradient(ctx, pI.y, bottomI, '#c4b5fd', '#6366f1'));
+
+          // Ancho máximo disponible para las cápsulas de esta barra, según
+          // qué tan cerca están las barras vecinas (para que no se toquen).
+          const elCPrev = i>0 ? metaCostos.data[i-1] : null;
+          const elCNext = i<n-1 ? metaCostos.data[i+1] : null;
+          let maxLabelW = Infinity;
+          if(elCPrev) maxLabelW = Math.min(maxLabelW, pC.x - elCPrev.getProps(['x'], true).x);
+          if(elCNext) maxLabelW = Math.min(maxLabelW, elCNext.getProps(['x'], true).x - pC.x);
+          if(maxLabelW === Infinity) maxLabelW = 70;
+          maxLabelW = Math.max(maxLabelW - LABEL_MARGIN, 20);
+
+          // Cápsulas de monto: cada una flotando justo arriba de SU
+          // propio tramo — Costo arriba de lo naranja, Ingreso arriba
+          // de lo morado.
+          const valC = Number((rango[i] && rango[i].gasto) || 0);
+          const valI = Number((rango[i] && rango[i].vendido) || 0);
+          if(valI > 0){
+            _drawValueBubble(ctx, pI.x, pI.y - LABEL_GAP, '$'+valI.toFixed(0), maxLabelW);
+          }
+          if(valC > 0){
+            _drawValueBubble(ctx, pC.x, pC.y - LABEL_GAP, '$'+valC.toFixed(0), maxLabelW);
+          }
+        }
+      }
+    };
+
     window.ventasChartObj = new Chart(canvas, {
         type: 'bar',
         data: {
             labels: rango.map(v => v.fecha),
             datasets: [
-                { label: 'Costos', data: rango.map(v => v.gasto), backgroundColor:'#ef4444', stack:'ventas',
-        borderRadius:10,
-        borderSkipped:false,
-        
-        categoryPercentage:0.9,
-        barPercentage:0.6,
-        maxBarThickness:40,
-        minBarLength:8 },
-                { label: 'Ganancias', data: rango.map(v => v.ganancia), backgroundColor:'#22c55e', stack:'ventas',
-        borderRadius:10,
-        borderSkipped:false,
-        
-        categoryPercentage:0.9,
-        barPercentage:0.6,
-        maxBarThickness:40,
-        minBarLength:8 }
+                { label: 'Costos', data: rango.map(v => v.gasto), stack:'dia',
+                  backgroundColor:'transparent', borderWidth:0, borderRadius:0,
+                  categoryPercentage:0.7, barPercentage:0.62, maxBarThickness:46, minBarLength:2 },
+                { label: 'Ingreso', data: rango.map(v => v.vendido), stack:'dia',
+                  backgroundColor:'transparent', borderWidth:0, borderRadius:0,
+                  categoryPercentage:0.7, barPercentage:0.62, maxBarThickness:46, minBarLength:2 }
             ]
         },
-        
+        plugins:[pillStackPlugin],
 options:{
  responsive:true,
  maintainAspectRatio:false,
  animation:true,
+ interaction:{ mode:'index', intersect:false },
 
  layout:{
    padding:{
-     top:30,
+     top:28,
      bottom:10,
      left:10,
      right:20
@@ -9425,45 +9843,26 @@ options:{
  },
 
  plugins:{
-   legend:{
-     display:true,
-     position:'top',
-     labels:{
-       usePointStyle:true,
-       pointStyle:'circle',
-       padding:18,
-       font:{
-         size:13,
-         weight:'bold'
-       }
-     }
-   },
+   legend:{ display:false },
 
    tooltip:{
-     enabled:true
+     enabled:true,
+     backgroundColor:'#1e1b2e',
+     padding:12,
+     titleFont:{size:13,weight:'bold'},
+     bodyFont:{size:12.5},
+     callbacks:{
+       label:(c)=> ` ${c.dataset.label}: $${Number(c.parsed.y||0).toFixed(2)}`
+     }
    },
 
-   datalabels:{
-     color:'#ffffff',
-     backgroundColor:'rgba(15,23,42,.88)',
-     borderRadius:11,
-     padding:{top:4,bottom:4,left:7,right:7},
-     anchor:'end',
-     align:'end',
-     offset:1,
-     clamp:true,
-     clip:false,
-     formatter:(v)=>'$'+Number(v).toFixed(1),
-     font:{
-       size:11,
-       weight:'bold'
-     }
-   }
+   datalabels:{ display:false }
  },
 
  scales:{
 
    x:{
+     stacked:true,
      offset:true,
 
      ticks:{
@@ -9485,6 +9884,7 @@ options:{
    },
 
    y:{
+     stacked:true,
      beginAtZero:true,
 
      ticks:{
@@ -9631,6 +10031,16 @@ if(typeof compararPeriodo==='function'){
  </div>
 </div>
 
+<div id="pvColorModal" style="position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:10000;backdrop-filter:blur(4px)">
+ <div style="background:#fff;width:90%;max-width:420px;border-radius:30px;padding:22px;box-shadow:0 15px 40px rgba(0,0,0,.18)">
+   <div class='pvTitle'>Elige un color</div>
+   <div style="max-height:280px;overflow:auto;padding-right:4px">
+     <div id="pvColorGrid" class="colorGrid" style="padding:6px;border-radius:14px"></div>
+   </div>
+   <button class='pvCloseBtn' onclick="closePvColorModal()" style="margin-top:14px">Cerrar</button>
+ </div>
+</div>
+
 <script>
 function adminPVs(){
  document.getElementById('pvModal').style.display='flex';
@@ -9646,7 +10056,13 @@ function renderListaPVVisual(){
  (listaPVs||[]).forEach(p=>{
    const d=document.createElement('div');
    d.className='pvItem';
-   d.innerHTML='<span>'+p+'</span><button class="pvDel" onclick="eliminarPVVisual(\''+p+'\')">🗑️</button>';
+   const colorActual = getColorPV(p);
+   const safe = p.replace(/'/g,"\\'");
+   d.innerHTML=
+     '<span style="flex:1">'+p+'</span>'+
+     '<div class="colorDot" title="Color de '+p+'" style="width:30px;height:30px;margin-right:8px;background:'+colorActual+'" '+
+       'onclick="openPvColorPicker(\''+safe+'\')"></div>'+
+     '<button class="pvDel" onclick="eliminarPVVisual(\''+safe+'\')">🗑️</button>';
    c.appendChild(d);
  });
 }
@@ -9670,6 +10086,31 @@ function eliminarPVVisual(n){ if(!confirm('¿Eliminar PV '+n+'?')) return;
  renderListaPVVisual();
  if(typeof renderPVRows==='function') renderPVRows();
 }
+
+let __pvColorTarget=null;
+function openPvColorPicker(nombre){
+ __pvColorTarget=nombre;
+ const grid=document.getElementById('pvColorGrid');
+ if(grid){
+   const selected=getColorPV(nombre);
+   grid.innerHTML = PASTELS.map(c=>{
+     const active = (String(c).toLowerCase()===String(selected).toLowerCase()) ? ' active' : '';
+     return `<div class="colorDot${active}" style="background:${c}" onclick="choosePvColor('${c}')"></div>`;
+   }).join('');
+ }
+ const modal=document.getElementById('pvColorModal');
+ if(modal) modal.style.display='flex';
+}
+function choosePvColor(c){
+ if(__pvColorTarget) setColorPV(__pvColorTarget, c);
+ closePvColorModal();
+ renderListaPVVisual();
+}
+function closePvColorModal(){
+ const modal=document.getElementById('pvColorModal');
+ if(modal) modal.style.display='none';
+ __pvColorTarget=null;
+}
 </script>
 <script>
 (function(){
@@ -9691,6 +10132,9 @@ const original=window.compararPeriodo;
 window.compararPeriodo=function(){
  const tipo=document.getElementById('tipoComparacion');
  if(!tipo || tipo.value==='dia') return original();
+
+ const legendPill = document.getElementById('ventasPillLegend');
+ if(legendPill) legendPill.style.display = 'none';
 
  const ini=document.getElementById('fechaInicio').value;
  const fin=document.getElementById('fechaFin').value;
@@ -9747,23 +10191,89 @@ window.compararPeriodo=function(){
  }
  const canvas=document.getElementById('ventasChart');
  canvas.closest('.chartPanel').style.display='block';
+
+ // ---- Barras tipo cápsula con degradado, igual de bonitas que las
+ // de la Comparativa "Por Día", pero usando el color que Hieli eligió
+ // para cada PV (getColorPV) en vez de un morado fijo. ----
+ function _pvPillGradient(ctx, y0, y1, hexTop, hexBottom){
+   const g = ctx.createLinearGradient(0, y0, 0, y1);
+   g.addColorStop(0, hexTop);
+   g.addColorStop(1, hexBottom);
+   return g;
+ }
+ function _pvDrawPill(ctx, x, y, w, h, r, fill){
+   if(h <= 0.5 || w <= 0.5) return;
+   r = Math.max(0, Math.min(r, w/2, h/2));
+   ctx.save();
+   ctx.beginPath();
+   if(typeof ctx.roundRect === 'function'){
+     ctx.roundRect(x, y, w, h, r);
+   }else{
+     ctx.moveTo(x+r, y);
+     ctx.arcTo(x+w, y, x+w, y+h, r);
+     ctx.arcTo(x+w, y+h, x, y+h, r);
+     ctx.arcTo(x, y+h, x, y, r);
+     ctx.arcTo(x, y, x+w, y, r);
+     ctx.closePath();
+   }
+   ctx.fillStyle = fill;
+   ctx.fill();
+   ctx.restore();
+ }
+ function _pvHexToRgb(hex){
+   hex = String(hex||'#6366f1').replace('#','');
+   if(hex.length===3) hex = hex.split('').map(c=>c+c).join('');
+   const num = parseInt(hex,16) || 0x6366f1;
+   return { r:(num>>16)&255, g:(num>>8)&255, b:num&255 };
+ }
+ function _pvMix(hex, targetHex, amt){
+   const c = _pvHexToRgb(hex), t = _pvHexToRgb(targetHex);
+   const r = Math.round(c.r + (t.r-c.r)*amt);
+   const g = Math.round(c.g + (t.g-c.g)*amt);
+   const b = Math.round(c.b + (t.b-c.b)*amt);
+   return `rgb(${r},${g},${b})`;
+ }
+ // A partir del color elegido para el PV, genera un degradado suave:
+ // más claro arriba (mezclado con blanco) y el tono elegido más marcado
+ // abajo (mezclado levemente con negro), como el resto de las cápsulas.
+ function _pvGradientStops(baseHex){
+   return [ _pvMix(baseHex, '#ffffff', 0.55), _pvMix(baseHex, '#000000', 0.12) ];
+ }
+ const pvPillPlugin = {
+   id: 'pvPill',
+   afterDatasetsDraw(chart){
+     const {ctx} = chart;
+     const meta = chart.getDatasetMeta(0);
+     meta.data.forEach((el, i)=>{
+       if(!el) return;
+       const p = el.getProps(['x','y','base','width'], true);
+       const w = p.width;
+       const r = w/2;
+       const baseColor = pv ? getColorPV(pv) : getColorPV(labels[i]);
+       const [topC, bottomC] = _pvGradientStops(baseColor);
+       _pvDrawPill(ctx, p.x - w/2, p.y, w, (p.base - p.y), r,
+         _pvPillGradient(ctx, p.y, p.base, topC, bottomC));
+     });
+   }
+ };
+
  window.ventasChartObj=new Chart(canvas,{
    type:'bar',
-   data:{labels:labels,datasets:[{label:'Ventas',data:dsVentas,backgroundColor:'#6366f1',
-     borderRadius:10,
-     borderSkipped:false,
-     categoryPercentage:0.9,
-     barPercentage:0.6,
-     maxBarThickness:40,
+   data:{labels:labels,datasets:[{label:'Ventas',data:dsVentas,
+     backgroundColor:'transparent',
+     borderWidth:0,
+     borderRadius:0,
+     categoryPercentage:0.7,
+     barPercentage:0.62,
+     maxBarThickness:46,
      minBarLength:8}]},
+   plugins:[pvPillPlugin],
    options:{
  responsive:true,
  maintainAspectRatio:false,
  layout:{padding:{top:35,left:10,right:10,bottom:10}},
  plugins:{
-   legend:{display:true,position:'top',
-     labels:{usePointStyle:true,pointStyle:'circle',
-     font:{size:13,weight:'bold'}}},
+   legend:{display:false},
    tooltip:{enabled:true},
    datalabels:{
      color:'#ffffff',
@@ -10004,15 +10514,15 @@ function renderProyecciones(){
 <style>
 .moneyChartScroll{overflow-x:auto!important;overflow-y:hidden!important;}
 .moneyChartInner{
- min-width:800px!important;
- height:550px!important;
+ min-width:100%!important;
+ height:300px!important;
 }
 .moneyChartInner canvas{
- height:550px!important;
+ height:300px!important;
 }
 </style>
 
 <style>
-.moneyChartInner canvas{height:550px!important;}
+.moneyChartInner canvas{height:300px!important;}
 .chart-wrap canvas{max-height:380px!important;}
 </style>
