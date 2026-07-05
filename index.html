@@ -3148,9 +3148,9 @@ document.addEventListener('DOMContentLoaded',()=>{
  <h2 style="margin-bottom:4px">Ventas</h2>
  <p style="font-size:13px;color:#64748b;margin-top:0;margin-bottom:14px">Compara ingresos, gastos y ganancias automáticamente.</p>
 
- <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
-   <button type="button" onclick="showVentasTab('registro')" id="ventasTabRegistro" style="border-radius:14px;padding:11px 8px;font-size:.83rem;background:linear-gradient(135deg,#7c5fe6,#5d3fd1)">Registro</button>
-   <button type="button" onclick="showVentasTab('comparativa')" id="ventasTabComparativa" style="border-radius:14px;padding:11px 8px;font-size:.83rem;background:#e0e7ff;color:#3730a3;font-weight:700">Comparativa</button>
+ <div style="display:flex;gap:6px;background:#f1f0ff;border-radius:14px;padding:4px;margin-bottom:14px">
+   <button type="button" onclick="showVentasTab('registro')" id="ventasTabRegistro" style="flex:1;margin:0;padding:10px;border:none;border-radius:11px;font-weight:800;font-size:.85rem;background:#fff;color:#5d3fd1">Registro</button>
+   <button type="button" onclick="showVentasTab('comparativa')" id="ventasTabComparativa" style="flex:1;margin:0;padding:10px;border:none;border-radius:11px;font-weight:800;font-size:.85rem;background:transparent;color:#7c7c9a">Comparativa</button>
  </div>
 
  <div id="ventasRegistroTab">
@@ -3360,48 +3360,56 @@ document.addEventListener('DOMContentLoaded',()=>{
  <h2>Ventas Grandes</h2>
  <div class="smallnote" style="margin-bottom:14px">Selecciona cantidades de varios sabores y véndelos de un solo golpe.</div>
 
- <!-- Resumen del pedido -->
- <div style="background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:18px;padding:16px;margin-bottom:14px;color:#fff">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-   <div style="font-size:.8rem;font-weight:800;opacity:.85">PEDIDO ACTUAL</div>
-   <button type="button" onclick="vgLimpiar()" style="margin:0;padding:5px 12px;border-radius:20px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:.72rem;font-weight:700">✕ Limpiar</button>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-   <div>
-    <div style="font-size:.68rem;opacity:.8">TOTAL PIEZAS</div>
-    <div style="font-size:1.8rem;font-weight:900;line-height:1" id="vgTotalPiezas">0</div>
+ <!-- Tabs Vender / Pedidos (siempre arriba) -->
+ <div id="vgTabsWrap"></div>
+
+ <!-- Flujo normal de venta: pedido actual + sabores + acciones -->
+ <div id="vgVenderFlow">
+
+  <!-- Resumen del pedido -->
+  <div style="background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:18px;padding:16px;margin-bottom:14px;color:#fff">
+   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <div style="font-size:.8rem;font-weight:800;opacity:.85">PEDIDO ACTUAL</div>
+    <button type="button" onclick="vgLimpiar()" style="margin:0;padding:5px 12px;border-radius:20px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:.72rem;font-weight:700">✕ Limpiar</button>
    </div>
-   <div>
-    <div style="font-size:.68rem;opacity:.8">COSTO ESTIMADO</div>
-    <div style="font-size:1.8rem;font-weight:900;line-height:1" id="vgTotalCosto">$0.00</div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div>
+     <div style="font-size:.68rem;opacity:.8">TOTAL PIEZAS</div>
+     <div style="font-size:1.8rem;font-weight:900;line-height:1" id="vgTotalPiezas">0</div>
+    </div>
+    <div>
+     <div style="font-size:.68rem;opacity:.8">COSTO ESTIMADO</div>
+     <div style="font-size:1.8rem;font-weight:900;line-height:1" id="vgTotalCosto">$0.00</div>
+    </div>
    </div>
+  </div>
+
+  <!-- Lista de sabores -->
+  <div id="vgLista" style="margin-bottom:14px"></div>
+
+  <!-- Botones acción -->
+  <div style="display:flex;gap:10px;margin-bottom:10px">
+   <button type="button" onclick="vgCompartir()"
+    style="margin:0;flex:1;padding:14px;border-radius:16px;border:none;background:#25D366;color:#fff;font-weight:800;font-size:.85rem;box-shadow:0 8px 20px rgba(37,211,102,.30)">
+    <svg style="width:16px;height:16px;vertical-align:middle;margin-right:4px;fill:white" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+    Compartir
+   </button>
+   <button type="button" id="vgBtnLlevar" onclick="vgIniciarSalida()"
+    style="margin:0;flex:1;padding:14px;border-radius:16px;border:none;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#fff;font-weight:800;font-size:.85rem;box-shadow:0 8px 20px rgba(245,158,11,.30)">
+    Ir a llevar
+   </button>
+  </div>
+  <div style="display:flex">
+   <button type="button" id="vgBtnVender" onclick="vgVenderTodo()"
+    style="margin:0;flex:1;padding:15px;border-radius:16px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:800;font-size:.9rem;box-shadow:0 8px 20px rgba(34,197,94,.35)">
+    Vender todo
+   </button>
   </div>
  </div>
 
- <!-- Resumen de lo que está "en la calle" (llevado a vender fuera) -->
- <div id="vgSalidasWrap"></div>
+ <!-- Pedidos ya llevados a la calle (tarjetas colapsables) -->
+ <div id="vgPedidosOnly"></div>
 
- <!-- Lista de sabores -->
- <div id="vgLista" style="margin-bottom:14px"></div>
-
- <!-- Botones acción -->
- <div style="display:flex;gap:10px;margin-bottom:10px">
-  <button type="button" onclick="vgCompartir()"
-   style="margin:0;flex:1;padding:14px;border-radius:16px;border:none;background:#25D366;color:#fff;font-weight:800;font-size:.85rem;box-shadow:0 8px 20px rgba(37,211,102,.30)">
-   <svg style="width:16px;height:16px;vertical-align:middle;margin-right:4px;fill:white" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
-   Compartir
-  </button>
-  <button type="button" id="vgBtnLlevar" onclick="vgIniciarSalida()"
-   style="margin:0;flex:1;padding:14px;border-radius:16px;border:none;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#fff;font-weight:800;font-size:.85rem;box-shadow:0 8px 20px rgba(245,158,11,.30)">
-   Ir a llevar
-  </button>
- </div>
- <div style="display:flex">
-  <button type="button" id="vgBtnVender" onclick="vgVenderTodo()"
-   style="margin:0;flex:1;padding:15px;border-radius:16px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:800;font-size:.9rem;box-shadow:0 8px 20px rgba(34,197,94,.35)">
-   Vender todo
-  </button>
- </div>
 </div>
 
 
@@ -3477,67 +3485,78 @@ document.addEventListener('DOMContentLoaded',()=>{
  <h2 style="margin-bottom:4px">Recetas</h2>
  <p style="font-size:13px;color:#64748b;margin-top:0;margin-bottom:14px">Calcula cuánto te cuesta hacer cada sabor.</p>
 
- <div class="lbl" style="margin-bottom:6px">SABOR</div>
- <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
-   <select id="cuFlavor"></select>
-   <button onclick="cuToggleChart()" id="cuChartBtn" style="margin:0;padding:9px 13px;background:#f3f0ff;color:#5d3fd1;border:1.5px solid #ede9fe;border-radius:14px;font-size:.78rem;font-weight:700;white-space:nowrap;flex-shrink:0">Ver gráfica</button>
+ <!-- Tabs Recetas / Insumos / Gráfica (siempre arriba) -->
+ <div style="display:flex;gap:6px;background:#f1f0ff;border-radius:14px;padding:4px;margin-bottom:14px">
+   <button type="button" onclick="cuSetTab('recetas')" id="cuTabBtnRecetas"
+     style="flex:1;margin:0;padding:10px;border:none;border-radius:11px;font-weight:800;font-size:.85rem;background:#fff;color:#5d3fd1">
+     Recetas
+   </button>
+   <button type="button" onclick="cuSetTab('insumos')" id="cuTabBtnInsumos"
+     style="flex:1;margin:0;padding:10px;border:none;border-radius:11px;font-weight:800;font-size:.85rem;background:transparent;color:#7c7c9a">
+     Insumos
+   </button>
+   <button type="button" onclick="cuSetTab('grafica')" id="cuTabBtnGrafica"
+     style="flex:1;margin:0;padding:10px;border:none;border-radius:11px;font-weight:800;font-size:.85rem;background:transparent;color:#7c7c9a">
+     Gráfica
+   </button>
  </div>
 
- <!-- TOTAL ARRIBA -->
- <div style="display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:16px;padding:14px 18px;margin-top:14px">
-   <span style="color:rgba(255,255,255,.8);font-size:13px;font-weight:600">COSTO UNITARIO</span>
-   <span style="color:#fff;font-size:1.9rem;font-weight:900" id="cuTotal">$0.00</span>
+ <!-- TAB: RECETAS -->
+ <div id="cuTabContentRecetas">
+
+  <div class="lbl" style="margin-bottom:6px">SABOR</div>
+  <select id="cuFlavor"></select>
+
+  <!-- TOTAL ARRIBA -->
+  <div style="display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:16px;padding:14px 18px;margin-top:14px">
+    <span style="color:rgba(255,255,255,.8);font-size:13px;font-weight:600">COSTO UNITARIO</span>
+    <span style="color:#fff;font-size:1.9rem;font-weight:900" id="cuTotal">$0.00</span>
+  </div>
+
+  <button onclick="cuSaveCost()" style="margin-top:12px;background:#111827;border-radius:14px;padding:11px 8px;font-size:.85rem">Guardar CU</button>
+
+  <button onclick="cuAddInsumo()" style="margin-top:10px;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:14px;font-size:.88rem">+ Agregar insumo</button>
+
+  <div id="cuLista" style="margin-top:14px"></div>
+
  </div>
 
- <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
-   <button style="background:#e0e7ff;color:#3730a3;font-weight:700;border-radius:14px;padding:11px 8px;font-size:.83rem" onclick="cuOpenCatalog()">Catálogo de insumos</button>
-   <button style="background:#111827;border-radius:14px;padding:11px 8px;font-size:.83rem" onclick="cuSaveCost()">Guardar CU</button>
- </div>
+ <!-- TAB: INSUMOS (catálogo) -->
+ <div id="cuTabContentInsumos" style="display:none">
 
- <button onclick="cuAddInsumo()" style="margin-top:10px;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:14px;font-size:.88rem">+ Agregar insumo</button>
+  <p style="font-size:13px;color:#64748b;margin-top:0;margin-bottom:14px">Agrega aquí tus insumos y su costo para usarlos en las recetas.</p>
 
- <div id="cuLista" style="margin-top:14px"></div>
-
-
- <!-- Panel gráfica CU: overlay independiente, no empuja el contenido del sabor -->
- <div id="cuChartPanel" style="display:none;position:fixed;inset:0;background:#fff;z-index:9999;overflow-y:auto;padding:18px">
-   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-     <h2 style="margin:0;font-size:1.1rem">Gráfica de costos por sabor</h2>
-     <button onclick="cuToggleChart()" style="margin:0;padding:8px 14px;background:#f3f0ff;color:#5d3fd1;border:1.5px solid #ede9fe;border-radius:14px;font-size:.8rem;font-weight:700">✕ Ocultar</button>
+  <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
+   <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px" id="cuCatFormTitle">NUEVO INSUMO</div>
+   <div style="display:grid;grid-template-columns:1.4fr .9fr;gap:8px;margin-bottom:10px">
+    <div>
+     <div class="lbl" style="font-size:10px">NOMBRE</div>
+     <input id="cuCatName" placeholder="Ej. Leche evaporada" style="font-size:.84rem;padding:7px 10px">
+    </div>
+    <div>
+     <div class="lbl" style="font-size:10px">COSTO ($)</div>
+     <input id="cuCatPack" type="number" step="0.01" min="0" placeholder="0.00" style="font-size:.84rem;padding:7px 10px">
+    </div>
    </div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <button id="cuCatSaveBtn" onclick="cuSaveCatalogItem()" style="background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:12px;padding:9px;font-size:.83rem">Guardar</button>
+    <button id="cuCatCancelBtn" onclick="cuCancelEditCatalog()" style="display:none;background:#f1f5f9;color:#475569;border:none;border-radius:12px;padding:9px;font-size:.83rem;font-weight:700">Cancelar</button>
+   </div>
+  </div>
+
+  <div class="lbl" style="margin-bottom:8px">INSUMOS GUARDADOS</div>
+  <div id="cuCatalogList"></div>
+
+ </div>
+
+ <!-- TAB: GRÁFICA -->
+ <div id="cuTabContentGrafica" style="display:none">
    <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:8px">COSTO POR SABOR</div>
    <div class="top3Row" id="top3CUWrap"></div>
    <div class="chartPanel"><div class="chartScroll">
      <div class="chart-wrap" id="wrap-chartCU"><canvas id="chartCU"></canvas></div>
    </div></div>
  </div>
-</div>
-
-<!-- CU CATALOGO -->
-<div class="sheet" id="cuCatalogSheet">
- <h2 style="margin-bottom:4px">Catálogo de insumos</h2>
- <p style="font-size:13px;color:#64748b;margin-top:0;margin-bottom:14px">Agrega aquí tus insumos y su costo para usarlos en las recetas.</p>
-
- <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
-  <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px" id="cuCatFormTitle">NUEVO INSUMO</div>
-  <div style="display:grid;grid-template-columns:1.4fr .9fr;gap:8px;margin-bottom:10px">
-   <div>
-    <div class="lbl" style="font-size:10px">NOMBRE</div>
-    <input id="cuCatName" placeholder="Ej. Leche evaporada" style="font-size:.84rem;padding:7px 10px">
-   </div>
-   <div>
-    <div class="lbl" style="font-size:10px">COSTO ($)</div>
-    <input id="cuCatPack" type="number" step="0.01" min="0" placeholder="0.00" style="font-size:.84rem;padding:7px 10px">
-   </div>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-   <button id="cuCatSaveBtn" onclick="cuSaveCatalogItem()" style="background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:12px;padding:9px;font-size:.83rem">Guardar</button>
-   <button id="cuCatCancelBtn" onclick="cuCancelEditCatalog()" style="display:none;background:#f1f5f9;color:#475569;border:none;border-radius:12px;padding:9px;font-size:.83rem;font-weight:700">Cancelar</button>
-  </div>
- </div>
-
- <div class="lbl" style="margin-bottom:8px">INSUMOS GUARDADOS</div>
- <div id="cuCatalogList"></div>
 
 </div>
 
@@ -5599,23 +5618,32 @@ function setStatsMode(mode){
  if(__statsMode==="cu") renderCUChart();
 }
 
-let __cuChartVisible = false;
-function cuToggleChart(){
-  __cuChartVisible = !__cuChartVisible;
-  const panel = document.getElementById("cuChartPanel");
-  const btn   = document.getElementById("cuChartBtn");
-  const sel   = document.getElementById("cuFlavor");
-  if(panel){
-    panel.style.display = __cuChartVisible ? "block" : "none";
-    // Renderizar DESPUÉS de hacer visible para que el canvas tenga clientWidth
-    if(__cuChartVisible){
-      requestAnimationFrame(()=>{ renderCUChart(); });
+let __cuTab = 'recetas'; // 'recetas' | 'insumos' | 'grafica'
+function cuSetTab(tab){
+  __cuTab = tab;
+  const wraps = {
+    recetas: document.getElementById('cuTabContentRecetas'),
+    insumos: document.getElementById('cuTabContentInsumos'),
+    grafica: document.getElementById('cuTabContentGrafica')
+  };
+  const btns = {
+    recetas: document.getElementById('cuTabBtnRecetas'),
+    insumos: document.getElementById('cuTabBtnInsumos'),
+    grafica: document.getElementById('cuTabBtnGrafica')
+  };
+  Object.keys(wraps).forEach(k=>{
+    if(wraps[k]) wraps[k].style.display = (k===tab) ? 'block' : 'none';
+    if(btns[k]){
+      btns[k].style.background = (k===tab) ? '#fff' : 'transparent';
+      btns[k].style.color = (k===tab) ? '#5d3fd1' : '#7c7c9a';
     }
-  }
-  // Bloquea el selector de sabor mientras la gráfica está abierta
-  if(sel) sel.disabled = __cuChartVisible;
-  if(btn) btn.textContent = __cuChartVisible ? "Ocultar gráfica" : "Ver gráfica";
+  });
+  if(tab==='insumos') cuRenderCatalog();
+  if(tab==='grafica') requestAnimationFrame(()=>{ renderCUChart(); });
 }
+// Alias por compatibilidad con llamadas previas
+function cuToggleChart(){ cuSetTab('grafica'); }
+function cuOpenCatalog(){ cuSetTab('insumos'); }
 
 /* =========================
    Canvas dinámico (scroll horizontal)
@@ -6449,12 +6477,6 @@ function cuCancelInlineCatalog(){
   cuCatEditIndex = null;
   cuRenderCatalog();
 }
-function cuOpenCatalog(){
-  closeSheets();
-  const sh=document.getElementById("cuCatalogSheet");
-  if(sh) sh.classList.add("active");
-  cuRenderCatalog();
-}
 function cuSaveCatalogItem(){
   const nameEl=document.getElementById("cuCatName");
   const packEl=document.getElementById("cuCatPack");
@@ -6726,6 +6748,8 @@ function cuPerInsumo(r){
 }
 
 function cuInit(){
+
+  cuSetTab('recetas');
 
   // ✅ Asegura receta base de VAINILLA (solo si falta o está vacía)
   try{
@@ -7996,9 +8020,9 @@ let __vgSel = vgLoad(); // persiste hasta que el usuario limpia
 
 function vgInit(){
   __vgSel = vgLoad();
-  __vgLlevado = vgLlevadoLoad();
+  __vgPedidos = vgPedidosLoadConMigracion();
   vgRender();
-  vgRenderResumenLlevado();
+  vgRenderPedidos();
 }
 
 function vgRender(){
@@ -8017,49 +8041,8 @@ function vgRender(){
     const key = toUpperSafe(p.name);
     const color = p.color || '#e0e7ff';
     const strip = color + 'cc';
-    const llev = __vgLlevado[key];
 
-    if(llev && llev.llevado>0){
-      // ---- Tarjeta CONVERTIDA: este sabor está "en la calle" ----
-      const vendido = Math.max(0,(llev.llevado||0)-(llev.regresado||0));
-      const llevadoAlMax = llev.llevado >= p.qty;
-      const regresadoAlMax = (llev.regresado||0) >= llev.llevado;
-      const regresadoAlMin = (llev.regresado||0) <= 0;
-      return `
-      <div style="background:#fffbeb;border:1.5px solid #fde68a;border-left:5px solid ${strip};border-radius:16px;padding:12px 14px;margin-bottom:10px">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
-          <div style="min-width:0">
-            <div style="font-weight:800;font-size:.95rem;color:#101826">${p.name}</div>
-            <div style="font-size:.78rem;color:#64748b;margin-top:2px">Vendidos: <b style="color:#16a34a">${vendido}</b></div>
-          </div>
-          <button type="button" onclick="vgQuitarLlevado('${key}')" aria-label="Quitar"
-            style="margin:0;flex:0 0 auto;width:26px;height:26px;border-radius:50%;background:#fef2f2;border:1.5px solid #fecaca;color:#dc2626;font-size:.85rem;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0">✕</button>
-        </div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #fde68a;border-radius:14px;padding:7px 10px 7px 12px;margin-bottom:10px">
-          <span style="font-size:.85rem;font-weight:700;color:#475569">Regresaste</span>
-          <span style="display:inline-flex;align-items:center;gap:8px">
-            <button type="button" onclick="vgAjustarRegreso('${key}',-1)" ${regresadoAlMin?'disabled':''}
-              style="margin:0;width:26px;height:26px;border-radius:50%;background:#fef2f2;border:none;color:#dc2626;font-size:.95rem;font-weight:900;display:flex;align-items:center;justify-content:center;padding:0;${regresadoAlMin?'opacity:.3;pointer-events:none':''}">−</button>
-            <b style="min-width:18px;text-align:center;display:inline-block;color:#101826;font-size:1rem">${llev.regresado||0}</b>
-            <button type="button" onclick="vgAjustarRegreso('${key}',1)" ${regresadoAlMax?'disabled':''}
-              style="margin:0;width:26px;height:26px;border-radius:50%;background:#f3f0ff;border:none;color:#5d3fd1;font-size:.95rem;font-weight:900;display:flex;align-items:center;justify-content:center;padding:0;${regresadoAlMax?'opacity:.3;pointer-events:none':''}">+</button>
-          </span>
-        </div>
-
-        <div style="display:flex;gap:8px;align-items:center">
-          <button type="button" onclick="vgAjustarLlevado('${key}',-1)"
-            style="margin:0;flex:0 0 42px;height:42px;border-radius:12px;background:#fef2f2;border:1.5px solid #fecaca;color:#dc2626;font-size:1.3rem;font-weight:800;display:flex;align-items:center;justify-content:center">−</button>
-          <input type="number" min="${llev.regresado||0}" max="${p.qty}" value="${llev.llevado}"
-            onchange="vgSetLlevado('${key}',this.value)"
-            style="flex:1;text-align:center;font-size:1.1rem;font-weight:800;border-radius:12px;border:1.5px solid #fde68a;padding:8px 4px;font-family:inherit;color:#1e1b2e;background:#fff">
-          <button type="button" onclick="vgAjustarLlevado('${key}',1)" ${llevadoAlMax?'disabled':''}
-            style="margin:0;flex:0 0 42px;height:42px;border-radius:12px;background:#fef3c7;border:1.5px solid #fde68a;color:#b45309;font-size:1.3rem;font-weight:800;display:flex;align-items:center;justify-content:center;${llevadoAlMax?'opacity:.3;pointer-events:none':''}" ${llevadoAlMax?'disabled':''}>+</button>
-        </div>
-      </div>`;
-    }
-
-    // ---- Tarjeta NORMAL: seleccionar cuánto llevarte ----
+    // ---- Tarjeta: seleccionar cuánto llevarte ----
     const sel = __vgSel[key] || 0;
     const pct = p.qty > 0 ? Math.round((sel/p.qty)*100) : 0;
     const isMax = sel >= p.qty;
@@ -8211,26 +8194,45 @@ async function vgVenderTodo(){
   try{ cloudSaveNow(); }catch(_){}
   render();
   vibrateSafe([12,40,12]);
-  AppUI.toast(`✅ Vendidas ${totalVendido} piezas`);
+  AppUI.toast(`Vendidas ${totalVendido} piezas`);
   __vgSel = {};
   vgSave();
   vgRender();
 }
 
 /* =========================
-   LLEVADO ("Ir a llevar" / regreso)
+   PEDIDOS EN LA CALLE ("Ir a llevar" / regreso)
    El inventario NO se toca al salir; solo se guarda cuánto te llevaste
-   de cada sabor. Mientras está activo, la MISMA tarjeta del sabor (en
-   vgLista) se convierte para mostrar "vendidos" y dejarte marcar
-   cuántas regresaste. Hasta darle "Vender" se descuenta inventario y
-   se registra la venta real (llevado - regresado).
+   de cada sabor, agrupado por pedido (con nombre). Cada pedido tiene su
+   propia tarjeta con "vendidos" y control de cuántas piezas regresaste.
+   Hasta darle "Vender" en ese pedido se descuenta inventario y se
+   registra la venta real (llevado - regresado), y el pedido se cierra.
 ========================= */
-const VG_LLEVADO_KEY = 'vg_llevado_v1';
+const VG_PEDIDOS_KEY = 'vg_pedidos_v1';
+const VG_LLEVADO_KEY_LEGACY = 'vg_llevado_v1'; // formato viejo, solo para migrar
 
-function vgLlevadoLoad(){ return safeParseJSON(localStorage.getItem(VG_LLEVADO_KEY)||'{}', {}); }
-function vgLlevadoSave(){ try{ localStorage.setItem(VG_LLEVADO_KEY, JSON.stringify(__vgLlevado)); }catch(_){} }
+function vgPedidosLoad(){ return safeParseJSON(localStorage.getItem(VG_PEDIDOS_KEY)||'[]', []); }
+function vgPedidosSave(){ try{ localStorage.setItem(VG_PEDIDOS_KEY, JSON.stringify(__vgPedidos)); }catch(_){} }
 
-let __vgLlevado = vgLlevadoLoad(); // {key: {llevado, regresado}}
+// Migra el formato viejo (un solo "llevado" global) a un pedido llamado "Pedido 1",
+// para no perder lo que ya estaba en la calle.
+function vgPedidosLoadConMigracion(){
+  const yaMigrado = localStorage.getItem(VG_PEDIDOS_KEY);
+  if(yaMigrado != null) return safeParseJSON(yaMigrado, []);
+
+  const legacy = safeParseJSON(localStorage.getItem(VG_LLEVADO_KEY_LEGACY)||'{}', {});
+  const entries = Object.entries(legacy).filter(([,it])=>(it && it.llevado)>0);
+  const pedidos = [];
+  if(entries.length){
+    const items = {};
+    entries.forEach(([key,it])=>{ items[key] = {llevado:it.llevado||0, regresado:it.regresado||0}; });
+    pedidos.push({ id:'ped_migrado_'+Date.now(), nombre:'Pedido 1', fecha: todayLocalISO(), items });
+  }
+  localStorage.setItem(VG_PEDIDOS_KEY, JSON.stringify(pedidos));
+  return pedidos;
+}
+
+let __vgPedidos = vgPedidosLoadConMigracion(); // [{id, nombre, fecha, items:{key:{llevado,regresado}}}]
 
 async function vgIniciarSalida(){
   const entries = Object.entries(__vgSel).filter(([,q])=>q>0);
@@ -8244,58 +8246,260 @@ async function vgIniciarSalida(){
   const ok = await AppUI.confirm(`Te vas a llevar:\n${resumen}\n\n¿Confirmar salida?`, {title:'Confirmar salida', danger:false});
   if(!ok) return;
 
+  const sugerido = `Pedido ${__vgPedidos.length + 1}`;
+  let nombre = await AppUI.promptText(`Ponle un nombre a este pedido (cliente, tienda, etc.)`, {title:'Nombre del pedido', placeholder:sugerido, value:''});
+  if(nombre === null) return; // canceló
+  nombre = String(nombre||'').trim() || sugerido;
+
+  const items = {};
   entries.forEach(([key,q])=>{
-    const cur = __vgLlevado[key] || {llevado:0, regresado:0};
-    cur.llevado = (cur.llevado||0) + q;
-    __vgLlevado[key] = cur;
+    items[key] = {llevado:q, regresado:0};
   });
-  vgLlevadoSave();
+
+  __vgPedidos.push({
+    id: 'ped_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+    nombre,
+    fecha: todayLocalISO(),
+    items
+  });
+  vgPedidosSave();
 
   __vgSel = {};
   vgSave();
   vgRender();
-  vgRenderResumenLlevado();
+  vgRenderPedidos();
   vibrateSafe([12,40,12]);
   AppUI.toast('Salida guardada');
 }
 
-function vgRenderResumenLlevado(){
-  const wrap = document.getElementById('vgSalidasWrap');
-  if(!wrap) return;
+function vgFindPedido(id){ return (__vgPedidos||[]).find(p=>p.id===id); }
 
-  const entries = Object.entries(__vgLlevado).filter(([,it])=>(it.llevado||0)>0);
-  if(!entries.length){ wrap.innerHTML = ''; wrap.style.marginBottom = '0'; return; }
-
-  const totalLlevado = entries.reduce((a,[,it])=>a+(it.llevado||0),0);
-  const totalVendido  = entries.reduce((a,[,it])=>a+Math.max(0,(it.llevado||0)-(it.regresado||0)),0);
-
-  wrap.style.marginBottom = '14px';
-  wrap.innerHTML = `
-    <div style="background:linear-gradient(135deg,#fbbf24,#f59e0b);border-radius:18px;padding:16px;color:#fff">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div style="font-size:.8rem;font-weight:800;opacity:.9">EN LA CALLE</div>
-        <button type="button" onclick="vgLimpiarLlevado()"
-          style="margin:0;padding:5px 12px;border-radius:20px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:.72rem;font-weight:700">✕ Limpiar</button>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-        <div>
-          <div style="font-size:.68rem;opacity:.85">LLEVADAS</div>
-          <div style="font-size:1.6rem;font-weight:900;line-height:1">${totalLlevado}</div>
-        </div>
-        <div>
-          <div style="font-size:.68rem;opacity:.85">VENDIDAS</div>
-          <div style="font-size:1.6rem;font-weight:900;line-height:1">${totalVendido}</div>
-        </div>
-      </div>
-      <button type="button" onclick="vgVenderLlevado()"
-        style="margin:0;width:100%;padding:13px;border-radius:14px;border:none;background:#fff;color:#b45309;font-weight:800;font-size:.85rem">
-        Vender ${totalVendido} pieza${totalVendido!==1?'s':''}
-      </button>
-    </div>`;
+function vgPedidoTotales(pedido){
+  const items = Object.values(pedido.items||{});
+  const llevado = items.reduce((a,it)=>a+(it.llevado||0),0);
+  const vendido = items.reduce((a,it)=>a+Math.max(0,(it.llevado||0)-(it.regresado||0)),0);
+  return {llevado, vendido};
 }
 
-function vgAjustarLlevado(key, delta){
-  const it = __vgLlevado[key];
+let __vgTab = 'pedidos'; // 'vender' | 'pedidos'
+let __vgPedidosExpandido = new Set();
+
+function vgSetTab(tab){
+  __vgTab = tab;
+  vgRenderPedidos();
+}
+
+function vgTogglePedido(id){
+  if(__vgPedidosExpandido.has(id)) __vgPedidosExpandido.delete(id);
+  else __vgPedidosExpandido.add(id);
+  vgRenderPedidos();
+}
+
+function vgTotalesGlobalesPedidos(pedidos){
+  let llevado = 0, vendido = 0;
+  pedidos.forEach(ped=>{
+    const t = vgPedidoTotales(ped);
+    llevado += t.llevado; vendido += t.vendido;
+  });
+  return {llevado, vendido};
+}
+
+function vgResumenPorSaborTodosPedidos(pedidos){
+  const map = {};
+  pedidos.forEach(ped=>{
+    Object.entries(ped.items||{}).forEach(([key,it])=>{
+      const vendido = Math.max(0,(it.llevado||0)-(it.regresado||0));
+      if(!map[key]) map[key] = {llevado:0, vendido:0};
+      map[key].llevado += it.llevado||0;
+      map[key].vendido += vendido;
+    });
+  });
+  return map;
+}
+
+function vgItemsPedidoHtml(pedido){
+  return Object.entries(pedido.items||{}).filter(([,it])=>(it.llevado||0)>0).map(([key,it])=>{
+    const item = (inventory||[]).find(p=>toUpperSafe(p.name)===key);
+    const nombre = item ? item.name : key;
+    const disponible = item ? (item.qty||0) : 999999;
+    const vendidoItem = Math.max(0,(it.llevado||0)-(it.regresado||0));
+    const llevadoAlMax = it.llevado >= disponible;
+    const regresadoAlMax = (it.regresado||0) >= it.llevado;
+    const regresadoAlMin = (it.regresado||0) <= 0;
+    return `
+    <div style="background:#fff;border:1px solid #fde68a;border-radius:14px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div style="min-width:0">
+          <div style="font-weight:800;font-size:.9rem;color:#101826">${nombre}</div>
+          <div style="font-size:.76rem;color:#64748b;margin-top:2px">Vendidos: <b style="color:#16a34a">${vendidoItem}</b></div>
+        </div>
+        <button type="button" onclick="vgQuitarItemPedido('${pedido.id}','${key}')" aria-label="Quitar"
+          style="margin:0;flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:#fef2f2;border:1.5px solid #fecaca;color:#dc2626;font-size:.8rem;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0">✕</button>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:6px 10px 6px 12px;margin-bottom:8px">
+        <span style="font-size:.82rem;font-weight:700;color:#475569">Regresaste</span>
+        <span style="display:inline-flex;align-items:center;gap:8px">
+          <button type="button" onclick="vgAjustarRegresoPedido('${pedido.id}','${key}',-1)" ${regresadoAlMin?'disabled':''}
+            style="margin:0;width:24px;height:24px;border-radius:50%;background:#fef2f2;border:none;color:#dc2626;font-size:.9rem;font-weight:900;display:flex;align-items:center;justify-content:center;padding:0;${regresadoAlMin?'opacity:.3;pointer-events:none':''}">−</button>
+          <b style="min-width:16px;text-align:center;display:inline-block;color:#101826;font-size:.95rem">${it.regresado||0}</b>
+          <button type="button" onclick="vgAjustarRegresoPedido('${pedido.id}','${key}',1)" ${regresadoAlMax?'disabled':''}
+            style="margin:0;width:24px;height:24px;border-radius:50%;background:#f3f0ff;border:none;color:#5d3fd1;font-size:.9rem;font-weight:900;display:flex;align-items:center;justify-content:center;padding:0;${regresadoAlMax?'opacity:.3;pointer-events:none':''}">+</button>
+        </span>
+      </div>
+
+      <div style="display:flex;gap:6px;align-items:center">
+        <button type="button" onclick="vgAjustarLlevadoPedido('${pedido.id}','${key}',-1)"
+          style="margin:0;flex:0 0 38px;height:38px;border-radius:10px;background:#fef2f2;border:1.5px solid #fecaca;color:#dc2626;font-size:1.15rem;font-weight:800;display:flex;align-items:center;justify-content:center">−</button>
+        <input type="number" min="${it.regresado||0}" max="${disponible}" value="${it.llevado}"
+          onchange="vgSetLlevadoPedido('${pedido.id}','${key}',this.value)"
+          style="flex:1;text-align:center;font-size:1rem;font-weight:800;border-radius:10px;border:1.5px solid #fde68a;padding:7px 4px;font-family:inherit;color:#1e1b2e;background:#fff">
+        <button type="button" onclick="vgAjustarLlevadoPedido('${pedido.id}','${key}',1)" ${llevadoAlMax?'disabled':''}
+          style="margin:0;flex:0 0 38px;height:38px;border-radius:10px;background:#fef3c7;border:1.5px solid #fde68a;color:#b45309;font-size:1.15rem;font-weight:800;display:flex;align-items:center;justify-content:center;${llevadoAlMax?'opacity:.3;pointer-events:none':''}" ${llevadoAlMax?'disabled':''}>+</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function vgRenderTabPedidos(pedidos){
+  return pedidos.map(pedido=>{
+    const {llevado, vendido} = vgPedidoTotales(pedido);
+    const expanded = __vgPedidosExpandido.has(pedido.id);
+    return `
+    <div style="background:linear-gradient(135deg,#fbbf24,#f59e0b);border-radius:18px;padding:16px;color:#fff;margin-bottom:12px">
+      <div onclick="vgTogglePedido('${pedido.id}')" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div style="min-width:0">
+          <div style="font-size:1.05rem;font-weight:900;line-height:1.2">${escapeHtmlAttr(pedido.nombre)}</div>
+          <div style="font-size:.74rem;opacity:.85;margin-top:2px">${llevado} llevadas · ${vendido} vendidas</div>
+        </div>
+        <div style="font-size:1.2rem;font-weight:800;flex:0 0 auto;transform:rotate(${expanded?180:0}deg);transition:transform .2s">⌄</div>
+      </div>
+
+      ${expanded ? `
+        <div style="margin-top:14px">${vgItemsPedidoHtml(pedido)}</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button type="button" onclick="vgCompartirPedido('${pedido.id}')"
+            style="margin:0;flex:1;padding:12px;border-radius:14px;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.12);color:#fff;font-weight:800;font-size:.82rem">
+            Compartir
+          </button>
+          <button type="button" onclick="vgVenderPedido('${pedido.id}')"
+            style="margin:0;flex:1;padding:12px;border-radius:14px;border:none;background:#fff;color:#b45309;font-weight:800;font-size:.82rem">
+            Vender ${vendido} pieza${vendido!==1?'s':''}
+          </button>
+        </div>
+        <button type="button" onclick="vgEliminarPedido('${pedido.id}')"
+          style="margin:0;width:100%;padding:9px;border-radius:12px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:.76rem;font-weight:700">
+          Eliminar pedido
+        </button>
+      ` : ''}
+    </div>`;
+  }).join('');
+}
+
+function vgRenderPedidos(){
+  const tabsWrap = document.getElementById('vgTabsWrap');
+  const flowWrap = document.getElementById('vgVenderFlow');
+  const pedidosWrap = document.getElementById('vgPedidosOnly');
+  if(!tabsWrap || !flowWrap || !pedidosWrap) return;
+
+  const pedidos = (__vgPedidos||[]).filter(ped => Object.values(ped.items||{}).some(it=>(it.llevado||0)>0));
+
+  if(!pedidos.length){
+    // Sin pedidos "en la calle": no hay nada que elegir, solo el flujo normal.
+    tabsWrap.innerHTML = '';
+    tabsWrap.style.marginBottom = '0';
+    flowWrap.style.display = '';
+    pedidosWrap.innerHTML = '';
+    pedidosWrap.style.marginBottom = '0';
+    return;
+  }
+
+  tabsWrap.style.marginBottom = '14px';
+  tabsWrap.innerHTML = `
+  <div style="display:flex;gap:6px;background:#f1f0ff;border-radius:14px;padding:4px">
+    <button type="button" onclick="vgSetTab('vender')"
+      style="flex:1;margin:0;padding:10px;border:none;border-radius:11px;font-weight:800;font-size:.85rem;background:${__vgTab==='vender'?'#fff':'transparent'};color:${__vgTab==='vender'?'#5d3fd1':'#7c7c9a'}">
+      Vender
+    </button>
+    <button type="button" onclick="vgSetTab('pedidos')"
+      style="flex:1;margin:0;padding:10px;border:none;border-radius:11px;font-weight:800;font-size:.85rem;background:${__vgTab==='pedidos'?'#fff':'transparent'};color:${__vgTab==='pedidos'?'#5d3fd1':'#7c7c9a'}">
+      Pedidos
+    </button>
+  </div>`;
+
+  if(__vgTab==='vender'){
+    // Vender: solo el flujo normal (pedido actual + sabores + acciones).
+    flowWrap.style.display = '';
+    pedidosWrap.innerHTML = '';
+    pedidosWrap.style.marginBottom = '0';
+  } else {
+    // Pedidos: solo las tarjetas colapsables, sin tarjeta morada ni sabores.
+    flowWrap.style.display = 'none';
+    pedidosWrap.style.marginBottom = '14px';
+    pedidosWrap.innerHTML = vgRenderTabPedidos(pedidos);
+  }
+}
+
+async function vgVenderTodosPedidos(){
+  const pedidosActivos = (__vgPedidos||[]).filter(ped => Object.values(ped.items||{}).some(it=>(it.llevado||0)>0));
+  const resumenMap = vgResumenPorSaborTodosPedidos(pedidosActivos);
+  const entries = Object.entries(resumenMap).filter(([,v])=>v.vendido>0);
+
+  if(!entries.length){
+    AppUI.toast('No hay piezas vendidas todavía');
+    return;
+  }
+
+  const resumen = entries.map(([key,v])=>{
+    const item = (inventory||[]).find(p=>toUpperSafe(p.name)===key);
+    return `${item?item.name:key}: ${v.vendido}`;
+  }).join('\n');
+  const ok = await AppUI.confirm(`Vas a vender:\n${resumen}\n\n¿Confirmar venta?`, {title:'Confirmar venta', danger:false});
+  if(!ok) return;
+
+  const d = todayLocalISO();
+  let totalVendido = 0;
+
+  entries.forEach(([key,v])=>{
+    const idx = (inventory||[]).findIndex(p=>toUpperSafe(p.name)===key);
+    if(idx<0) return;
+    const p = inventory[idx];
+    const realQty = Math.min(v.vendido, p.qty||0);
+    if(realQty<=0) return;
+
+    inventory[idx].qty -= realQty;
+    totalVendido += realQty;
+
+    const cu = Number(p.cost)||0;
+    const existing = sales.find(x=>normalizeISODate(x.date)===d && toUpperSafe(x.product)===toUpperSafe(p.name));
+    if(existing){
+      existing.qty = (parseInt(existing.qty)||0) + realQty;
+      if(existing.costUnit==null) existing.costUnit = cu;
+    }else{
+      sales.push({product:p.name, date:d, qty:realQty, costUnit:cu});
+    }
+  });
+
+  saveSilent();
+  try{ cloudSaveNow(); }catch(_){}
+  render();
+  vibrateSafe([12,40,12]);
+  AppUI.toast(`Vendidas ${totalVendido} piezas`);
+
+  // Cierra solo los pedidos que tenían algo vendible; deja intactos los que no tenían nada que vender
+  __vgPedidos = (__vgPedidos||[]).filter(ped=>{
+    const t = vgPedidoTotales(ped);
+    return t.vendido <= 0;
+  });
+  vgPedidosSave();
+  vgRender();
+  vgRenderPedidos();
+}
+
+function vgAjustarLlevadoPedido(pedidoId, key, delta){
+  const pedido = vgFindPedido(pedidoId);
+  if(!pedido) return;
+  const it = pedido.items[key];
   if(!it) return;
   const item = (inventory||[]).find(p=>toUpperSafe(p.name)===key);
   const disponible = item ? (item.qty||0) : 999999;
@@ -8303,15 +8507,16 @@ function vgAjustarLlevado(key, delta){
   if(v < (it.regresado||0)) v = it.regresado||0;
   if(v < 0) v = 0;
   if(v > disponible) v = disponible;
-  if(v === 0){ delete __vgLlevado[key]; }
+  if(v === 0){ delete pedido.items[key]; }
   else { it.llevado = v; }
-  vgLlevadoSave();
-  vgRender();
-  vgRenderResumenLlevado();
+  vgPedidosSave();
+  vgRenderPedidos();
 }
 
-function vgSetLlevado(key, rawVal){
-  const it = __vgLlevado[key];
+function vgSetLlevadoPedido(pedidoId, key, rawVal){
+  const pedido = vgFindPedido(pedidoId);
+  if(!pedido) return;
+  const it = pedido.items[key];
   if(!it) return;
   const item = (inventory||[]).find(p=>toUpperSafe(p.name)===key);
   const disponible = item ? (item.qty||0) : 999999;
@@ -8319,43 +8524,74 @@ function vgSetLlevado(key, rawVal){
   if(v < (it.regresado||0)) v = it.regresado||0;
   if(v < 0) v = 0;
   if(v > disponible) v = disponible;
-  if(v === 0){ delete __vgLlevado[key]; }
+  if(v === 0){ delete pedido.items[key]; }
   else { it.llevado = v; }
-  vgLlevadoSave();
-  vgRender();
-  vgRenderResumenLlevado();
+  vgPedidosSave();
+  vgRenderPedidos();
 }
 
-function vgAjustarRegreso(key, delta){
-  const it = __vgLlevado[key];
+function vgAjustarRegresoPedido(pedidoId, key, delta){
+  const pedido = vgFindPedido(pedidoId);
+  if(!pedido) return;
+  const it = pedido.items[key];
   if(!it) return;
   let v = (it.regresado||0) + delta;
   if(v < 0) v = 0;
   if(v > it.llevado) v = it.llevado;
   it.regresado = v;
-  vgLlevadoSave();
-  vgRender();
-  vgRenderResumenLlevado();
+  vgPedidosSave();
+  vgRenderPedidos();
 }
 
-function vgQuitarLlevado(key){
-  delete __vgLlevado[key];
-  vgLlevadoSave();
-  vgRender();
-  vgRenderResumenLlevado();
+function vgQuitarItemPedido(pedidoId, key){
+  const pedido = vgFindPedido(pedidoId);
+  if(!pedido) return;
+  delete pedido.items[key];
+  vgPedidosSave();
+  vgRenderPedidos();
 }
 
-async function vgLimpiarLlevado(){
-  const ok = await AppUI.confirm('¿Limpiar todo lo que llevaste? No se registrará ninguna venta.', {title:'Limpiar salida', danger:true});
+async function vgEliminarPedido(pedidoId){
+  const pedido = vgFindPedido(pedidoId);
+  const nombre = pedido ? pedido.nombre : 'este pedido';
+  const ok = await AppUI.confirm(`¿Eliminar "${nombre}"? No se registrará ninguna venta.`, {title:'Eliminar pedido', danger:true});
   if(!ok) return;
-  __vgLlevado = {};
-  vgLlevadoSave();
-  vgRender();
-  vgRenderResumenLlevado();
+  __vgPedidos = (__vgPedidos||[]).filter(p=>p.id!==pedidoId);
+  __vgPedidosExpandido.delete(pedidoId);
+  vgPedidosSave();
+  vgRenderPedidos();
 }
 
-async function vgVenderLlevado(){
-  const vendibles = Object.entries(__vgLlevado)
+function vgCompartirPedido(pedidoId){
+  const pedido = vgFindPedido(pedidoId);
+  if(!pedido) return;
+  const entries = Object.entries(pedido.items||{}).filter(([,it])=>(it.llevado||0)>0);
+  if(!entries.length){ AppUI.toast('No hay piezas en este pedido'); return; }
+
+  let totalPiezas = 0;
+  const lineas = entries.map(([key,it])=>{
+    const item = (inventory||[]).find(p=>toUpperSafe(p.name)===key);
+    totalPiezas += it.llevado||0;
+    return `• ${item ? item.name : key}: ${it.llevado} pz`;
+  });
+
+  const texto = [
+    `🧊 *HIELI CREAM – ${pedido.nombre}*`,
+    ``,
+    ...lineas,
+    ``,
+    `*TOTAL: ${totalPiezas} piezas*`
+  ].join('\n');
+
+  const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
+  window.open(url, '_blank');
+}
+
+async function vgVenderPedido(pedidoId){
+  const pedido = vgFindPedido(pedidoId);
+  if(!pedido) return;
+
+  const vendibles = Object.entries(pedido.items||{})
     .map(([key,it])=>({key, vendido: Math.max(0,(it.llevado||0)-(it.regresado||0))}))
     .filter(it=>it.vendido>0);
 
@@ -8368,7 +8604,7 @@ async function vgVenderLlevado(){
     const item = (inventory||[]).find(p=>toUpperSafe(p.name)===it.key);
     return `${item?item.name:it.key}: ${it.vendido}`;
   }).join('\n');
-  const ok = await AppUI.confirm(`Vas a vender:\n${resumen}\n\n¿Confirmar venta?`, {title:'Confirmar venta', danger:false});
+  const ok = await AppUI.confirm(`Vas a vender (${pedido.nombre}):\n${resumen}\n\n¿Confirmar venta?`, {title:'Confirmar venta', danger:false});
   if(!ok) return;
 
   const d = todayLocalISO();
@@ -8398,12 +8634,12 @@ async function vgVenderLlevado(){
   try{ cloudSaveNow(); }catch(_){}
   render();
   vibrateSafe([12,40,12]);
-  AppUI.toast(`✅ Vendidas ${totalVendido} piezas`);
+  AppUI.toast(`Vendidas ${totalVendido} piezas`);
 
-  __vgLlevado = {};
-  vgLlevadoSave();
+  __vgPedidos = (__vgPedidos||[]).filter(p=>p.id!==pedidoId);
+  vgPedidosSave();
   vgRender();
-  vgRenderResumenLlevado();
+  vgRenderPedidos();
 }
 
 
@@ -8596,6 +8832,10 @@ const AppUI = (()=>{
           if(nn > max) return max;
           return nn;
         });
+    },
+    promptText: (message, {title='Escribe', placeholder='', value='', okText='Aceptar', cancelText='Cancelar'}={})=>{
+      return open({title, message, kind:'prompt', okText, cancelText, showInput:true, inputValue:String(value??''), inputPlaceholder:placeholder, inputMode:'text'})
+        .then(v=> v===null ? null : String(v));
     }
   };
 })();
@@ -10237,7 +10477,15 @@ function actualizarResumenGrafica(labels,gastos,ganancias){
 function showVentasTab(tab){
  var r=document.getElementById('ventasRegistroTab');
  var c=document.getElementById('ventasComparativaTab');
+ var bR=document.getElementById('ventasTabRegistro');
+ var bC=document.getElementById('ventasTabComparativa');
  if(r&&c){r.style.display=tab==='registro'?'block':'none'; c.style.display=tab==='comparativa'?'block':'none';}
+ if(bR&&bC){
+   bR.style.background = tab==='registro' ? '#fff' : 'transparent';
+   bR.style.color = tab==='registro' ? '#5d3fd1' : '#7c7c9a';
+   bC.style.background = tab==='comparativa' ? '#fff' : 'transparent';
+   bC.style.color = tab==='comparativa' ? '#5d3fd1' : '#7c7c9a';
+ }
  if(tab==='comparativa' && typeof llenarPVs==='function') llenarPVs();
 }
 document.addEventListener('DOMContentLoaded',function(){
