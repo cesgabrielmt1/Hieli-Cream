@@ -8281,7 +8281,7 @@ function vgPedidoTotales(pedido){
   return {llevado, vendido};
 }
 
-let __vgTab = 'pedidos'; // 'vender' | 'pedidos'
+let __vgTab = 'vender'; // 'vender' | 'pedidos'
 let __vgPedidosExpandido = new Set();
 
 function vgSetTab(tab){
@@ -8404,16 +8404,7 @@ function vgRenderPedidos(){
 
   const pedidos = (__vgPedidos||[]).filter(ped => Object.values(ped.items||{}).some(it=>(it.llevado||0)>0));
 
-  if(!pedidos.length){
-    // Sin pedidos "en la calle": no hay nada que elegir, solo el flujo normal.
-    tabsWrap.innerHTML = '';
-    tabsWrap.style.marginBottom = '0';
-    flowWrap.style.display = '';
-    pedidosWrap.innerHTML = '';
-    pedidosWrap.style.marginBottom = '0';
-    return;
-  }
-
+  // Los tabs Vender/Pedidos siempre se muestran arriba.
   tabsWrap.style.marginBottom = '14px';
   tabsWrap.innerHTML = `
   <div style="display:flex;gap:6px;background:#f1f0ff;border-radius:14px;padding:4px">
@@ -8436,7 +8427,9 @@ function vgRenderPedidos(){
     // Pedidos: solo las tarjetas colapsables, sin tarjeta morada ni sabores.
     flowWrap.style.display = 'none';
     pedidosWrap.style.marginBottom = '14px';
-    pedidosWrap.innerHTML = vgRenderTabPedidos(pedidos);
+    pedidosWrap.innerHTML = pedidos.length
+      ? vgRenderTabPedidos(pedidos)
+      : `<div class="smallnote" style="text-align:center;padding:24px 0">Aún no tienes pedidos en la calle.<br>Ve a la pestaña <b>Vender</b> y toca <b>Ir a llevar</b>.</div>`;
   }
 }
 
