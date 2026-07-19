@@ -71,6 +71,14 @@ function cloudSaveSoon(){
 function cloudSave(){ _doCloudSave(); }
 
 function _doCloudSave(){
+  // 🔒 No subir nada hasta confirmar los datos reales del servidor.
+  // Evita que un dispositivo recién abierto (con datos locales viejos)
+  // sobrescriba datos más nuevos que ya están en la nube.
+  if(!__cloudReady){
+    console.warn("cloudSave bloqueado: esperando confirmación del servidor");
+    updateCloudStamp("☁️ Sincronizando... (esperando nube antes de guardar)");
+    return;
+  }
   _bumpIgnore(); // suma 1 al contador — el snapshot de este save será ignorado
   try{
     const payload = {
@@ -123,6 +131,15 @@ let __snapshotUnsub = null;
 let __ignoreSnapshots = 0;
 let __ignoreResetTimer = null;
 
+// ---- CANDADO ANTI-SOBRESCRITURA ----
+// Un dispositivo que estuvo cerrado mucho tiempo abre con datos VIEJOS en su
+// localStorage (y hasta en la caché local de Firestore). Si ese dispositivo
+// sube a la nube ANTES de haber confirmado los datos reales del servidor,
+// pisa (sobrescribe) los datos más nuevos que otros dispositivos ya subieron.
+// __cloudReady solo pasa a true cuando confirmamos datos del SERVIDOR
+// (doc.metadata.fromCache === false), nunca con datos de caché local.
+let __cloudReady = false;
+
 function _bumpIgnore(){
   __ignoreSnapshots++;
   // Seguro: si en 8s no llegaron todos los snapshots, resetear
@@ -134,16 +151,33 @@ function cloudStartListening(){
   // Si ya hay un listener activo, no crear otro
   if(__snapshotUnsub) return;
   updateCloudStamp("☁️ Conectando...");
-  __snapshotUnsub = db.collection("data").doc(CLOUD_DOC).onSnapshot(doc => {
-    if(!doc.exists){ updateCloudStamp("☁️ Sin datos en nube aún"); return; }
+  __snapshotUnsub = db.collection("data").doc(CLOUD_DOC).onSnapshot({includeMetadataChanges: true}, doc => {
+    if(!doc.exists){
+      // No hay nada en la nube todavía: este dispositivo puede ser el primero en subir
+      __cloudReady = true;
+      updateCloudStamp("☁️ Sin datos en nube aún");
+      return;
+    }
+    const esDelServidor = !doc.metadata.fromCache;
     // Ignorar snapshots causados por ESTE dispositivo
     if(__ignoreSnapshots > 0){
-      __ignoreSnapshots--;
+      // Solo descontamos y confiamos en el contador cuando ya es confirmación del servidor
+      if(esDelServidor){
+        __ignoreSnapshots--;
+        __cloudReady = true;
+      }
       updateCloudStamp("☁️ Sincronizado");
       return;
     }
     _applyCloudData(doc.data());
-    updateCloudStamp("☁️ Sincronizado en tiempo real");
+    if(esDelServidor){
+      __cloudReady = true;
+      updateCloudStamp("☁️ Sincronizado en tiempo real");
+    } else {
+      // Dato de caché local (puede estar viejo): lo mostramos pero NO habilitamos
+      // guardado hacia la nube hasta confirmar con el servidor.
+      updateCloudStamp("☁️ Sincronizando...");
+    }
   }, err => {
     __snapshotUnsub = null;
     updateCloudStamp("⚠️ Sin conexión (datos locales)");
