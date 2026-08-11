@@ -70,6 +70,9 @@ function cloudSaveSoon(){
 
 function cloudSave(){ _doCloudSave(); }
 
+let __pendingCloudSave = false; // hubo un cambio mientras __cloudReady era false: reintentar en cuanto se confirme la nube
+let __pendingQtyDeltas = {}; // { nombreSabor: sumaDeToquesPendientes } — se reaplican ENCIMA de la nube, nunca la pisan
+
 function _doCloudSave(){
   // 🔒 No subir nada hasta confirmar los datos reales del servidor.
   // Evita que un dispositivo recién abierto (con datos locales viejos)
@@ -77,8 +80,10 @@ function _doCloudSave(){
   if(!__cloudReady){
     console.warn("cloudSave bloqueado: esperando confirmación del servidor");
     updateCloudStamp("☁️ Sincronizando... (esperando nube antes de guardar)");
+    __pendingCloudSave = true; // no se pierde: se reintenta solo
     return;
   }
+  __pendingCloudSave = false;
   _bumpIgnore(); // suma 1 al contador — el snapshot de este save será ignorado
   try{
     const payload = {
@@ -147,6 +152,27 @@ function _bumpIgnore(){
   __ignoreResetTimer = setTimeout(() => { __ignoreSnapshots = 0; }, 8000);
 }
 
+function _retryPendingCloudSaveIfAny(){
+  if(__pendingCloudSave) _doCloudSave();
+}
+
+// Reaplica ENCIMA de los datos frescos de la nube solo los toques de +/- que
+// se hicieron antes de confirmar conexión (nunca al revés). Así nunca se pisa
+// algo más nuevo de otro celular: la nube manda, y tu toque se suma después.
+function _replayPendingQtyDeltas(){
+  const names = Object.keys(__pendingQtyDeltas);
+  if(names.length===0) return;
+  names.forEach(name=>{
+    const delta = __pendingQtyDeltas[name];
+    const idx = inventory.findIndex(p=>p.name===name);
+    if(idx>-1) inventory[idx].qty = Math.max(0, (inventory[idx].qty||0) + delta);
+  });
+  __pendingQtyDeltas = {};
+  try{ render(); }catch(_){}
+  saveSilent();
+  __pendingCloudSave = true;
+}
+
 function cloudStartListening(){
   // Si ya hay un listener activo, no crear otro
   if(__snapshotUnsub) return;
@@ -156,6 +182,8 @@ function cloudStartListening(){
       // No hay nada en la nube todavía: este dispositivo puede ser el primero en subir
       __cloudReady = true;
       updateCloudStamp("☁️ Sin datos en nube aún");
+      _replayPendingQtyDeltas();
+      _retryPendingCloudSaveIfAny();
       return;
     }
     const esDelServidor = !doc.metadata.fromCache;
@@ -167,12 +195,19 @@ function cloudStartListening(){
         __cloudReady = true;
       }
       updateCloudStamp("☁️ Sincronizado");
+      _replayPendingQtyDeltas();
+      _retryPendingCloudSaveIfAny();
       return;
     }
+    // 🔒 SIEMPRE mandan los datos de la nube primero (nunca los pisamos).
     _applyCloudData(doc.data());
     if(esDelServidor){
       __cloudReady = true;
       updateCloudStamp("☁️ Sincronizado en tiempo real");
+      // Encima de esos datos frescos, se suma cualquier +/- que hiciste
+      // mientras se confirmaba la conexión (nunca al revés).
+      _replayPendingQtyDeltas();
+      _retryPendingCloudSaveIfAny();
     } else {
       // Dato de caché local (puede estar viejo): lo mostramos pero NO habilitamos
       // guardado hacia la nube hasta confirmar con el servidor.
@@ -1422,20 +1457,29 @@ body{ padding-bottom: 92px; }
   text-overflow:ellipsis;
 }
 
-/* SHEETS */
+/* SHEETS -> ahora son "ventanas" de pantalla completa, no tarjetas flotantes */
 .sheet{
  position:fixed;
  left:0;right:0;
- bottom:-110%;
+ top:0;bottom:0;
  background:white;
- border-radius:34px 34px 0 0;
+ border-radius:0;
  padding:24px;
- transition:.35s;
- max-height:92vh;
+ padding-top:max(24px, env(safe-area-inset-top));
+ padding-bottom:max(24px, env(safe-area-inset-bottom));
+ transition:transform .3s ease, visibility 0s linear .3s;
+ transform:translateY(100%);
+ visibility:hidden;
+ height:100%;
+ max-height:none;
  overflow:auto;
  z-index:1500;
 }
-.sheet.active{bottom:0}
+.sheet.active{
+ transform:translateY(0);
+ visibility:visible;
+ transition:transform .3s ease, visibility 0s linear 0s;
+}
 
 .sheet input,.sheet select{
  width:100%;
@@ -2282,19 +2326,53 @@ align-items:center;text-align:center;}
 }
 .menuBtn .mSub{ display: none !important; }
 
-/* Degradados logo HieliCream */
-.mBtn-1 .mIcon{ background: linear-gradient(135deg,#38c6f5,#7c5fe6) !important; }
-.mBtn-2 .mIcon{ background: linear-gradient(135deg,#7c5fe6,#c45ee8) !important; }
-.mBtn-3 .mIcon{ background: linear-gradient(135deg,#c45ee8,#f06fc4) !important; }
-.mBtn-4 .mIcon{ background: linear-gradient(135deg,#38c6f5,#c45ee8) !important; }
-.mBtn-5 .mIcon{ background: linear-gradient(135deg,#7c5fe6,#f06fc4) !important; }
-.mBtn-6 .mIcon{ background: linear-gradient(135deg,#4db8ff,#7c5fe6) !important; }
-.mBtn-7 .mIcon{ background: linear-gradient(135deg,#c45ee8,#7c5fe6) !important; }
-.mBtn-8 .mIcon{ background: linear-gradient(135deg,#38c6f5,#4db8ff) !important; }
-.mBtn-9 .mIcon{ background: linear-gradient(135deg,#9b6fe8,#f06fc4) !important; }
-.mBtn-10 .mIcon{ background: linear-gradient(135deg,#22c55e,#16a34a) !important; }
+/* Degradados logo HieliCream (ya no se usan como fondo de ícono, ver estilo unificado abajo) */
 
-.sheet .menuBtn{ border-radius: 28px !important; background: #f0f1f5 !important; }
+/* Estilo de íconos tipo "Menu Icons": mismo color morado sobre fondo claro uniforme */
+.menuBtn .mIcon{
+  background:#ede9fe !important;
+  box-shadow:none !important;
+}
+.menuBtn .mIcon svg{
+  stroke:#5d3fd1 !important;
+}
+
+/* Botón destacado "Nuevo Sabor" debajo de la cuadrícula */
+.menuFeatured{
+  appearance:none;
+  border:none;
+  width:100%;
+  margin-top:14px;
+  padding:18px 20px;
+  border-radius:26px;
+  background:linear-gradient(135deg,#7c5fe6,#5d3fd1);
+  display:flex;
+  align-items:center;
+  gap:16px;
+  text-align:left;
+  cursor:pointer;
+  box-shadow:0 14px 30px rgba(93,63,209,.35);
+  transition:transform .13s ease, box-shadow .13s ease;
+}
+.menuFeatured:active{ transform:scale(.97); }
+.menuFeatured .mfIcon{
+  flex-shrink:0;
+  width:52px;height:52px;
+  border-radius:18px;
+  background:rgba(255,255,255,.22);
+  display:grid;place-items:center;
+}
+.menuFeatured .mfIcon svg{
+  width:26px;height:26px;
+  stroke:#fff;
+  stroke-width:2.2px;
+  fill:none;
+}
+.menuFeatured .mfText{ display:flex; flex-direction:column; gap:2px; }
+.menuFeatured .mfTitle{ font-size:1rem; font-weight:900; color:#fff; }
+.menuFeatured .mfSub{ font-size:.76rem; font-weight:700; color:rgba(255,255,255,.85); }
+
+.sheet .menuBtn{ border-radius: 18px !important; background: #ffffff !important; box-shadow: 0 2px 10px rgba(15,23,42,.07) !important; border: 1px solid #f1f0ff !important; }
 
 
 /* =========================
@@ -2669,6 +2747,13 @@ align-items:center;text-align:center;}
     gap: 4px !important;
 }
 
+.brand-logo-img{
+    width: 140px !important;
+    max-width: 42vw !important;
+    height: auto !important;
+    display: block !important;
+}
+
 .text-inventario-top {
     font-size: 14px !important;
     font-weight: 800 !important;
@@ -2726,6 +2811,68 @@ align-items:center;text-align:center;}
 }
 
 
+
+/* Filtro de categorías (Todos / Leche / Agua / Postres) */
+.catFilterRow{
+  width:100% !important;
+  max-width:680px !important;
+  margin:0 auto 18px auto !important;
+  padding:0 4px !important;
+  box-sizing:border-box !important;
+  display:flex !important;
+  align-items:stretch !important;
+  gap:8px !important;
+}
+.catFilterRow .catChip{
+  flex:1 1 0 !important;
+}
+.catFilterRow .catChip.catChipIcon{
+  flex:0 0 auto !important;
+}
+button.catChip{
+  flex:0 0 auto;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  width:auto !important;
+  background:#ffffff !important;
+  border:1.5px solid #ede9fe !important;
+  border-radius:999px !important;
+  padding:7px 14px !important;
+  font-size:12px !important;
+  font-weight:800 !important;
+  color:#64748b !important;
+  letter-spacing:.2px;
+  cursor:pointer;
+  transition:.2s;
+  white-space:nowrap;
+  margin-top:0 !important;
+}
+button.catChip.catChipIcon{
+  padding:7px 11px !important;
+  color:#7c5fe6 !important;
+  border-color:#ede9fe !important;
+}
+button.catChip.catChipIcon svg{
+  width:15px;height:15px;
+  display:block;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:2.2;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+button.catChip.active{
+  background:var(--primary) !important;
+  border-color:var(--primary) !important;
+  color:#fff !important;
+}
+button.catChip.active svg{ stroke:#fff; }
+
+#catPickerGrid{
+  display:flex !important;
+  flex-wrap:wrap !important;
+}
 
 .moneyChartScroll{
   width:100%;
@@ -2970,8 +3117,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <div class="container-cabecera-simetrica">
   <h1 class="titleWrap">
     <div class="brand-container-stack">
-      <span class="text-inventario-top">INVENTARIO</span>
-      <span class="titleBrand-custom">HIELI CREAM</span>
+      <img class="brand-logo-img" src="logo.webp" alt="Hieli Cream - Hielitos Gourmet">
     </div>
     <div class="tarjeta-total-superior-grande">
       <p>Total Hielitos</p>
@@ -2980,7 +3126,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   </h1>
 </div>
 
-
+<div class="catFilterRow" id="catFilterRow"></div>
 
 <div class="inventory" id="inventory"></div>
 <div id="savedStamp" class="savedStamp"></div>
@@ -3017,31 +3163,17 @@ document.addEventListener('DOMContentLoaded',()=>{
     <div class="mTitle">Ventas</div>
     <div class="mSub">Ingresos diarios</div>
   </button>
+  <button class="menuBtn mBtn-10" onclick="goTo('vg')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+    <div class="mTitle">Ventas Grandes</div>
+    <div class="mSub">Venta por lote</div>
+  </button>
   <button class="menuBtn mBtn-2" onclick="goTo('stats')">
     <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M8 19V11"/><path d="M12 19V7"/><path d="M16 19V13"/><path d="M20 19V9"/></svg></div>
     <div class="mTitle">Productos vendidos</div>
     <div class="mSub">Análisis por sabor</div>
   </button>
-  <button class="menuBtn mBtn-1" onclick="goTo('add')">
-    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 21h8"/><path d="M12 21v-5"/><path d="M7 10.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5c0 2.6-1.6 4.7-3.8 5.3H10.8C8.6 15.2 7 13.1 7 10.5Z"/></svg></div>
-    <div class="mTitle">Nuevo Sabor</div>
-    <div class="mSub">Agregar sabores</div>
-  </button>
-  <button class="menuBtn mBtn-5" onclick="goTo('db')">
-    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5"/><path d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg></div>
-    <div class="mTitle">Base de datos</div>
-    <div class="mSub">Editar vendidos</div>
-  </button>
-  <button class="menuBtn mBtn-7" onclick="goTo('history')">
-    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l3 3v15a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v4h4"/><path d="M8 12h8"/><path d="M8 16h8"/></svg></div>
-    <div class="mTitle">Reportes</div>
-    <div class="mSub">Historial + PDF</div>
-  </button>
-  <button class="menuBtn mBtn-9" onclick="goTo('proyecciones')">
-    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 20h20"/><path d="M5 20V10l5-5 4 4 5-7"/><circle cx="10" cy="10" r="1" fill="currentColor"/><circle cx="14" cy="14" r="1" fill="currentColor"/><circle cx="19" cy="7" r="1" fill="currentColor"/></svg></div>
-    <div class="mTitle">Proyecciones</div>
-    <div class="mSub">Estimado de ventas</div>
-  </button>
+
   <button class="menuBtn mBtn-4" onclick="goTo('cu')">
     <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><path d="M9 12h6"/><path d="M9 16h4"/></svg></div>
     <div class="mTitle">Recetas</div>
@@ -3052,19 +3184,39 @@ document.addEventListener('DOMContentLoaded',()=>{
     <div class="mTitle">Compras</div>
     <div class="mSub">OC por críticos</div>
   </button>
+  <button class="menuBtn mBtn-7" onclick="goTo('history')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l3 3v15a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v4h4"/><path d="M8 12h8"/><path d="M8 16h8"/></svg></div>
+    <div class="mTitle">Reportes</div>
+    <div class="mSub">Historial + PDF</div>
+  </button>
+
   <button class="menuBtn mBtn-6" onclick="goTo('io')">
     <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></div>
     <div class="mTitle">Guardado</div>
     <div class="mSub">Copias de seguridad</div>
   </button>
-  <button class="menuBtn mBtn-10" onclick="goTo('vg')">
-    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
-    <div class="mTitle">Ventas Grandes</div>
-    <div class="mSub">Venta por lote</div>
+  <button class="menuBtn mBtn-5" onclick="goTo('db')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5"/><path d="M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></svg></div>
+    <div class="mTitle">Base de datos</div>
+    <div class="mSub">Editar vendidos</div>
+  </button>
+  <button class="menuBtn mBtn-9" onclick="goTo('proyecciones')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 20h20"/><path d="M5 20V10l5-5 4 4 5-7"/><circle cx="10" cy="10" r="1" fill="currentColor"/><circle cx="14" cy="14" r="1" fill="currentColor"/><circle cx="19" cy="7" r="1" fill="currentColor"/></svg></div>
+    <div class="mTitle">Proyecciones</div>
+    <div class="mSub">Estimado de ventas</div>
   </button>
  </div>
 
+ <button class="menuFeatured" onclick="goTo('add')">
+   <div class="mfIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 21h8"/><path d="M12 21v-5"/><path d="M7 10.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5c0 2.6-1.6 4.7-3.8 5.3H10.8C8.6 15.2 7 13.1 7 10.5Z"/></svg></div>
+   <div class="mfText">
+     <div class="mfTitle">Nuevo Sabor</div>
+     <div class="mfSub">Agregar un sabor al inventario</div>
+   </div>
+ </button>
+
 </div>
+
 
 <!-- PROYECCIONES -->
 <div class="sheet" id="proyeccionesSheet">
@@ -3161,6 +3313,12 @@ document.addEventListener('DOMContentLoaded',()=>{
   <div class="t">Color de la tarjeta</div>
   <div class="subhead" style="margin:8px 0 10px;font-weight:900">Elige un color pastel</div>
   <div style="max-height:240px; overflow:auto; padding-right:4px"><div id="colorGrid" class="colorGrid" style="max-height:240px;overflow:auto;padding:6px;border-radius:14px"></div></div>
+ </div>
+
+ <div class="kpiBox" style="margin:0 0 14px">
+  <div class="t">Categoría</div>
+  <div class="subhead" style="margin:8px 0 10px;font-weight:900">¿En qué botón debe aparecer? Si no eliges ninguna, aparecerá en todos</div>
+  <div id="catPickerGrid" style="display:flex;gap:10px;flex-wrap:wrap"></div>
  </div>
 
  <button onclick="saveConfig()">Guardar</button>
@@ -4319,14 +4477,81 @@ function playPop(){
 }
 
 /* UI */
-function closeSheets(){document.querySelectorAll(".sheet").forEach(s=>s.classList.remove("active"))}
+/* =========================
+   NAVEGACIÓN: el botón/gesto "atrás" del celular funciona como
+   el botón de regresar de la app, y si ya estás en el menú
+   principal, pregunta si de verdad quieres salir.
+========================= */
+function _closeSheetsDOM(){
+ document.querySelectorAll(".sheet").forEach(s=>s.classList.remove("active"));
+}
+
+let __navAppBack = false; // true mientras nosotros mismos disparamos history.back() por limpieza interna
+
+function closeSheets(){
+ const wasOpen = !!document.querySelector(".sheet.active");
+ _closeSheetsDOM();
+ try{ const fab=document.getElementById("fab"); if(fab) fab.classList.remove("active"); }catch(_){}
+ if(wasOpen){
+  __navAppBack = true;
+  try{ history.back(); }catch(_){}
+ }
+}
+
+function _navOpenSheet(){
+ try{ history.pushState({hc:'sheet'}, ''); }catch(_){}
+}
+
+function _navOnPopState(){
+ if(__navAppBack){ __navAppBack = false; return; }
+ // Modales sueltos (Gestionar PVs / color de PV) van primero: son lo más "encima"
+ const pvColor = document.getElementById('pvColorModal');
+ if(pvColor && pvColor.style.display==='flex'){
+  pvColor.style.display='none';
+  __pvColorTarget=null;
+  return;
+ }
+ const pvModal = document.getElementById('pvModal');
+ if(pvModal && pvModal.style.display==='flex'){
+  pvModal.style.display='none';
+  return;
+ }
+ const openSheet = document.querySelector(".sheet.active");
+ if(openSheet){
+  // El usuario presionó "atrás" con un módulo abierto: se comporta como la flecha de regresar
+  _closeSheetsDOM();
+  try{ const fab=document.getElementById("fab"); if(fab) fab.classList.remove("active"); }catch(_){}
+  return;
+ }
+ // Ya estábamos en el menú principal: preguntar si de verdad quiere salir
+ try{ history.pushState({hc:'home'}, ''); }catch(_){}
+ _navConfirmExit();
+}
+
+async function _navConfirmExit(){
+ let ok=false;
+ try{ ok = await AppUI.confirm('¿Seguro que quieres salir de Hieli Cream?', {title:'Salir', danger:true}); }
+ catch(_){ ok = window.confirm('¿Seguro que quieres salir?'); }
+ if(ok){
+  window.removeEventListener('popstate', _navOnPopState);
+  try{ history.go(-2); }catch(_){}
+ }
+}
+
+function _navInit(){
+ try{
+  history.replaceState({hc:'home'}, '');
+  history.pushState({hc:'home'}, '');
+ }catch(_){}
+ window.addEventListener('popstate', _navOnPopState);
+}
+
 function toggleMenu(){
  const ms=document.getElementById("menuSheet");
  const fab=document.getElementById("fab");
  const open=ms.classList.contains("active");
  closeSheets();
- if(!open){ms.classList.add("active"); fab.classList.add("active");}
- else fab.classList.remove("active");
+ if(!open){ms.classList.add("active"); fab.classList.add("active"); _navOpenSheet();}
 }
 
 /* ✅ openMenu DEFINIDO (por si algún botón lo llama) */
@@ -4350,6 +4575,7 @@ function goTo(where){
     ventaModoEdicion=false;
     renderVentas();renderVentasChart();actualizarTextoVentaBtn();
   }
+ _navOpenSheet();
 }
 
 /* =========================
@@ -5157,6 +5383,56 @@ function toggleInvCardByKey(key){
   if(el) el.classList.toggle('collapsed', !invExpanded.has(key));
 }
 
+/* ====== CATEGORÍAS DE SABORES (Leche / Agua / Postres) ====== */
+const FLAVOR_CATEGORIES = [
+ {key:'leche',   label:'Leche',   icon:'🥛'},
+ {key:'agua',    label:'Agua',    icon:'💧'},
+ {key:'postres', label:'Postres', icon:'🍰'}
+];
+
+let invCategoryFilter = localStorage.getItem('invCategoryFilter_v1') || 'all';
+
+function renderCategoryFilters(){
+ const row = document.getElementById('catFilterRow');
+ if(!row) return;
+ const filterIcon = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16l-6.5 8.5v6.5l-3 1.5v-8L4 4z"/></svg>`;
+ let html = `<button type="button" class="catChip catChipIcon${invCategoryFilter==='all'?' active':''}" title="Todos" onclick="setInvCategoryFilter('all')">${filterIcon}</button>`;
+ html += FLAVOR_CATEGORIES.map(c=>{
+  const active = invCategoryFilter===c.key ? ' active' : '';
+  return `<button type="button" class="catChip${active}" onclick="setInvCategoryFilter('${c.key}')">${c.label}</button>`;
+ }).join('');
+ row.innerHTML = html;
+}
+
+function setInvCategoryFilter(key){
+ invCategoryFilter = key;
+ try{ localStorage.setItem('invCategoryFilter_v1', key); }catch(_){}
+ render();
+}
+
+// Un sabor sin categoría asignada aparece en TODOS los filtros
+function flavorMatchesFilter(p){
+ // "Todos" muestra absolutamente todo, sin importar su categoría (o si no tiene).
+ // Un filtro específico (Leche/Agua/Postres) solo muestra sabores guardados con esa categoría exacta.
+ if(invCategoryFilter==='all') return true;
+ return p.category === invCategoryFilter;
+}
+
+let __pickedCategory = null;
+function renderCategoryPicker(selected){
+ __pickedCategory = selected || null;
+ const grid = document.getElementById('catPickerGrid');
+ if(!grid) return;
+ grid.innerHTML = FLAVOR_CATEGORIES.map(o=>{
+  const active = (__pickedCategory===o.key) ? ' active' : '';
+  return `<button type="button" class="catChip${active}" onclick="pickCategory('${o.key}')">${o.label}</button>`;
+ }).join('');
+}
+// Tocar la categoría ya activa la quita (el sabor queda sin categoría, solo visible en "Todos")
+function pickCategory(c){
+ renderCategoryPicker(__pickedCategory===c ? null : c);
+}
+
 function render(){
  const inventoryDiv=document.getElementById("inventory");
  const compareSel=document.getElementById("statsCompare");
@@ -5175,6 +5451,8 @@ function render(){
    compareSel.innerHTML += `<option value="${escapeHtmlAttr(p.name)}">${escapeHtml(p.name)}</option>`;
   }
   cuSel.innerHTML+=`<option value="${i}">${p.name}</option>`;
+
+  if(!flavorMatchesFilter(p)) return;
 
   const strip = p.color || "#e5e7eb";
   const key = encodeURIComponent(p.name);
@@ -5212,6 +5490,7 @@ function render(){
   cuSel.value = cuPrevVal;
  }
 
+ renderCategoryFilters();
  saveSilent();
  scheduleChartsAnimated();
 }
@@ -5266,7 +5545,8 @@ function increase(i, btn){
  saveSilent();
  flash(i,"add");
  try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, +1); }catch(_){}
- try{ cloudSaveNow(); }catch(_){}
+ if(__cloudReady){ try{ cloudSaveNow(); }catch(_){} }
+ else { __pendingQtyDeltas[inventory[i].name] = (__pendingQtyDeltas[inventory[i].name]||0) + 1; }
 }
 
 function decrease(i, btn){
@@ -5278,7 +5558,8 @@ function decrease(i, btn){
    saveSilent();
    flash(i,"sub");
    try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, -1); }catch(_){}
-   try{ cloudSaveNow(); }catch(_){}
+   if(__cloudReady){ try{ cloudSaveNow(); }catch(_){} }
+   else { __pendingQtyDeltas[inventory[i].name] = (__pendingQtyDeltas[inventory[i].name]||0) - 1; }
  }
 }
 
@@ -5367,6 +5648,8 @@ function openConfig(i){
  configSheet.classList.add("active");
 
  renderColorPicker(inventory[i].color || "#e5e7eb");
+ renderCategoryPicker(inventory[i].category || null);
+ _navOpenSheet();
 }
 
 let __pickedColor="#e5e7eb";
@@ -5391,6 +5674,7 @@ function saveConfig(){
  inventory[currentIndex].name = editName.value.trim();
  inventory[currentIndex].critical = parseInt(editCritical.value)||0;
  inventory[currentIndex].color = __pickedColor || inventory[currentIndex].color || "#e5e7eb";
+ inventory[currentIndex].category = __pickedCategory || null;
 
  const newName = inventory[currentIndex].name;
  const newKey  = toUpperSafe(newName);
@@ -5414,6 +5698,9 @@ function saveConfig(){
  saveSilent();
  render();
  closeSheets();
+ // Guardado inmediato en la nube (sin el delay de 2s) para no perder el cambio
+ // si el usuario cierra la app justo después de guardar.
+ try{ cloudSaveNow(); }catch(_){}
 }
 
 /* ✅ ELIMINAR SABOR (A): no borra ventas, solo lo quita de inventario y CU */
@@ -5449,11 +5736,13 @@ function addFlavor(){
   qty:Number(newQty.value)||0,
   critical:Number(newCritical.value)||0,
   cost:0,
-  color: PASTELS[Math.floor(Math.random()*PASTELS.length)]
+  color: PASTELS[Math.floor(Math.random()*PASTELS.length)],
+  category: null
  });
  saveSilent();
  render();
  closeSheets();
+ try{ cloudSaveNow(); }catch(_){}
 }
 
 /* Defaults */
@@ -8675,6 +8964,7 @@ async function vgVenderPedido(pedidoId){
 ========================= */
 render();
 updateSavedStamp();
+_navInit();
 
 // ✅ Flecha de regreso (cierra el módulo) arriba de TODOS los sheets,
 //    fija aunque el contenido sea largo y haya que bajar mucho.
@@ -10539,7 +10829,7 @@ if(typeof compararPeriodo==='function'){
 
 <style>
 #pvModal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(4px);animation:fadeIn .25s ease}
-#pvBox{background:#fff;width:90%;max-width:420px;border-radius:30px;padding:22px;box-shadow:0 15px 40px rgba(0,0,0,.18);animation:popIn .25s ease}
+#pvBox{background:#fff;width:90%;max-width:420px;max-height:82vh;overflow-y:auto;border-radius:30px;padding:22px;box-shadow:0 15px 40px rgba(0,0,0,.18);animation:popIn .25s ease}
 .pvItem{display:flex;justify-content:space-between;align-items:center;padding:8px 0}
 .pvDel{border:none;border-radius:10px;padding:8px 12px}
 </style>
@@ -10567,9 +10857,13 @@ if(typeof compararPeriodo==='function'){
 function adminPVs(){
  document.getElementById('pvModal').style.display='flex';
  renderListaPVVisual();
+ try{ history.pushState({hc:'sheet'}, ''); }catch(_){}
 }
 function cerrarPVModal(){
- document.getElementById('pvModal').style.display='none';
+ const el=document.getElementById('pvModal');
+ const wasOpen = el && el.style.display==='flex';
+ if(el) el.style.display='none';
+ if(wasOpen){ __navAppBack=true; try{ history.back(); }catch(_){} }
 }
 function renderListaPVVisual(){
  const c=document.getElementById('pvListaVisual');
@@ -10621,7 +10915,7 @@ function openPvColorPicker(nombre){
    }).join('');
  }
  const modal=document.getElementById('pvColorModal');
- if(modal) modal.style.display='flex';
+ if(modal){ modal.style.display='flex'; try{ history.pushState({hc:'sheet'}, ''); }catch(_){} }
 }
 function choosePvColor(c){
  if(__pvColorTarget) setColorPV(__pvColorTarget, c);
@@ -10630,8 +10924,10 @@ function choosePvColor(c){
 }
 function closePvColorModal(){
  const modal=document.getElementById('pvColorModal');
+ const wasOpen = modal && modal.style.display==='flex';
  if(modal) modal.style.display='none';
  __pvColorTarget=null;
+ if(wasOpen){ __navAppBack=true; try{ history.back(); }catch(_){} }
 }
 </script>
 <script>
