@@ -84,9 +84,8 @@ function _doCloudSave(){
     return;
   }
   __pendingCloudSave = false;
-  _bumpIgnore(); // suma 1 al contador — el snapshot de este save será ignorado
   try{
-    const payload = {
+    const local = {
       inventory:    JSON.parse(localStorage.getItem("inventory")      || "[]"),
       sales:        JSON.parse(localStorage.getItem("sales")          || "[]"),
       ventasDinero: JSON.parse(localStorage.getItem("ventasDinero")   || "[]"),
@@ -96,11 +95,37 @@ function _doCloudSave(){
       cu_recipes:   JSON.parse(localStorage.getItem("cu_recipes_v1")  || "{}"),
       compras_plan: JSON.parse(localStorage.getItem("compras_plan_v1")|| "{}"),
       compras_have: JSON.parse(localStorage.getItem("compras_have_v1")|| "{}"),
-      vg_pedidos:   JSON.parse(localStorage.getItem("vg_pedidos_v1")  || "[]"),
-      updatedAt:    firebase.firestore.FieldValue.serverTimestamp()
+      vg_pedidos:   JSON.parse(localStorage.getItem("vg_pedidos_v1")  || "[]")
     };
-    db.collection("data").doc(CLOUD_DOC).set(payload)
-      .then(()=> updateCloudStamp("☁️ Sincronizado"))
+
+    // Solo incluimos en el payload los módulos que de verdad cambiaron en
+    // ESTE dispositivo desde la última sincronización confirmada. Los que
+    // no cambiaron ni se mencionan: con {merge:true} la nube los deja tal
+    // cual están (pudieron haber sido actualizados por otro celular).
+    const payload = { updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+    let huboCambios = false;
+    Object.keys(local).forEach(key=>{
+      const baseStr = __cloudBaseline ? JSON.stringify(__cloudBaseline[key]) : undefined;
+      const localStr = JSON.stringify(local[key]);
+      if(baseStr !== localStr){
+        payload[key] = local[key];
+        huboCambios = true;
+      }
+    });
+
+    if(!huboCambios){
+      updateCloudStamp("☁️ Sincronizado");
+      return;
+    }
+
+    _bumpIgnore(); // suma 1 al contador — el snapshot de este save será ignorado
+    db.collection("data").doc(CLOUD_DOC).set(payload, {merge:true})
+      .then(()=>{
+        updateCloudStamp("☁️ Sincronizado");
+        // Actualizamos nuestra copia de "última versión confirmada" con lo
+        // que acabamos de subir, para futuras comparaciones.
+        __cloudBaseline = Object.assign({}, __cloudBaseline||{}, local);
+      })
       .catch(()=> updateCloudStamp("⚠️ Sin conexión (guardado local)"));
   }catch(e){ console.warn("cloudSave error:", e); }
 }
@@ -118,6 +143,23 @@ function _applyCloudData(d){
   if(d.compras_plan) localStorage.setItem("compras_plan_v1", JSON.stringify(d.compras_plan));
   if(d.compras_have) localStorage.setItem("compras_have_v1", JSON.stringify(d.compras_have));
   if(d.vg_pedidos)   localStorage.setItem("vg_pedidos_v1",   JSON.stringify(d.vg_pedidos));
+
+  // Guardamos esta versión como la "última confirmada por la nube" para
+  // que el próximo guardado sepa qué módulos realmente cambiaron localmente
+  // y suba solo esos (ver _doCloudSave).
+  __cloudBaseline = {
+    inventory:    d.inventory    || [],
+    sales:        d.sales        || [],
+    ventasDinero: d.ventasDinero || [],
+    listaPVs:     d.listaPVs     || [],
+    pvColores:    d.pvColores    || {},
+    cu_catalog:   d.cu_catalog   || [],
+    cu_recipes:   d.cu_recipes   || {},
+    compras_plan: d.compras_plan || {},
+    compras_have: d.compras_have || {},
+    vg_pedidos:   d.vg_pedidos   || []
+  };
+
   try{
     inventory    = JSON.parse(localStorage.getItem("inventory")    || "[]");
     sales        = JSON.parse(localStorage.getItem("sales")        || "[]");
@@ -152,6 +194,12 @@ let __ignoreResetTimer = null;
 // __cloudReady solo pasa a true cuando confirmamos datos del SERVIDOR
 // (doc.metadata.fromCache === false), nunca con datos de caché local.
 let __cloudReady = false;
+// Snapshot del último estado confirmado en la nube, por módulo. Se usa para
+// saber, al guardar, cuáles módulos cambiaron realmente en ESTE dispositivo
+// desde la última sincronización — así solo se suben esos, en vez de todo el
+// documento entero. Esto evita que un celular editando "Inventario" pise los
+// cambios de "Ventas" que otro celular subió unos segundos antes.
+let __cloudBaseline = null;
 
 function _bumpIgnore(){
   __ignoreSnapshots++;
@@ -1319,6 +1367,19 @@ button:not(.menuBtn):not(.iconBtn){
  font-weight:700;
  margin:6px 0;
  color:var(--primary);
+}
+
+.qtyRow{
+ display:flex;
+ align-items:baseline;
+ gap:14px;
+ margin:6px 0;
+}
+.qtyRow .qty{ margin:0; }
+.qtyRestante{
+ font-size:2.6rem;
+ font-weight:700;
+ color:#f59e0b;
 }
 
 .actions{
@@ -2906,6 +2967,22 @@ button.catChip.active svg{ stroke:#fff; }
   -webkit-overflow-scrolling:touch;
 }
 
+.pvChartScroll{
+  width:100%;
+  overflow-x:auto;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+}
+.pvChartInner{
+  height:340px;
+  min-width:100%;
+  position:relative;
+}
+.pvChartInner canvas{
+  display:block;
+  height:340px !important;
+}
+
 .moneyChartInner{
   height:420px;
   min-width:100%;
@@ -3457,15 +3534,21 @@ document.addEventListener('DOMContentLoaded',()=>{
        <input type="date" id="fechaInicioPv" style="font-size:.84rem;padding:7px 10px">
        <input type="date" id="fechaFinPv" style="font-size:.84rem;padding:7px 10px">
      </div>
+     <div style="margin-bottom:8px">
+       <div class="lbl" style="font-size:10px">PUNTO DE VENTA</div>
+       <select id="pvComparativaFiltro" style="font-size:.84rem;padding:7px 10px;width:100%"></select>
+     </div>
      <button onclick="compararPeriodoPV()" style="background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:12px;font-size:.88rem">Comparar</button>
    </div>
 
    <div style="background:#f8f7ff;border-radius:16px;padding:14px 10px;margin-bottom:12px">
-     <div style="font-size:.78rem;font-weight:800;color:#7c5fe6;text-align:center;margin-bottom:8px;letter-spacing:.03em">🌸 PUNTOS DE VENTA DEL PERIODO</div>
-     <div style="position:relative;width:100%;height:340px">
-       <canvas id="pvComparativaChart"></canvas>
+     <div id="pvComparativaTitulo" style="font-size:.78rem;font-weight:800;color:#7c5fe6;text-align:center;margin-bottom:8px;letter-spacing:.03em">🌸 PUNTOS DE VENTA DEL PERIODO</div>
+     <div class="pvChartScroll" id="pvChartScrollWrap">
+       <div class="pvChartInner" id="pvChartInnerWrap">
+         <canvas id="pvComparativaChart"></canvas>
+       </div>
      </div>
-     <div style="text-align:center;margin-top:8px;font-size:.78rem;font-weight:700;color:#94a3b8">TOTAL <span id="pvComparativaChartTotal" style="color:#1e1b2e;font-weight:900;font-size:1rem">$0.00</span></div>
+     <div id="pvComparativaTotalWrap" style="text-align:center;margin-top:8px;font-size:.78rem;font-weight:700;color:#94a3b8">TOTAL <span id="pvComparativaChartTotal" style="color:#1e1b2e;font-weight:900;font-size:1rem">$0.00</span></div>
    </div>
 
    <div id="pvComparativaInfo" style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px"></div>
@@ -5514,8 +5597,10 @@ function render(){
      <button class="gear" onclick="openConfig(${i})">⚙️</button>
     </div>
 
-    <div class="qty">${p.qty}</div>
-    ${(function(){ const r = vgReservadoPorSabor(p.name); return r>0 ? `<div class="qtyApartado">quedan ${Math.max(0,p.qty-r)}</div>` : ''; })()}
+    <div class="qtyRow">
+     <div class="qty">${p.qty}</div>
+     ${(function(){ const r = vgReservadoPorSabor(p.name); return r>0 ? `<div class="qtyRestante">${Math.max(0,p.qty-r)}</div>` : ''; })()}
+    </div>
 
     <div class="actions">
      <button class="btn minus" onclick="decrease(${i}, this)">−</button>
@@ -10898,6 +10983,15 @@ function showVentasTab(tab){
    btn.style.background = tab===name ? '#fff' : 'transparent';
    btn.style.color = tab===name ? '#5d3fd1' : '#7c7c9a';
  });
+ if(tab==='pv' && typeof poblarFiltroPvComparativa==='function') poblarFiltroPvComparativa();
+}
+function poblarFiltroPvComparativa(){
+ const sel=document.getElementById('pvComparativaFiltro');
+ if(!sel) return;
+ const prev = sel.value;
+ sel.innerHTML = '<option value="__ALL__">Todos</option>' +
+   (listaPVs||[]).map(p=>`<option value="${escapeHtmlAttr(p)}">${escapeHtml(p)}</option>`).join('');
+ if(prev && sel.querySelector(`option[value="${CSS.escape(prev)}"]`)) sel.value = prev;
 }
 document.addEventListener('DOMContentLoaded',function(){
  showVentasTab('registro');
@@ -10933,6 +11027,21 @@ function compararPeriodoPV(){
   const ganEl = document.getElementById('ventasCompPvGanancia');
   if(ganEl) ganEl.textContent = '$' + gan.toFixed(2);
 
+  const filtroSel = document.getElementById('pvComparativaFiltro');
+  const filtro = filtroSel ? filtroSel.value : '__ALL__';
+
+  if(filtro && filtro !== '__ALL__'){
+    // Un solo PV elegido: día por día, gráfica de barras con el total arriba de cada barra
+    const rangoOrdenado = rango.slice().sort((a,b)=>a.fecha.localeCompare(b.fecha));
+    const labels = rangoOrdenado.map(v=>v.fecha);
+    const valores = rangoOrdenado.map(v=>{
+      const item = (v.pvs||[]).find(x=>x.nombre===filtro);
+      return item ? Number(item.monto)||0 : 0;
+    });
+    renderPVComparativaBarChart(labels, valores, filtro);
+    return;
+  }
+
   // Sumar el ingreso de cada PV a través de todos los días del rango
   const porPV = {};
   rango.forEach(v=>{
@@ -10951,6 +11060,111 @@ function compararPeriodoPV(){
   renderPVComparativaChart(data);
 }
 
+function renderPVComparativaBarChart(labels, valores, pvName){
+  const cv=document.getElementById('pvComparativaChart');
+  const info=document.getElementById('pvComparativaInfo');
+  if(!cv||!window.Chart) return;
+  if(window.pvComparativaChartObj) window.pvComparativaChartObj.destroy();
+
+  const total = valores.reduce((a,b)=>a+(Number(b)||0),0);
+  const totalEl = document.getElementById('pvComparativaChartTotal');
+  if(totalEl) totalEl.textContent = '$'+total.toFixed(2);
+
+  const tituloEl = document.getElementById('pvComparativaTitulo');
+  if(tituloEl) tituloEl.textContent = '📊 ' + pvName + ' POR DÍA';
+
+  // Ancho dinámico: cada día necesita su propio espacio para que la barra
+  // y su burbuja de monto no queden apachurradas. Si hay pocos días, ocupa
+  // el 100% del panel; si hay más, se hace scroll horizontal.
+  const innerWrap = document.getElementById('pvChartInnerWrap');
+  if(innerWrap){
+    const anchoDinamico = labels.length <= 6 ? '100%' : (labels.length * 68) + 'px';
+    innerWrap.style.width = anchoDinamico;
+  }
+
+  if(!valores.length || total<=0){
+    window.pvComparativaChartObj = null;
+    if(innerWrap) innerWrap.style.width = '100%';
+    if(info) info.innerHTML = `<div class="smallnote" style="text-align:center">No hay ventas de ${escapeHtml(pvName)} en ese periodo.</div>`;
+    return;
+  }
+
+  const color = getColorPV(pvName);
+
+  window.pvComparativaChartObj = new Chart(cv, {
+    type:'bar',
+    data:{
+      labels: labels,
+      datasets:[{
+        label: pvName,
+        data: valores,
+        backgroundColor: color,
+        borderRadius: 10,
+        borderSkipped: false,
+        categoryPercentage:0.7,
+        barPercentage:0.62,
+        maxBarThickness:46,
+        minBarLength:2
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      layout:{ padding:{ top:28, bottom:10, left:10, right:20 } },
+      plugins:{
+        legend:{ display:false },
+        tooltip:{
+          backgroundColor:'#1e1b2e',
+          padding:12,
+          titleFont:{size:13,weight:'bold'},
+          bodyFont:{size:12.5},
+          callbacks:{
+            label:(c)=> ` $${Number(c.parsed.y||0).toFixed(2)}`
+          }
+        },
+        datalabels:{
+          display: (ctx)=> Number(ctx.dataset.data[ctx.dataIndex]||0) > 0,
+          color:'#ffffff',
+          backgroundColor:'rgba(15,23,42,.88)',
+          borderRadius:10,
+          padding:{top:4,bottom:4,left:7,right:7},
+          anchor:'end',
+          align:'top',
+          offset:4,
+          clamp:true,
+          clip:false,
+          font:{ size:11, weight:'800' },
+          formatter:(value)=> '$'+Number(value||0).toFixed(0)
+        }
+      },
+      scales:{
+        x:{
+          offset:true,
+          ticks:{ autoSkip:false, maxRotation:55, minRotation:55, padding:8, color:'#334155', font:{size:11,weight:'bold'} },
+          grid:{ display:false }
+        },
+        y:{
+          beginAtZero:true,
+          ticks:{ padding:8, color:'#334155', font:{size:11,weight:'bold'} },
+          grid:{ color:'rgba(148,163,184,.15)' }
+        }
+      }
+    }
+  });
+
+  if(info){
+    info.innerHTML = `<div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">DETALLE POR DÍA — ${escapeHtml(pvName)}</div>` +
+      labels.map((fecha,i)=>{
+        const v = Number(valores[i]||0);
+        if(v<=0) return '';
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f1f0ff">
+          <div style="font-weight:700;font-size:.85rem;color:#1e1b2e">${fecha}</div>
+          <div style="font-weight:900;font-size:.85rem;color:#5d3fd1">$${v.toFixed(2)}</div>
+        </div>`;
+      }).join('');
+  }
+}
+
 function renderPVComparativaChart(data){
   const cv=document.getElementById('pvComparativaChart');
   const info=document.getElementById('pvComparativaInfo');
@@ -10963,6 +11177,10 @@ function renderPVComparativaChart(data){
 
   const totalEl = document.getElementById('pvComparativaChartTotal');
   if(totalEl) totalEl.textContent = '$'+total.toFixed(2);
+  const tituloEl = document.getElementById('pvComparativaTitulo');
+  if(tituloEl) tituloEl.textContent = '🌸 PUNTOS DE VENTA DEL PERIODO';
+  const innerWrap = document.getElementById('pvChartInnerWrap');
+  if(innerWrap) innerWrap.style.width = '100%';
 
   if(!data.length){
     window.pvComparativaChartObj = null;
