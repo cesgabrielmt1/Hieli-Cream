@@ -96,6 +96,7 @@ function _doCloudSave(){
       cu_recipes:   JSON.parse(localStorage.getItem("cu_recipes_v1")  || "{}"),
       compras_plan: JSON.parse(localStorage.getItem("compras_plan_v1")|| "{}"),
       compras_have: JSON.parse(localStorage.getItem("compras_have_v1")|| "{}"),
+      vg_pedidos:   JSON.parse(localStorage.getItem("vg_pedidos_v1")  || "[]"),
       updatedAt:    firebase.firestore.FieldValue.serverTimestamp()
     };
     db.collection("data").doc(CLOUD_DOC).set(payload)
@@ -116,17 +117,24 @@ function _applyCloudData(d){
   if(d.cu_recipes)   localStorage.setItem("cu_recipes_v1",   JSON.stringify(d.cu_recipes));
   if(d.compras_plan) localStorage.setItem("compras_plan_v1", JSON.stringify(d.compras_plan));
   if(d.compras_have) localStorage.setItem("compras_have_v1", JSON.stringify(d.compras_have));
+  if(d.vg_pedidos)   localStorage.setItem("vg_pedidos_v1",   JSON.stringify(d.vg_pedidos));
   try{
     inventory    = JSON.parse(localStorage.getItem("inventory")    || "[]");
     sales        = JSON.parse(localStorage.getItem("sales")        || "[]");
     ventasDinero = JSON.parse(localStorage.getItem("ventasDinero") || "[]");
     listaPVs     = JSON.parse(localStorage.getItem("listaPVs")     || "[]");
     pvColores    = JSON.parse(localStorage.getItem("pvColores")    || "{}");
+    if(typeof __vgPedidos !== 'undefined'){
+      __vgPedidos = JSON.parse(localStorage.getItem("vg_pedidos_v1") || "[]");
+      try{ vgRender && vgRender(); }catch(_){}
+      try{ vgRenderPedidos && vgRenderPedidos(); }catch(_){}
+    }
     render();
     try{ renderVentas && renderVentas(); }catch(_){}
     try{ renderVentasChart && renderVentasChart(); }catch(_){}
     try{ actualizarTextoVentaBtn && actualizarTextoVentaBtn(); }catch(_){}
     try{ renderPVChart && renderPVChart(); }catch(_){}
+    try{ actualizarApartadosBadge && actualizarApartadosBadge(); }catch(_){}
   }catch(e){ console.warn("applyCloudData:", e); }
 }
 
@@ -2810,6 +2818,23 @@ align-items:center;text-align:center;}
     display: block !important;
 }
 
+#apartadosBadge{
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    color: #dc2626 !important;
+    line-height: 1.2 !important;
+    display: none;
+    margin-top: 3px !important;
+}
+
+.qtyApartado{
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    color: #dc2626 !important;
+    line-height: 1.2 !important;
+    margin: -2px 0 8px 0 !important;
+}
+
 
 
 /* Filtro de categorías (Todos / Leche / Agua / Postres) */
@@ -3122,6 +3147,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     <div class="tarjeta-total-superior-grande">
       <p>Total Hielitos</p>
       <span id="contador-grande-realtime">0</span>
+      <span id="apartadosBadge" style="display:none"></span>
     </div>
   </h1>
 </div>
@@ -3341,8 +3367,9 @@ document.addEventListener('DOMContentLoaded',()=>{
  <p style="font-size:13px;color:#64748b;margin-top:0;margin-bottom:14px">Compara ingresos, gastos y ganancias automáticamente.</p>
 
  <div style="display:flex;gap:6px;background:#f1f0ff;border-radius:14px;padding:4px;margin-bottom:14px">
-   <button type="button" onclick="showVentasTab('registro')" id="ventasTabRegistro" style="flex:1;margin:0;padding:10px;border:none;border-radius:11px;font-weight:800;font-size:.85rem;background:#fff;color:#5d3fd1">Registro</button>
-   <button type="button" onclick="showVentasTab('comparativa')" id="ventasTabComparativa" style="flex:1;margin:0;padding:10px;border:none;border-radius:11px;font-weight:800;font-size:.85rem;background:transparent;color:#7c7c9a">Comparativa</button>
+   <button type="button" onclick="showVentasTab('registro')" id="ventasTabRegistro" style="flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.78rem;background:#fff;color:#5d3fd1">Registro</button>
+   <button type="button" onclick="showVentasTab('dia')" id="ventasTabComparativaDia" style="flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.78rem;background:transparent;color:#7c7c9a">Comparativa Día</button>
+   <button type="button" onclick="showVentasTab('pv')" id="ventasTabComparativaPv" style="flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.78rem;background:transparent;color:#7c7c9a">Comparativa PV</button>
  </div>
 
  <div id="ventasRegistroTab">
@@ -3382,7 +3409,7 @@ document.addEventListener('DOMContentLoaded',()=>{
    <div id="ventasHistorial" style="display:none!important;margin-top:18px"></div>
  </div>
 
- <div id="ventasComparativaTab" style="display:none;">
+ <div id="ventasComparativaDiaTab" style="display:none;">
    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
      <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px">
        <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">INGRESO TOTAL</div>
@@ -3404,13 +3431,6 @@ document.addEventListener('DOMContentLoaded',()=>{
        <input type="date" id="fechaInicio" style="font-size:.84rem;padding:7px 10px">
        <input type="date" id="fechaFin" style="font-size:.84rem;padding:7px 10px">
      </div>
-     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-       <select id="tipoComparacion" onchange="document.getElementById('pvComparativa').style.display=this.value==='pv'?'':'none'; if(this.value==='pv' && typeof llenarPVs==='function') llenarPVs();" style="font-size:.84rem;padding:7px 10px">
-         <option value="dia">Por Día</option>
-         <option value="pv">Por PV</option>
-       </select>
-       <select id="pvComparativa" style="display:none;font-size:.84rem;padding:7px 10px"></select>
-     </div>
      <button onclick="compararPeriodo()" style="background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:12px;font-size:.88rem">Comparar</button>
    </div>
 
@@ -3423,6 +3443,32 @@ document.addEventListener('DOMContentLoaded',()=>{
        <div class="moneyChartInner"><canvas id="ventasChart"></canvas></div>
      </div></div></div></div>
    </div></div>
+ </div>
+
+ <div id="ventasComparativaPvTab" style="display:none;">
+   <div style="background:linear-gradient(135deg,#f0fdf4,#fff);border:1.5px solid #bbf7d0;border-radius:14px;padding:12px 14px;margin-bottom:12px">
+     <div style="font-size:10px;font-weight:700;color:#16a34a;letter-spacing:.06em;margin-bottom:4px">GANANCIA TOTAL</div>
+     <div style="font-size:1.6rem;font-weight:900;color:#16a34a" id="ventasCompPvGanancia">$0.00</div>
+   </div>
+
+   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
+     <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">COMPARAR PERIODO</div>
+     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+       <input type="date" id="fechaInicioPv" style="font-size:.84rem;padding:7px 10px">
+       <input type="date" id="fechaFinPv" style="font-size:.84rem;padding:7px 10px">
+     </div>
+     <button onclick="compararPeriodoPV()" style="background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:12px;font-size:.88rem">Comparar</button>
+   </div>
+
+   <div style="background:#f8f7ff;border-radius:16px;padding:14px 10px;margin-bottom:12px">
+     <div style="font-size:.78rem;font-weight:800;color:#7c5fe6;text-align:center;margin-bottom:8px;letter-spacing:.03em">🌸 PUNTOS DE VENTA DEL PERIODO</div>
+     <div style="position:relative;width:100%;height:340px">
+       <canvas id="pvComparativaChart"></canvas>
+     </div>
+     <div style="text-align:center;margin-top:8px;font-size:.78rem;font-weight:700;color:#94a3b8">TOTAL <span id="pvComparativaChartTotal" style="color:#1e1b2e;font-weight:900;font-size:1rem">$0.00</span></div>
+   </div>
+
+   <div id="pvComparativaInfo" style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px"></div>
  </div>
 
 </div>
@@ -5469,6 +5515,7 @@ function render(){
     </div>
 
     <div class="qty">${p.qty}</div>
+    ${(function(){ const r = vgReservadoPorSabor(p.name); return r>0 ? `<div class="qtyApartado">quedan ${Math.max(0,p.qty-r)}</div>` : ''; })()}
 
     <div class="actions">
      <button class="btn minus" onclick="decrease(${i}, this)">−</button>
@@ -8535,7 +8582,12 @@ const VG_PEDIDOS_KEY = 'vg_pedidos_v1';
 const VG_LLEVADO_KEY_LEGACY = 'vg_llevado_v1'; // formato viejo, solo para migrar
 
 function vgPedidosLoad(){ return safeParseJSON(localStorage.getItem(VG_PEDIDOS_KEY)||'[]', []); }
-function vgPedidosSave(){ try{ localStorage.setItem(VG_PEDIDOS_KEY, JSON.stringify(__vgPedidos)); }catch(_){} }
+function vgPedidosSave(){
+  try{ localStorage.setItem(VG_PEDIDOS_KEY, JSON.stringify(__vgPedidos)); }catch(_){}
+  try{ cloudSaveNow(); }catch(_){}
+  try{ render(); }catch(_){}
+  try{ actualizarApartadosBadge && actualizarApartadosBadge(); }catch(_){}
+}
 
 // Migra el formato viejo (un solo "llevado" global) a un pedido llamado "Pedido 1",
 // para no perder lo que ya estaba en la calle.
@@ -8602,6 +8654,22 @@ function vgPedidoTotales(pedido){
   const llevado = items.reduce((a,it)=>a+(it.llevado||0),0);
   const vendido = items.reduce((a,it)=>a+Math.max(0,(it.llevado||0)-(it.regresado||0)),0);
   return {llevado, vendido};
+}
+
+// Cuánto de UN sabor específico sigue "apartado" (afuera, en pedidos activos, sin vender)
+function vgReservadoPorSabor(name){
+  let total = 0;
+  try{
+    const key = toUpperSafe(name);
+    (typeof __vgPedidos !== 'undefined' ? __vgPedidos : []).forEach(function(ped){
+      const it = ped.items && ped.items[key];
+      if(it){
+        const v = (it.llevado||0) - (it.regresado||0);
+        if(v>0) total += v;
+      }
+    });
+  }catch(_){}
+  return total;
 }
 
 let __vgTab = 'vender'; // 'vender' | 'pedidos'
@@ -9997,6 +10065,28 @@ options:{
 
 
 <script>
+function actualizarApartadosBadge() {    let reservado = 0;
+    try{
+        (typeof __vgPedidos !== 'undefined' ? __vgPedidos : []).forEach(function(ped){
+            Object.values(ped.items||{}).forEach(function(it){
+                const v = (it.llevado||0) - (it.regresado||0);
+                if(v>0) reservado += v;
+            });
+        });
+    }catch(_){}
+    const badge = document.getElementById('apartadosBadge');
+    if(!badge) return;
+    if(reservado > 0){
+        const totalEl = document.getElementById('contador-grande-realtime');
+        const total = totalEl ? (parseInt(totalEl.textContent)||0) : 0;
+        const disponible = Math.max(0, total - reservado);
+        badge.textContent = 'quedan ' + disponible;
+        badge.style.display = 'block';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
 (function() {
     function actualizarContadorGrande() {
         let acumulado = 0;
@@ -10010,6 +10100,7 @@ options:{
         if (display) {
             display.textContent = acumulado;
         }
+        actualizarApartadosBadge();
     }
 
     document.addEventListener("DOMContentLoaded", function() {
@@ -10793,17 +10884,20 @@ function actualizarResumenGrafica(labels,gastos,ganancias){
 <script>
 function showVentasTab(tab){
  var r=document.getElementById('ventasRegistroTab');
- var c=document.getElementById('ventasComparativaTab');
+ var d=document.getElementById('ventasComparativaDiaTab');
+ var p=document.getElementById('ventasComparativaPvTab');
  var bR=document.getElementById('ventasTabRegistro');
- var bC=document.getElementById('ventasTabComparativa');
- if(r&&c){r.style.display=tab==='registro'?'block':'none'; c.style.display=tab==='comparativa'?'block':'none';}
- if(bR&&bC){
-   bR.style.background = tab==='registro' ? '#fff' : 'transparent';
-   bR.style.color = tab==='registro' ? '#5d3fd1' : '#7c7c9a';
-   bC.style.background = tab==='comparativa' ? '#fff' : 'transparent';
-   bC.style.color = tab==='comparativa' ? '#5d3fd1' : '#7c7c9a';
- }
- if(tab==='comparativa' && typeof llenarPVs==='function') llenarPVs();
+ var bD=document.getElementById('ventasTabComparativaDia');
+ var bP=document.getElementById('ventasTabComparativaPv');
+ if(r) r.style.display = tab==='registro' ? 'block' : 'none';
+ if(d) d.style.display = tab==='dia' ? 'block' : 'none';
+ if(p) p.style.display = tab==='pv' ? 'block' : 'none';
+ [[bR,'registro'],[bD,'dia'],[bP,'pv']].forEach(function(pair){
+   var btn=pair[0], name=pair[1];
+   if(!btn) return;
+   btn.style.background = tab===name ? '#fff' : 'transparent';
+   btn.style.color = tab===name ? '#5d3fd1' : '#7c7c9a';
+ });
 }
 document.addEventListener('DOMContentLoaded',function(){
  showVentasTab('registro');
@@ -10824,6 +10918,147 @@ if(typeof compararPeriodo==='function'){
     if(document.getElementById('ventasCompGanancia')) document.getElementById('ventasCompGanancia').textContent='$'+gan.toFixed(2);
    }catch(e){}
  };
+}
+
+/* ===== Comparativa PV: independiente de la de Día, su propia gráfica ===== */
+function compararPeriodoPV(){
+  const inicio = document.getElementById('fechaInicioPv').value;
+  const fin = document.getElementById('fechaFinPv').value;
+  if(!inicio || !fin){ alert('Selecciona ambas fechas'); return; }
+
+  const rango = (ventasDinero||[]).filter(v => v.fecha >= inicio && v.fecha <= fin);
+
+  // Ganancia total del periodo (igual criterio que la de Día)
+  const gan = rango.reduce((a,b)=>a+Number(b.ganancia||0),0);
+  const ganEl = document.getElementById('ventasCompPvGanancia');
+  if(ganEl) ganEl.textContent = '$' + gan.toFixed(2);
+
+  // Sumar el ingreso de cada PV a través de todos los días del rango
+  const porPV = {};
+  rango.forEach(v=>{
+    (v.pvs||[]).forEach(item=>{
+      const nombre = item.nombre;
+      const monto = Number(item.monto)||0;
+      if(!nombre || monto<=0) return;
+      porPV[nombre] = (porPV[nombre]||0) + monto;
+    });
+  });
+
+  const data = Object.entries(porPV)
+    .map(([nombre,monto])=>({nombre,monto}))
+    .sort((a,b)=>b.monto-a.monto);
+
+  renderPVComparativaChart(data);
+}
+
+function renderPVComparativaChart(data){
+  const cv=document.getElementById('pvComparativaChart');
+  const info=document.getElementById('pvComparativaInfo');
+  if(!cv||!window.Chart) return;
+  const ctx=cv.getContext('2d');
+  if(window.pvComparativaChartObj) window.pvComparativaChartObj.destroy();
+
+  const total = data.reduce((a,b)=>a+(Number(b.monto)||0),0);
+  const colors = data.map(x=> getColorPV(x.nombre));
+
+  const totalEl = document.getElementById('pvComparativaChartTotal');
+  if(totalEl) totalEl.textContent = '$'+total.toFixed(2);
+
+  if(!data.length){
+    window.pvComparativaChartObj = null;
+    if(info) info.innerHTML = `<div class="smallnote" style="text-align:center">No hay ventas por PV en ese periodo.</div>`;
+    return;
+  }
+
+  // Misma gráfica tipo "rosa" (polar area) que Puntos de Venta del Día,
+  // con % por PV, solo que sumando todo el rango de fechas elegido.
+  window.pvComparativaChartObj=new Chart(ctx,{
+  type:'polarArea',
+  data:{
+    labels: data.map(x=>x.nombre),
+    datasets:[{
+      data: data.map(x=>x.monto),
+      backgroundColor: colors.map(c=>c+'E6'),
+      borderColor: '#ffffff',
+      borderWidth: 3,
+      offset: 10,
+      hoverOffset: 18,
+    }]
+  },
+  options:{
+    responsive:true,
+    maintainAspectRatio:false,
+    layout:{ padding: 34 },
+    scales:{
+      r:{
+        display:false,
+        max: (data.reduce((m,x)=>Math.max(m,Number(x.monto)||0),0) || 1) * 1.28,
+        grid:{ display:false },
+        ticks:{ display:false }
+      }
+    },
+    plugins:{
+      legend:{
+        display:true,
+        position:'bottom',
+        labels:{
+          usePointStyle:true,
+          pointStyle:'circle',
+          padding:14,
+          font:{ size:12, weight:'700' }
+        }
+      },
+      tooltip:{
+        backgroundColor:'#1e1b2e',
+        padding:12,
+        titleFont:{size:14,weight:'bold'},
+        bodyFont:{size:13},
+        callbacks:{
+          label:(ctx)=>{
+            const v = Number(ctx.parsed.r ?? ctx.parsed)||0;
+            const pct = total>0 ? (v/total*100) : 0;
+            return ` $${v.toFixed(2)}  ·  ${pct.toFixed(0)}% del ingreso`;
+          }
+        }
+      },
+      datalabels:{
+        color:'#1e1b2e',
+        font:{ weight:'900', size:14 },
+        formatter:(value)=>{
+          const pct = total>0 ? (value/total*100) : 0;
+          return `${pct.toFixed(0)}%`;
+        },
+        anchor:'end',
+        align:'end',
+        offset:6,
+        clamp:true,
+        clip:false,
+        textAlign:'center',
+        backgroundColor:'rgba(255,255,255,.94)',
+        borderRadius:10,
+        padding:{top:5,bottom:5,left:8,right:8},
+      }
+    }
+  }
+  });
+
+  // Info escrita debajo de la gráfica: PV, monto y % que representa del ingreso
+  if(info){
+    info.innerHTML = `<div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">% DEL INGRESO POR PV</div>` +
+      data.map(x=>{
+        const pct = total>0 ? (x.monto/total*100) : 0;
+        const c = getColorPV(x.nombre);
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f1f0ff">
+          <div style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:.85rem;color:#1e1b2e">
+            <span style="width:12px;height:12px;border-radius:50%;background:${c};flex:0 0 auto"></span>${escapeHtml(x.nombre)}
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-weight:700;font-size:.85rem;color:#64748b">$${x.monto.toFixed(2)}</span>
+            <span style="font-weight:900;font-size:.85rem;color:#5d3fd1;min-width:44px;text-align:right">${pct.toFixed(0)}%</span>
+          </div>
+        </div>`;
+      }).join('');
+  }
 }
 </script>
 
