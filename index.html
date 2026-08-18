@@ -68,6 +68,25 @@ function cloudSaveSoon(){
   __cloudSaveTimer = setTimeout(_doCloudSave, 2000);
 }
 
+// Con delay corto: para toques de +/- en inventario. Si tocas varias veces
+// muy rápido, esto agrupa todos esos toques en UN SOLO guardado a la nube en
+// vez de mandar un guardado por cada toque. Eso evita que lleguen varias
+// confirmaciones del servidor fuera de orden (lo que hacía que el contador
+// "se volviera loco": subía y luego bajaba solo).
+let __qtySaveTimer = null;
+function cloudSaveQtyDebounced(){
+  clearTimeout(__qtySaveTimer);
+  __qtySaveTimer = setTimeout(_doCloudSave, 550);
+}
+// Si la app se va a segundo plano o se cierra, no dejar un guardado pendiente sin mandar
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden' && __qtySaveTimer){
+    clearTimeout(__qtySaveTimer);
+    __qtySaveTimer = null;
+    try{ _doCloudSave(); }catch(_){}
+  }
+});
+
 function cloudSave(){ _doCloudSave(); }
 
 let __pendingCloudSave = false; // hubo un cambio mientras __cloudReady era false: reintentar en cuanto se confirme la nube
@@ -294,10 +313,12 @@ document.addEventListener('visibilitychange', () => {
     if(!__snapshotUnsub){
       console.log('☁️ App al frente — reconectando...');
       cloudStartListening();
-    } else {
-      // Forzar revisión de datos frescos aunque el listener esté vivo
-      __ignoreSnapshots = 0;
     }
+    // (Ya no forzamos __ignoreSnapshots=0 aquí: si había guardados propios en
+    // camino, resetear esto a la fuerza podía hacer que una confirmación
+    // tardía del servidor se tratara como "dato externo" y pisara el
+    // contador con un valor intermedio. El candado de 8s ya cubre el caso
+    // de que algo se quede atorado.)
   }
 });
 
@@ -4529,15 +4550,25 @@ function autosaveSoon(){
 }
 function cuAutoSaveDraftNow(){
   // guarda la receta del sabor seleccionado aunque no presiones "Guardar CU"
+  // 🔒 Solo si la pantalla de Costo Unitario > Recetas está realmente abierta
+  // ahora mismo. Antes esto se disparaba con CUALQUIER tecleo en cualquier
+  // parte de la app (por el listener global de abajo), y podía reescribir
+  // la receta que quedó cargada en memoria sobre el sabor que estuviera
+  // seleccionado en ese momento, aunque el usuario ya no estuviera ahí.
+  const cuSheet = document.getElementById("cuSheet");
+  if(!cuSheet || !cuSheet.classList.contains("active")) return;
+  const recetasTab = document.getElementById("cuTabContentRecetas");
+  if(!recetasTab || recetasTab.style.display === "none") return;
+
   const sel=document.getElementById("cuFlavor");
   if(!sel) return;
-  const idx=parseInt(sel.value);
-  if(isNaN(idx) || !inventory[idx]) return;
+  const name=sel.value;
+  if(!name) return;
 
   // ✅ Evita que se sobreescriba una receta con arreglo vacío (ej. Vainilla)
   if(!Array.isArray(cuRows) || cuRows.length===0) return;
 
-  try{ cuSaveRecipeForIndex(idx); }catch(e){}
+  try{ cuSaveRecipeForName(name); }catch(e){}
 }
 
 // Eventos globales
@@ -5579,7 +5610,7 @@ function render(){
   if(compareSel){
    compareSel.innerHTML += `<option value="${escapeHtmlAttr(p.name)}">${escapeHtml(p.name)}</option>`;
   }
-  cuSel.innerHTML+=`<option value="${i}">${p.name}</option>`;
+  cuSel.innerHTML+=`<option value="${escapeHtmlAttr(p.name)}">${escapeHtml(p.name)}</option>`;
 
   if(!flavorMatchesFilter(p)) return;
 
@@ -5618,8 +5649,9 @@ function render(){
    </div>`;
  });
 
- if(cuPrevVal!=="" && cuSel.querySelector(`option[value="${cuPrevVal}"]`)){
-  cuSel.value = cuPrevVal;
+ if(cuPrevVal!==""){
+  const __opt = Array.from(cuSel.options).find(o=>o.value===cuPrevVal);
+  if(__opt) cuSel.value = cuPrevVal;
  }
 
  renderCategoryFilters();
@@ -5677,7 +5709,7 @@ function increase(i, btn){
  saveSilent();
  flash(i,"add");
  try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, +1); }catch(_){}
- if(__cloudReady){ try{ cloudSaveNow(); }catch(_){} }
+ if(__cloudReady){ cloudSaveQtyDebounced(); }
  else { __pendingQtyDeltas[inventory[i].name] = (__pendingQtyDeltas[inventory[i].name]||0) + 1; }
 }
 
@@ -5690,7 +5722,7 @@ function decrease(i, btn){
    saveSilent();
    flash(i,"sub");
    try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, -1); }catch(_){}
-   if(__cloudReady){ try{ cloudSaveNow(); }catch(_){} }
+   if(__cloudReady){ cloudSaveQtyDebounced(); }
    else { __pendingQtyDeltas[inventory[i].name] = (__pendingQtyDeltas[inventory[i].name]||0) - 1; }
  }
 }
@@ -7008,6 +7040,52 @@ function cuApplyCatalogUpdates(){
     });
     if(changedRecipes) cuSetRecipes(recipes);
 
+    // 3) Recalcular el COSTO UNITARIO de cada sabor afectado y guardarlo en
+    //    inventory[i].cost — así la gráfica "Costo por sabor" (y cualquier
+    //    otro lugar que use ese costo) queda al día sin tener que abrir y
+    //    volver a guardar receta por receta manualmente.
+    let changedCosts = false;
+
+    // 3a) El sabor actualmente abierto en pantalla (cuRows), aunque todavía
+    //     no se le haya dado "Guardar CU" — se ve reflejado igual.
+    if(changedRows){
+      const selEl = document.getElementById("cuFlavor");
+      const curName = selEl ? selEl.value : "";
+      if(curName){
+        const idx = inventory.findIndex(p=>p.name===curName);
+        const totalCU = (cuRows||[]).reduce((s,r)=>s+cuPerInsumo(r),0);
+        if(idx>-1 && Number(inventory[idx].cost||0) !== Number(totalCU)){
+          inventory[idx].cost = Number(totalCU)||0;
+          changedCosts = true;
+        }
+      }
+    }
+
+    // 3b) Todos los demás sabores con receta guardada (estén abiertos o no)
+    Object.keys(recipes).forEach(recipeKey=>{
+      const rows = recipes[recipeKey];
+      if(!Array.isArray(rows)) return;
+      const totalCU = rows.reduce((s,r)=>s+cuPerInsumo(r),0);
+      const target = cuNormKey(recipeKey);
+      const idx = inventory.findIndex(p=>cuNormKey(p.name)===target);
+      if(idx>-1 && Number(inventory[idx].cost||0) !== Number(totalCU)){
+        inventory[idx].cost = Number(totalCU)||0;
+        changedCosts = true;
+      }
+    });
+
+    if(changedCosts){
+      saveSilent();
+      render();
+      // Refrescar la gráfica "Costo por sabor" al instante si está visible
+      try{ if(__cuTab==='grafica') renderCUChart(); }catch(_){}
+    }
+
+    // Subir a la nube: recetas actualizadas + costos recalculados
+    if(changedRecipes || changedCosts){
+      try{ cloudSaveSoon(); }catch(_){}
+    }
+
   }catch(e){
     console.warn("cuApplyCatalogUpdates:", e);
   }
@@ -7153,17 +7231,20 @@ function mergeCuRecipes(existing, incoming){
 function cuKeyForIndex(idx){
  return toUpperSafe(inventory[idx]?.name||"");
 }
+function cuKeyForName(name){
+ return toUpperSafe(name||"");
+}
 
-function cuLoadForIndex(idx){
+function cuLoadForName(name){
  const rec=cuGetRecipes();
 
  // llave principal (igual que siempre)
- const key=cuKeyForIndex(idx);
+ const key=cuKeyForName(name);
 
  // ✅ Si no existe EXACTA, intenta por normalización (quita acentos/espacios)
  let saved=rec[key];
  if(!(Array.isArray(saved) && saved.length)){
-   const target = cuNormKey(inventory?.[idx]?.name||"");
+   const target = cuNormKey(name||"");
    const foundKey = Object.keys(rec||{}).find(k=>cuNormKey(k)===target);
    if(foundKey) saved = rec[foundKey];
  }
@@ -7180,11 +7261,14 @@ function cuLoadForIndex(idx){
   cuRows=[];
  }
 }
+function cuLoadForIndex(idx){
+ cuLoadForName(inventory?.[idx]?.name||"");
+}
 
-function cuSaveRecipeForIndex(idx){
+function cuSaveRecipeForName(name){
+ if(!name) return;
  const rec=cuGetRecipes();
- const __keyMap = cuBuildCatalogKeyMap();
- const key=cuKeyForIndex(idx);
+ const key=cuKeyForName(name);
  rec[key]=(cuRows||[]).map(r=>({
   cat:(r.cat||"").toString(),
   name:(r.name||"").toString(),
@@ -7193,6 +7277,9 @@ function cuSaveRecipeForIndex(idx){
   yield:Math.max(1, Number(r.yield)||1)
  }));
  cuSetRecipes(rec);
+}
+function cuSaveRecipeForIndex(idx){
+ cuSaveRecipeForName(inventory?.[idx]?.name||"");
 }
 
 function cuPerInsumo(r){
@@ -7227,19 +7314,20 @@ function cuInit(){
   }catch(_){}
 
  const sel=document.getElementById("cuFlavor");
- // restaurar selección guardada
+ // restaurar selección guardada (nombre del sabor)
  try{
   const ui=JSON.parse(localStorage.getItem("ui_state_v1")||"{}")||{};
-  if(ui.cuFlavor!=null && ui.cuFlavor!=="" ) sel.value=String(ui.cuFlavor);
+  if(ui.cuFlavor!=null && ui.cuFlavor!==""){
+    const __opt = Array.from(sel.options).find(o=>o.value===String(ui.cuFlavor));
+    if(__opt) sel.value = String(ui.cuFlavor);
+  }
  }catch(_){ }
- const idx=parseInt(sel.value);
- if(!isNaN(idx)) cuLoadForIndex(idx);
+ if(sel.value) cuLoadForName(sel.value);
  else cuRows=[];
  cuRender();
 
  sel.onchange=()=>{
-  const i=parseInt(sel.value);
-  if(!isNaN(i)) cuLoadForIndex(i);
+  if(sel.value) cuLoadForName(sel.value);
   else cuRows=[];
   cuRender();
  };
@@ -7334,17 +7422,20 @@ function cuCalc(){
 }
 
 function cuSaveCost(){
- const idx=parseInt(document.getElementById("cuFlavor").value);
- if(isNaN(idx) || !inventory[idx]) return;
+ const name=document.getElementById("cuFlavor").value;
+ if(!name) return;
+ const idx = inventory.findIndex(p=>p.name===name);
+ if(idx<0) return;
 
- // guardar receta
- cuSaveRecipeForIndex(idx);
+ // guardar receta (por NOMBRE, inmune a que el inventario se haya reordenado)
+ cuSaveRecipeForName(name);
 
  // guardar costo unitario calculado
  const total=(cuRows||[]).reduce((s,r)=>s+cuPerInsumo(r),0);
  inventory[idx].cost=Number(total)||0;
 
  saveSilent();
+ try{ cloudSaveSoon(); }catch(_){}
  render();
 
  // refrescar en config si está el mismo
@@ -7352,6 +7443,10 @@ function cuSaveCost(){
   const el=document.getElementById("configCost");
   if(el) el.textContent=money(inventory[idx].cost||0);
  }
+
+ // ✅ Refrescar la gráfica "Costo por sabor" de inmediato si está visible,
+ // para no tener que darle Guardar dos veces para verla actualizada.
+ try{ if(__cuTab==='grafica') renderCUChart(); }catch(_){}
 
  AppUI.toast(String("✅ Costo unitario guardado"));
 }
@@ -7847,14 +7942,15 @@ if(comprasPayload && typeof comprasPayload === 'object'){
      setTimeout(()=>{
        const sel=document.getElementById("cuFlavor");
        if(!sel) return;
-       // si no hay valor válido, cae al primero
-       let idx=parseInt(sel.value);
-       if(isNaN(idx) || !inventory[idx]){
-         sel.value = inventory.length ? "0" : "";
-         idx=parseInt(sel.value);
+       // si no hay una selección válida (nombre que exista como opción), cae al primer sabor
+       let name = sel.value;
+       const valido = name && Array.from(sel.options).some(o=>o.value===name);
+       if(!valido){
+         name = inventory.length ? inventory[0].name : "";
+         sel.value = name;
        }
-       if(!isNaN(idx)){
-         cuLoadForIndex(idx);
+       if(name){
+         cuLoadForName(name);
          cuRender();
        }
      },0);
