@@ -89,6 +89,19 @@ document.addEventListener('visibilitychange', () => {
 
 function cloudSave(){ _doCloudSave(); }
 
+// Botón de emergencia en Guardado: solo se usa cuando el guardado
+// automático se bloqueó por la red de seguridad anti-destrucción (ver
+// _doCloudSave). Pide confirmación explícita antes de subir de todos modos.
+async function forzarSincronizacionManual(){
+  const ok = await AppUI.confirm(
+    "Vas a subir el inventario de ESTE celular a la nube tal como está ahora mismo, aunque sea mucho más chico que lo que ya había.\n\n¿Estás seguro de que borraste varios sabores a propósito y quieres que la nube quede así?",
+    {title:'Forzar subida', danger:true}
+  );
+  if(!ok) return;
+  window.__forzarProximoCloudSave = true;
+  _doCloudSave();
+}
+
 let __pendingCloudSave = false; // hubo un cambio mientras __cloudReady era false: reintentar en cuanto se confirme la nube
 let __pendingQtyDeltas = {}; // { nombreSabor: sumaDeToquesPendientes } — se reaplican ENCIMA de la nube, nunca la pisan
 
@@ -136,6 +149,29 @@ function _doCloudSave(){
       updateCloudStamp("☁️ Sincronizado");
       return;
     }
+
+    // 🛡️ RED DE SEGURIDAD ANTI-DESTRUCCIÓN: si el inventario que vamos a
+    // subir se desplomó de golpe respecto a la última versión confirmada de
+    // la nube (ej. de 15 sabores a 2, o a 0), lo más probable es que este
+    // dispositivo tenga datos viejos o corruptos — NO que de verdad se hayan
+    // borrado casi todos los sabores a propósito. En ese caso NO subimos
+    // automáticamente (para no volver a destruir el inventario real): se
+    // avisa y se detiene, y hay que confirmar manualmente desde Guardado.
+    if(payload.inventory && __cloudBaseline && Array.isArray(__cloudBaseline.inventory) && !window.__forzarProximoCloudSave){
+      const antes = __cloudBaseline.inventory.length;
+      const ahora = payload.inventory.length;
+      if(antes >= 3 && ahora < antes * 0.5){
+        console.warn(`cloudSave BLOQUEADO: inventario pasó de ${antes} a ${ahora} sabores — posible pérdida de datos, no se sube automáticamente.`);
+        updateCloudStamp("⚠️ Cambio grande detectado — no se subió (revisa tu inventario)");
+        try{ AppUI.toast("⚠️ Tu inventario bajó mucho de golpe. No lo subimos a la nube para protegerte. Si de verdad borraste varios sabores, ve a Guardado y sincroniza manualmente."); }catch(_){}
+        window.__cloudSaveBloqueadoPorSeguridad = true;
+        try{ const w=document.getElementById('ioSyncBlockedWarning'); if(w) w.style.display='block'; }catch(_){}
+        return;
+      }
+    }
+    window.__cloudSaveBloqueadoPorSeguridad = false;
+    window.__forzarProximoCloudSave = false;
+    try{ const w=document.getElementById('ioSyncBlockedWarning'); if(w) w.style.display='none'; }catch(_){}
 
     _bumpIgnore(); // suma 1 al contador — el snapshot de este save será ignorado
     db.collection("data").doc(CLOUD_DOC).set(payload, {merge:true})
@@ -3714,7 +3750,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     <div style="font-size:.8rem;font-weight:800;opacity:.85">PEDIDO ACTUAL</div>
     <button type="button" onclick="vgLimpiar()" style="margin:0;padding:5px 12px;border-radius:20px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:.72rem;font-weight:700">✕ Limpiar</button>
    </div>
-   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
     <div>
      <div style="font-size:.68rem;opacity:.8">TOTAL PIEZAS</div>
      <div style="font-size:1.8rem;font-weight:900;line-height:1" id="vgTotalPiezas">0</div>
@@ -3723,6 +3759,15 @@ document.addEventListener('DOMContentLoaded',()=>{
      <div style="font-size:.68rem;opacity:.8">COSTO ESTIMADO</div>
      <div style="font-size:1.8rem;font-weight:900;line-height:1" id="vgTotalCosto">$0.00</div>
     </div>
+   </div>
+   <div style="position:relative">
+    <div style="font-size:.68rem;opacity:.8;margin-bottom:5px">LOS VOY A VENDER</div>
+    <button type="button" id="vgFechaVentaBtn" onclick="vgAbrirFechaVenta()"
+     style="margin:0;padding:8px 14px;border-radius:20px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);color:#fff;font-size:.82rem;font-weight:700;display:inline-flex;align-items:center;gap:7px">
+     📅 <span id="vgFechaVentaLabel">Hoy</span>
+    </button>
+    <input type="date" id="vgFechaVentaInput" onchange="vgFechaVentaCambio(this.value)"
+     style="position:absolute;left:0;top:26px;opacity:0;width:1px;height:1px;pointer-events:none">
    </div>
   </div>
 
@@ -3778,6 +3823,40 @@ document.addEventListener('DOMContentLoaded',()=>{
    </button>
  </div>
 
+ <button type="button" id="dbAddSaleToggleBtn" onclick="dbAddSaleToggle()"
+   style="margin:0;width:100%;padding:10px;background:#f0fdf4;color:#16a34a;border:1.5px solid #bbf7d0;border-radius:14px;font-size:.82rem;font-weight:700;margin-bottom:14px">
+   ➕ Añadir venta
+ </button>
+
+ <div id="dbAddSaleForm" style="display:none;background:#fff;border:1.5px solid #bbf7d0;border-radius:16px;padding:12px 14px;margin-bottom:14px">
+   <div style="font-size:11px;font-weight:800;color:#16a34a;letter-spacing:.07em;margin-bottom:4px">AÑADIR VENTA MANUAL</div>
+   <div class="smallnote" style="margin-bottom:10px">Para cuando se te pasó registrar una venta (ej. de ayer). Esto solo agrega el registro histórico — <b>no descuenta nada del inventario actual</b>.</div>
+   <div class="row3">
+    <div>
+     <div class="lbl">FECHA</div>
+     <input type="date" id="dbAddDate" style="font-size:.84rem;padding:7px 10px">
+    </div>
+    <div>
+     <div class="lbl">PRODUCTO</div>
+     <select id="dbAddProd" style="font-size:.84rem;padding:7px 10px"></select>
+    </div>
+    <div>
+     <div class="lbl">VENDIDOS</div>
+     <input type="number" id="dbAddQty" value="1" min="1" style="font-size:.84rem;padding:7px 10px">
+    </div>
+   </div>
+   <div style="display:flex;gap:10px;margin-top:12px">
+    <button type="button" onclick="dbAddSaleGuardar()"
+      style="margin:0;flex:1;padding:10px;border-radius:14px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:800;font-size:.84rem;box-shadow:0 6px 16px rgba(34,197,94,.30)">
+      Guardar venta
+    </button>
+    <button type="button" onclick="dbAddSaleToggle(false)"
+      style="margin:0;flex:1;padding:10px;border-radius:14px;background:#f8fafc;color:#64748b;border:1.5px solid #e2e8f0;font-weight:700;font-size:.84rem">
+      Cancelar
+    </button>
+   </div>
+ </div>
+
  <button type="button" style="margin:0;width:100%;padding:10px;background:#fef2f2;color:#dc2626;border:1.5px solid #fecaca;border-radius:14px;font-size:.78rem;font-weight:700;margin-bottom:14px" onclick="clearSales()">
    🗑️ Vaciar ventas
  </button>
@@ -3795,6 +3874,14 @@ document.addEventListener('DOMContentLoaded',()=>{
  <div id="ioConnectionBadge" style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;background:#f0fdf4;border:1.5px solid #bbf7d0;margin-bottom:14px;font-size:13px;font-weight:700;color:#166534">
    <span id="ioConnectionDot" style="font-size:16px">🟢</span>
    <span id="ioConnectionText">En línea — cambios se sincronizan con la nube</span>
+ </div>
+
+ <!-- Aviso: guardado automático bloqueado por seguridad -->
+ <div id="ioSyncBlockedWarning" style="display:none;background:#fef2f2;border:1.5px solid #fecaca;border-radius:16px;padding:12px 14px;margin-bottom:14px">
+   <div style="font-size:.84rem;font-weight:800;color:#dc2626;margin-bottom:6px">⚠️ Sincronización automática detenida</div>
+   <div class="smallnote" style="margin-bottom:10px">Tu inventario en este celular bajó mucho de golpe comparado con lo que hay en la nube. Para protegerte de perder datos, NO lo subimos automáticamente.</div>
+   <div class="smallnote" style="margin-bottom:10px"><b>Si de verdad borraste varios sabores a propósito</b>, puedes forzar la subida. Si no fue a propósito, mejor cierra la app y ábrela de nuevo para que se actualice sola con lo que hay en la nube.</div>
+   <button onclick="forzarSincronizacionManual()" style="margin:0;width:100%;padding:10px;border-radius:14px;border:1.5px solid #fecaca;background:#fff;color:#dc2626;font-weight:800;font-size:.82rem">Forzar subida de todos modos</button>
  </div>
 
  <!-- COPIAS DE SEGURIDAD -->
@@ -5800,7 +5887,11 @@ function doSell(i, qty, btn){
  _updateCardQty(i);
  flash(i,"sell");
  try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, -qty); }catch(_){}
- try{ cloudSaveNow(); }catch(_){}
+ // Igual que en +/- de inventario: si vendes varias veces muy rápido,
+ // agrupamos esos toques en un solo guardado a la nube en vez de mandar
+ // uno por cada toque (evita que el contador "se vuelva loco").
+ if(__cloudReady){ cloudSaveQtyDebounced(); }
+ else { __pendingCloudSave = true; }
 }
 
 function openConfig(i){
@@ -5917,6 +6008,69 @@ function initHistoryDefaults(){
 function initDbDefaults(){
  const d=todayLocalISO();
  if(!dbDate.value) dbDate.value=d;
+ dbAddSalePoblarProductos();
+}
+
+function dbAddSalePoblarProductos(){
+  const sel=document.getElementById('dbAddProd');
+  if(!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = (inventory||[]).map(p=>`<option value="${escapeHtmlAttr(p.name)}">${escapeHtml(p.name)}</option>`).join('');
+  if(prev){
+    const opt = Array.from(sel.options).find(o=>o.value===prev);
+    if(opt) sel.value = prev;
+  }
+}
+
+function dbAddSaleToggle(mostrar){
+  const form=document.getElementById('dbAddSaleForm');
+  const btn=document.getElementById('dbAddSaleToggleBtn');
+  if(!form) return;
+  const on = mostrar===undefined ? (form.style.display==='none') : !!mostrar;
+  form.style.display = on ? 'block' : 'none';
+  if(btn) btn.textContent = on ? '➖ Cerrar' : '➕ Añadir venta';
+  if(on){
+    dbAddSalePoblarProductos();
+    const fEl=document.getElementById('dbAddDate');
+    if(fEl && !fEl.value) fEl.value = todayLocalISO();
+    const qEl=document.getElementById('dbAddQty');
+    if(qEl) qEl.value = 1;
+  }
+}
+
+async function dbAddSaleGuardar(){
+  const fecha = document.getElementById('dbAddDate').value;
+  const prod  = document.getElementById('dbAddProd').value;
+  const qty   = parseInt(document.getElementById('dbAddQty').value)||0;
+
+  if(!fecha){ AppUI.toast('Elige una fecha'); return; }
+  if(!prod){ AppUI.toast('Elige un producto'); return; }
+  if(qty<=0){ AppUI.toast('La cantidad debe ser mayor a 0'); return; }
+
+  const ok = await AppUI.confirm(
+    `Vas a agregar al historial: ${prod}, ${qty} vendidos el ${fecha}.\n\nEsto NO descuenta del inventario actual — solo agrega el registro.`,
+    {title:'Añadir venta', danger:false}
+  );
+  if(!ok) return;
+
+  // ✅ A propósito NO tocamos inventory[i].qty aquí — es solo un registro
+  // histórico para que las estadísticas/reportes lo cuenten, sin afectar
+  // el stock actual (que ya se corrigió/contó por separado).
+  sales.push({
+    product: prod,
+    date: fecha,
+    qty: qty,
+    costUnit: getUnitCost(prod)
+  });
+
+  saveSilent();
+  try{ cloudSaveNow(); }catch(_){}
+
+  dbAddSaleToggle(false);
+  document.getElementById('dbDate').value = fecha; // para que se vea de inmediato en la lista
+  renderSalesDB();
+  vibrateSafe([12,40,12]);
+  AppUI.toast('✅ Venta añadida al historial');
 }
 
 /* ====== (sigue PARTE 3) ====== */
@@ -8572,6 +8726,7 @@ let __vgSel = vgLoad(); // persiste hasta que el usuario limpia
 function vgInit(){
   __vgSel = vgLoad();
   __vgPedidos = vgPedidosLoadConMigracion();
+  vgActualizarFechaVentaUI();
   vgRender();
   vgRenderPedidos();
 }
@@ -8815,12 +8970,14 @@ async function vgIniciarSalida(){
   __vgPedidos.push({
     id: 'ped_' + Date.now() + '_' + Math.floor(Math.random()*1000),
     nombre,
-    fecha: todayLocalISO(),
+    fecha: __vgFechaVenta || todayLocalISO(),
     items
   });
   vgPedidosSave();
 
   __vgSel = {};
+  __vgFechaVenta = todayLocalISO();
+  vgActualizarFechaVentaUI();
   vgSave();
   vgRender();
   vgRenderPedidos();
@@ -8829,6 +8986,41 @@ async function vgIniciarSalida(){
 }
 
 function vgFindPedido(id){ return (__vgPedidos||[]).find(p=>p.id===id); }
+
+// ===== Fecha en la que se van a vender los productos de "Ir a llevar" =====
+// Por defecto siempre es "Hoy"; se puede tocar el chip para elegir otra fecha.
+let __vgFechaVenta = todayLocalISO();
+
+function vgFechaVentaTexto(iso){
+  if(!iso || iso === todayLocalISO()) return 'Hoy';
+  const meses=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const partes = String(iso).split('-').map(Number);
+  const y=partes[0], m=partes[1], d=partes[2];
+  if(!d) return iso;
+  return `${d} ${meses[(m-1+12)%12]}`;
+}
+
+function vgActualizarFechaVentaUI(){
+  const lbl=document.getElementById('vgFechaVentaLabel');
+  if(lbl) lbl.textContent = vgFechaVentaTexto(__vgFechaVenta);
+  const inp=document.getElementById('vgFechaVentaInput');
+  if(inp) inp.value = __vgFechaVenta || todayLocalISO();
+}
+
+function vgAbrirFechaVenta(){
+  const inp=document.getElementById('vgFechaVentaInput');
+  if(!inp) return;
+  if(typeof inp.showPicker === 'function'){
+    try{ inp.showPicker(); return; }catch(_){ }
+  }
+  inp.focus();
+  try{ inp.click(); }catch(_){ }
+}
+
+function vgFechaVentaCambio(val){
+  __vgFechaVenta = val || todayLocalISO();
+  vgActualizarFechaVentaUI();
+}
 
 function vgPedidoTotales(pedido){
   const items = Object.values(pedido.items||{});
@@ -8943,6 +9135,7 @@ function vgRenderTabPedidos(pedidos){
         <div style="min-width:0">
           <div style="font-size:1.05rem;font-weight:900;line-height:1.2">${escapeHtmlAttr(pedido.nombre)}</div>
           <div style="font-size:.74rem;opacity:.85;margin-top:2px">${llevado} llevadas · ${vendido} vendidas</div>
+          <div style="font-size:.7rem;opacity:.85;margin-top:2px">📅 Se vende: ${vgFechaVentaTexto(pedido.fecha)}</div>
         </div>
         <div style="font-size:1.2rem;font-weight:800;flex:0 0 auto;transform:rotate(${expanded?180:0}deg);transition:transform .2s">⌄</div>
       </div>
