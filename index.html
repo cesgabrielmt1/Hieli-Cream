@@ -307,7 +307,10 @@ function _applyCloudDataSmart(d){
       try{ vgRenderPedidos && vgRenderPedidos(); }catch(_){}
     }
     render();
-    try{ renderSalesDB && renderSalesDB(); }catch(_){}
+    try{
+      const dbSheetEl = document.getElementById("editDbSheet");
+      if(dbSheetEl && dbSheetEl.classList.contains("active")) renderSalesDB();
+    }catch(_){}
     try{ renderVentas && renderVentas(); }catch(_){}
     try{ renderVentasChart && renderVentasChart(); }catch(_){}
     try{ actualizarTextoVentaBtn && actualizarTextoVentaBtn(); }catch(_){}
@@ -4193,7 +4196,10 @@ function _regSaleBatch(product, qtyDelta){
     delete __salesBatch[product];
     saveSilent();
     try{ cloudSaveQtyDebounced(); }catch(_){}
-    try{ renderSalesDB(); }catch(_){}
+    try{
+      const dbSheetEl = document.getElementById("editDbSheet");
+      if(dbSheetEl && dbSheetEl.classList.contains("active")) renderSalesDB();
+    }catch(_){}
   }, 5000);
 }
 
@@ -4207,7 +4213,10 @@ function _regAddBatch(product, qtyDelta){
     delete __addBatch[product];
     saveSilent();
     try{ cloudSaveQtyDebounced(); }catch(_){}
-    try{ renderSalesDB(); }catch(_){}
+    try{
+      const dbSheetEl = document.getElementById("editDbSheet");
+      if(dbSheetEl && dbSheetEl.classList.contains("active")) renderSalesDB();
+    }catch(_){}
   }, 5000);
 }
 
@@ -5830,17 +5839,18 @@ function render(){
 
  const cuPrevVal = cuSel.value;
 
- inventoryDiv.innerHTML="";
- if(compareSel){
-  compareSel.innerHTML = `<option value="__ALL__">Todos</option>`;
- }
- cuSel.innerHTML="";
+ // ✅ Antes esto armaba el HTML con "+=" dentro del forEach — eso hace que
+ // el navegador reprocese TODO lo acumulado hasta ese momento en cada vuelta
+ // (más lento mientras más sabores tengas). Ahora se junta todo en arreglos
+ // y se pinta UNA sola vez al final — mucho más rápido, sobre todo con
+ // varios sabores.
+ const cardsHtml = [];
+ const compareOptsHtml = [];
+ const cuOptsHtml = [];
 
  inventory.forEach((p,i)=>{
-  if(compareSel){
-   compareSel.innerHTML += `<option value="${escapeHtmlAttr(p.name)}">${escapeHtml(p.name)}</option>`;
-  }
-  cuSel.innerHTML+=`<option value="${escapeHtmlAttr(p.name)}">${escapeHtml(p.name)}</option>`;
+  compareOptsHtml.push(`<option value="${escapeHtmlAttr(p.name)}">${escapeHtml(p.name)}</option>`);
+  cuOptsHtml.push(`<option value="${escapeHtmlAttr(p.name)}">${escapeHtml(p.name)}</option>`);
 
   if(!flavorMatchesFilter(p)) return;
 
@@ -5848,7 +5858,7 @@ function render(){
   const key = encodeURIComponent(p.name);
   const isOpen = invExpanded.has(key);
 
-  inventoryDiv.innerHTML+=`
+  cardsHtml.push(`
    <div class="card inv-card ${p.qty<=p.critical?'low':''} ${isOpen?'':'collapsed'}" data-i="${i}" data-name="${key}" style="border-left:6px solid ${strip}">
     <div class="colorStrip" style="background:${strip}"></div>
     <div class="cardFlash" id="fx_${i}"></div>
@@ -5876,8 +5886,14 @@ function render(){
        <div class="checkpop">✓</div>
      </button>
     </div>
-   </div>`;
+   </div>`);
  });
+
+ inventoryDiv.innerHTML = cardsHtml.join("");
+ if(compareSel){
+  compareSel.innerHTML = `<option value="__ALL__">Todos</option>` + compareOptsHtml.join("");
+ }
+ cuSel.innerHTML = cuOptsHtml.join("");
 
  if(cuPrevVal!==""){
   const __opt = Array.from(cuSel.options).find(o=>o.value===cuPrevVal);
@@ -8937,30 +8953,17 @@ function vgInit(){
   vgRenderPedidos();
 }
 
-function vgRender(){
-  const lista = document.getElementById('vgLista');
-  if(!lista) return;
+function vgCardHtml(p){
+  const key = toUpperSafe(p.name);
+  const color = p.color || '#e0e7ff';
+  const strip = color + 'cc';
 
-  const items = (inventory||[]).filter(p => (p.qty||0) > 0);
-
-  if(!items.length){
-    lista.innerHTML = `<div class="smallnote" style="text-align:center;padding:16px 0">No hay sabores con existencia.</div>`;
-    vgUpdateTotals();
-    return;
-  }
-
-  lista.innerHTML = items.map((p,idx)=>{
-    const key = toUpperSafe(p.name);
-    const color = p.color || '#e0e7ff';
-    const strip = color + 'cc';
-
-    // ---- Tarjeta: seleccionar cuánto llevarte ----
-    const sel = __vgSel[key] || 0;
-    const pct = p.qty > 0 ? Math.round((sel/p.qty)*100) : 0;
-    const isMax = sel >= p.qty;
-    const isEmpty = sel === 0;
-    return `
-    <div style="background:#fff;border:1.5px solid #ede9fe;border-left:5px solid ${strip};border-radius:16px;padding:12px 14px;margin-bottom:10px">
+  const sel = __vgSel[key] || 0;
+  const pct = p.qty > 0 ? Math.round((sel/p.qty)*100) : 0;
+  const isMax = sel >= p.qty;
+  const isEmpty = sel === 0;
+  return `
+    <div id="vgCard_${key}" style="background:#fff;border:1.5px solid #ede9fe;border-left:5px solid ${strip};border-radius:16px;padding:12px 14px;margin-bottom:10px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div>
           <div style="font-weight:800;font-size:.95rem;color:#101826">${p.name}</div>
@@ -8984,8 +8987,32 @@ function vgRender(){
           style="margin:0;flex:0 0 42px;height:42px;border-radius:12px;background:#f3f0ff;border:1.5px solid #ede9fe;color:#5d3fd1;font-size:1.3rem;font-weight:800;display:flex;align-items:center;justify-content:center;${isMax?'opacity:.3;pointer-events:none':''}" ${isMax?'disabled':''}>+</button>
       </div>
     </div>`;
-  }).join('');
+}
 
+function vgRender(){
+  const lista = document.getElementById('vgLista');
+  if(!lista) return;
+
+  const items = (inventory||[]).filter(p => (p.qty||0) > 0);
+
+  if(!items.length){
+    lista.innerHTML = `<div class="smallnote" style="text-align:center;padding:16px 0">No hay sabores con existencia.</div>`;
+    vgUpdateTotals();
+    return;
+  }
+
+  lista.innerHTML = items.map(p=>vgCardHtml(p)).join('');
+
+  vgUpdateTotals();
+}
+
+// ✅ Actualiza SOLO la tarjeta de UN sabor (sin reconstruir las demás), para
+// que ninguna otra tarjeta se mueva o "parpadee" al tocar +/- rápido.
+function vgRefreshCard(key){
+  const p = (inventory||[]).find(x=>toUpperSafe(x.name)===key);
+  const el = document.getElementById(`vgCard_${key}`);
+  if(!p || !el){ vgRender(); return; }
+  el.outerHTML = vgCardHtml(p);
   vgUpdateTotals();
 }
 
@@ -8994,7 +9021,7 @@ function vgInc(key, maxQty){
   const cur = __vgSel[key]||0;
   if(cur >= max) return;
   __vgSel[key] = cur + 1;
-  vgSave(); vgRender();
+  vgSave(); vgRefreshCard(key);
 }
 
 function vgDec(key){
@@ -9002,7 +9029,7 @@ function vgDec(key){
   if(cur <= 0) return;
   __vgSel[key] = cur - 1;
   if(__vgSel[key] === 0) delete __vgSel[key];
-  vgSave(); vgRender();
+  vgSave(); vgRefreshCard(key);
 }
 
 function vgSetManual(key, rawVal, maxQty){
@@ -9120,8 +9147,11 @@ const VG_LLEVADO_KEY_LEGACY = 'vg_llevado_v1'; // formato viejo, solo para migra
 function vgPedidosLoad(){ return safeParseJSON(localStorage.getItem(VG_PEDIDOS_KEY)||'[]', []); }
 function vgPedidosSave(){
   try{ localStorage.setItem(VG_PEDIDOS_KEY, JSON.stringify(__vgPedidos)); }catch(_){}
-  try{ cloudSaveNow(); }catch(_){}
-  try{ render(); }catch(_){}
+  // ✅ Ya no se llama render() aquí (reconstruía TODA la lista de productos
+  // principales en cada toque de +/-). Ajustar llevado/regresado de un
+  // pedido no cambia el inventario, así que no hace falta.
+  if(__cloudReady){ cloudSaveQtyDebounced(); }
+  else { __pendingCloudSave = true; }
   try{ actualizarApartadosBadge && actualizarApartadosBadge(); }catch(_){}
 }
 
@@ -9281,17 +9311,16 @@ function vgResumenPorSaborTodosPedidos(pedidos){
   return map;
 }
 
-function vgItemsPedidoHtml(pedido){
-  return Object.entries(pedido.items||{}).filter(([,it])=>(it.llevado||0)>0).map(([key,it])=>{
-    const item = (inventory||[]).find(p=>toUpperSafe(p.name)===key);
-    const nombre = item ? item.name : key;
-    const disponible = item ? (item.qty||0) : 999999;
-    const vendidoItem = Math.max(0,(it.llevado||0)-(it.regresado||0));
-    const llevadoAlMax = it.llevado >= disponible;
-    const regresadoAlMax = (it.regresado||0) >= it.llevado;
-    const regresadoAlMin = (it.regresado||0) <= 0;
-    return `
-    <div style="background:#fff;border:1px solid #fde68a;border-radius:14px;padding:10px 12px;margin-bottom:8px">
+function vgItemPedidoHtml(pedido, key, it){
+  const item = (inventory||[]).find(p=>toUpperSafe(p.name)===key);
+  const nombre = item ? item.name : key;
+  const disponible = item ? (item.qty||0) : 999999;
+  const vendidoItem = Math.max(0,(it.llevado||0)-(it.regresado||0));
+  const llevadoAlMax = it.llevado >= disponible;
+  const regresadoAlMax = (it.regresado||0) >= it.llevado;
+  const regresadoAlMin = (it.regresado||0) <= 0;
+  return `
+    <div id="vgItem_${pedido.id}_${key}" style="background:#fff;border:1px solid #fde68a;border-radius:14px;padding:10px 12px;margin-bottom:8px">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
         <div style="min-width:0">
           <div style="font-weight:800;font-size:.9rem;color:#101826">${nombre}</div>
@@ -9322,7 +9351,44 @@ function vgItemsPedidoHtml(pedido){
           style="margin:0;flex:0 0 38px;height:38px;border-radius:10px;background:#fef3c7;border:1.5px solid #fde68a;color:#b45309;font-size:1.15rem;font-weight:800;display:flex;align-items:center;justify-content:center;${llevadoAlMax?'opacity:.3;pointer-events:none':''}" ${llevadoAlMax?'disabled':''}>+</button>
       </div>
     </div>`;
-  }).join('');
+}
+
+function vgItemsPedidoHtml(pedido){
+  return Object.entries(pedido.items||{}).filter(([,it])=>(it.llevado||0)>0)
+    .map(([key,it])=>vgItemPedidoHtml(pedido, key, it)).join('');
+}
+
+// ✅ Actualiza SOLO el numerito/estado de UN item dentro de su pedido, sin
+// reconstruir toda la lista de pedidos — así las demás tarjetas no se mueven
+// ni "parpadean" cuando tocas +/- varias veces seguidas.
+function vgRefreshItem(pedidoId, key){
+  const pedido = vgFindPedido(pedidoId);
+  if(!pedido){ vgRenderPedidos(); return; }
+  const it = pedido.items[key];
+  const el = document.getElementById(`vgItem_${pedidoId}_${key}`);
+  if(!it){
+    // el item ya no existe (se quitó) — lo quitamos del DOM directo
+    if(el) el.remove();
+  }else if(el){
+    el.outerHTML = vgItemPedidoHtml(pedido, key, it);
+  }else{
+    // no estaba en el DOM todavía (raro) — reconstrucción completa de respaldo
+    vgRenderPedidos();
+    return;
+  }
+  vgRefreshResumenPedido(pedidoId);
+}
+
+// Actualiza el encabezado del pedido ("X llevadas · Y vendidas") y el texto
+// del botón "Vender N piezas" sin tocar el resto de la tarjeta.
+function vgRefreshResumenPedido(pedidoId){
+  const pedido = vgFindPedido(pedidoId);
+  if(!pedido) return;
+  const {llevado, vendido} = vgPedidoTotales(pedido);
+  const r = document.getElementById(`vgResumen_${pedidoId}`);
+  if(r) r.textContent = `${llevado} llevadas · ${vendido} vendidas`;
+  const btnTxt = document.getElementById(`vgVenderTxt_${pedidoId}`);
+  if(btnTxt) btnTxt.textContent = `Vender ${vendido} pieza${vendido!==1?'s':''}`;
 }
 
 function vgRenderTabPedidos(pedidos){
@@ -9334,7 +9400,7 @@ function vgRenderTabPedidos(pedidos){
       <div onclick="vgTogglePedido('${pedido.id}')" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px">
         <div style="min-width:0">
           <div style="font-size:1.05rem;font-weight:900;line-height:1.2">${escapeHtmlAttr(pedido.nombre)}</div>
-          <div style="font-size:.74rem;opacity:.85;margin-top:2px">${llevado} llevadas · ${vendido} vendidas</div>
+          <div id="vgResumen_${pedido.id}" style="font-size:.74rem;opacity:.85;margin-top:2px">${llevado} llevadas · ${vendido} vendidas</div>
           <div style="font-size:.7rem;opacity:.85;margin-top:2px">📅 Se vende: ${vgFechaVentaTexto(pedido.fecha)}</div>
         </div>
         <div style="font-size:1.2rem;font-weight:800;flex:0 0 auto;transform:rotate(${expanded?180:0}deg);transition:transform .2s">⌄</div>
@@ -9349,7 +9415,7 @@ function vgRenderTabPedidos(pedidos){
           </button>
           <button type="button" onclick="vgVenderPedido('${pedido.id}')"
             style="margin:0;flex:1;padding:12px;border-radius:14px;border:none;background:#fff;color:#b45309;font-weight:800;font-size:.82rem">
-            Vender ${vendido} pieza${vendido!==1?'s':''}
+            <span id="vgVenderTxt_${pedido.id}">Vender ${vendido} pieza${vendido!==1?'s':''}</span>
           </button>
         </div>
         <button type="button" onclick="vgEliminarPedido('${pedido.id}')"
@@ -9462,7 +9528,7 @@ function vgAjustarLlevadoPedido(pedidoId, key, delta){
   if(v === 0){ delete pedido.items[key]; }
   else { it.llevado = v; }
   vgPedidosSave();
-  vgRenderPedidos();
+  vgRefreshItem(pedidoId, key);
 }
 
 function vgSetLlevadoPedido(pedidoId, key, rawVal){
@@ -9479,7 +9545,7 @@ function vgSetLlevadoPedido(pedidoId, key, rawVal){
   if(v === 0){ delete pedido.items[key]; }
   else { it.llevado = v; }
   vgPedidosSave();
-  vgRenderPedidos();
+  vgRefreshItem(pedidoId, key);
 }
 
 function vgAjustarRegresoPedido(pedidoId, key, delta){
@@ -9492,7 +9558,7 @@ function vgAjustarRegresoPedido(pedidoId, key, delta){
   if(v > it.llevado) v = it.llevado;
   it.regresado = v;
   vgPedidosSave();
-  vgRenderPedidos();
+  vgRefreshItem(pedidoId, key);
 }
 
 function vgQuitarItemPedido(pedidoId, key){
@@ -9500,7 +9566,11 @@ function vgQuitarItemPedido(pedidoId, key){
   if(!pedido) return;
   delete pedido.items[key];
   vgPedidosSave();
-  vgRenderPedidos();
+  // Si ese era el último item del pedido, el pedido completo desaparece de
+  // la lista — ahí sí hace falta reconstruir todo (caso poco frecuente).
+  const quedanItems = Object.values(pedido.items||{}).some(it=>(it.llevado||0)>0);
+  if(quedanItems) vgRefreshItem(pedidoId, key);
+  else vgRenderPedidos();
 }
 
 async function vgEliminarPedido(pedidoId){
