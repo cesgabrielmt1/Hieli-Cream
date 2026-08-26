@@ -120,6 +120,7 @@ function _doCloudSave(){
     const local = {
       inventory:    JSON.parse(localStorage.getItem("inventory")      || "[]"),
       sales:        JSON.parse(localStorage.getItem("sales")          || "[]"),
+      stockIn:      JSON.parse(localStorage.getItem("stockIn_v1")     || "[]"),
       ventasDinero: JSON.parse(localStorage.getItem("ventasDinero")   || "[]"),
       listaPVs:     JSON.parse(localStorage.getItem("listaPVs")       || "[]"),
       pvColores:    JSON.parse(localStorage.getItem("pvColores")      || "{}"),
@@ -173,7 +174,9 @@ function _doCloudSave(){
     window.__forzarProximoCloudSave = false;
     try{ const w=document.getElementById('ioSyncBlockedWarning'); if(w) w.style.display='none'; }catch(_){}
 
-    _bumpIgnore(); // suma 1 al contador — el snapshot de este save será ignorado
+    // (Ya no se usa un contador de "ignorar snapshots": la comparación de
+    // contenido en _applyCloudDataSmart es la que decide si el eco de este
+    // guardado se aplica o no — más confiable con toques rápidos.)
     db.collection("data").doc(CLOUD_DOC).set(payload, {merge:true})
       .then(()=>{
         updateCloudStamp("☁️ Sincronizado");
@@ -233,6 +236,84 @@ function _applyCloudData(d){
     try{ renderPVChart && renderPVChart(); }catch(_){}
     try{ actualizarApartadosBadge && actualizarApartadosBadge(); }catch(_){}
   }catch(e){ console.warn("applyCloudData:", e); }
+}
+
+// Mapa: nombre del campo en el documento de Firestore -> llave en localStorage
+const __CLOUD_FIELD_MAP = {
+  inventory:'inventory', sales:'sales', ventasDinero:'ventasDinero', listaPVs:'listaPVs',
+  pvColores:'pvColores', cu_catalog:'cu_catalog_v1', cu_recipes:'cu_recipes_v1',
+  compras_plan:'compras_plan_v1', compras_have:'compras_have_v1', vg_pedidos:'vg_pedidos_v1',
+  stockIn:'stockIn_v1'
+};
+
+// ✅ Versión "inteligente": en vez de adivinar con un contador si un snapshot
+// es "mío" o "de otro celular", compara el CONTENIDO campo por campo:
+//  - Si el dato que llega es IGUAL a lo que ya tengo local -> no hay nada
+//    que hacer (puede ser mi propio eco, o casualmente lo mismo).
+//  - Si es igual a lo último que sabía que había en el servidor (baseline)
+//    pero DISTINTO a mi local -> es un eco VIEJO de mi propio guardado que ya
+//    superé con un cambio más reciente -> se ignora (mi local manda).
+//  - Si es distinto a ambos -> es de verdad dato nuevo (otro celular, o la
+//    primera carga real) -> se aplica.
+// Esto evita reconstruir toda la pantalla (y el "sube y baja" del contador)
+// cada vez que se confirma un guardado propio — solo se toca lo que de
+// verdad cambió por fuera.
+function _applyCloudDataSmart(d){
+  if(!__cloudBaseline) __cloudBaseline = {};
+  let changedSomething = false;
+
+  Object.keys(__CLOUD_FIELD_MAP).forEach(field=>{
+    if(!(field in d)) return; // este campo nunca se ha guardado en la nube
+    const storageKey = __CLOUD_FIELD_MAP[field];
+    const incomingVal = d[field];
+    const esArray = Array.isArray(incomingVal);
+
+    let localVal;
+    try{ localVal = JSON.parse(localStorage.getItem(storageKey) || (esArray?"[]":"{}")); }
+    catch(_){ localVal = esArray ? [] : {}; }
+
+    const incomingStr = JSON.stringify(incomingVal);
+    const localStr    = JSON.stringify(localVal);
+
+    if(incomingStr !== localStr){
+      const baselineVal = __cloudBaseline[field];
+      const baselineStr = baselineVal===undefined ? undefined : JSON.stringify(baselineVal);
+      if(incomingStr !== baselineStr){
+        // Dato realmente nuevo — se aplica
+        localStorage.setItem(storageKey, incomingStr);
+        changedSomething = true;
+      }
+      // si incomingStr === baselineStr: eco viejo ya superado localmente -> se ignora
+    }
+
+    // El baseline siempre refleja el último valor real que sabemos que
+    // tiene el servidor para este campo (independientemente de si lo
+    // aplicamos o no) — así el próximo guardado sabe qué le falta subir.
+    __cloudBaseline[field] = incomingVal;
+  });
+
+  if(!changedSomething) return;
+
+  try{
+    inventory    = JSON.parse(localStorage.getItem("inventory")    || "[]");
+    sales        = JSON.parse(localStorage.getItem("sales")        || "[]");
+    stockIn      = JSON.parse(localStorage.getItem("stockIn_v1")   || "[]");
+    ventasDinero = JSON.parse(localStorage.getItem("ventasDinero") || "[]");
+    listaPVs     = JSON.parse(localStorage.getItem("listaPVs")     || "[]");
+    pvColores    = JSON.parse(localStorage.getItem("pvColores")    || "{}");
+    if(typeof __vgPedidos !== 'undefined'){
+      __vgPedidos = JSON.parse(localStorage.getItem("vg_pedidos_v1") || "[]");
+      try{ vgRender && vgRender(); }catch(_){}
+      try{ vgRenderPedidos && vgRenderPedidos(); }catch(_){}
+    }
+    render();
+    try{ renderSalesDB && renderSalesDB(); }catch(_){}
+    try{ renderVentas && renderVentas(); }catch(_){}
+    try{ renderVentasChart && renderVentasChart(); }catch(_){}
+    try{ actualizarTextoVentaBtn && actualizarTextoVentaBtn(); }catch(_){}
+    try{ renderPVChart && renderPVChart(); }catch(_){}
+    try{ actualizarApartadosBadge && actualizarApartadosBadge(); }catch(_){}
+  }catch(e){ console.warn("applyCloudDataSmart:", e); }
 }
 
 let __snapshotUnsub = null;
@@ -298,32 +379,21 @@ function cloudStartListening(){
       return;
     }
     const esDelServidor = !doc.metadata.fromCache;
-    // Ignorar snapshots causados por ESTE dispositivo
-    if(__ignoreSnapshots > 0){
-      // Solo descontamos y confiamos en el contador cuando ya es confirmación del servidor
-      if(esDelServidor){
-        __ignoreSnapshots--;
-        __cloudReady = true;
-      }
-      updateCloudStamp("☁️ Sincronizado");
-      _replayPendingQtyDeltas();
-      _retryPendingCloudSaveIfAny();
+    if(!esDelServidor){
+      // Caché local (puede ser vieja) o eco de un guardado propio en camino:
+      // nunca decide nada por sí sola, solo informa que sigue sincronizando.
+      if(!__cloudReady) updateCloudStamp("☁️ Sincronizando...");
       return;
     }
-    // 🔒 SIEMPRE mandan los datos de la nube primero (nunca los pisamos).
-    _applyCloudData(doc.data());
-    if(esDelServidor){
-      __cloudReady = true;
-      updateCloudStamp("☁️ Sincronizado en tiempo real");
-      // Encima de esos datos frescos, se suma cualquier +/- que hiciste
-      // mientras se confirmaba la conexión (nunca al revés).
-      _replayPendingQtyDeltas();
-      _retryPendingCloudSaveIfAny();
-    } else {
-      // Dato de caché local (puede estar viejo): lo mostramos pero NO habilitamos
-      // guardado hacia la nube hasta confirmar con el servidor.
-      updateCloudStamp("☁️ Sincronizando...");
-    }
+    __cloudReady = true;
+    // ✅ Comparamos por CONTENIDO (no por conteo) para saber si esto es de
+    // verdad dato nuevo o solo el eco de algo que YO acabo de subir. Esto es
+    // lo que evita el "sube y baja" y que la lista se reconstruya de golpe
+    // mientras estás tocando otro botón.
+    _applyCloudDataSmart(doc.data());
+    updateCloudStamp("☁️ Sincronizado en tiempo real");
+    _replayPendingQtyDeltas();
+    _retryPendingCloudSaveIfAny();
   }, err => {
     __snapshotUnsub = null;
     updateCloudStamp("⚠️ Sin conexión (datos locales)");
@@ -4085,7 +4155,79 @@ let inventory = __invRaw || (__invNeverUsed ? [
 // Marcar que ya se usó la app (para nunca volver a poner ejemplos)
 try{ localStorage.setItem("_hc_used","1"); }catch(_){}
 
-let sales=safeParseJSON(localStorage.getItem("sales"), [])||[]; // {product,date,qty,costUnit?}
+let sales=safeParseJSON(localStorage.getItem("sales"), [])||[]; // {product,date,time,qty,costUnit?}
+// Registros de INGRESO (lo que se agrega al inventario con +), separado de
+// "sales" para no ensuciar los reportes/gráficas de ventas que ya existen.
+let stockIn=safeParseJSON(localStorage.getItem("stockIn_v1"), [])||[]; // {product,date,time,qty}
+
+function nowHHMM(){
+  const d=new Date();
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+function formatHora(hhmm){
+  if(!hhmm) return '';
+  const [hStr,mStr] = String(hhmm).split(':');
+  let h = parseInt(hStr)||0;
+  const m = String(parseInt(mStr)||0).padStart(2,'0');
+  const ampm = h>=12 ? 'p.m.' : 'a.m.';
+  h = h%12; if(h===0) h=12;
+  return `${h}:${m} ${ampm}`;
+}
+
+// ===== Agrupamiento de ventas/agregados rápidos (base de datos) =====
+// Si tocas varias veces seguidas el mismo sabor en menos de 5s, se junta en
+// UN solo registro (con la hora del primer toque de esa racha) en vez de
+// crear un registro por cada toque. Cada sabor tiene su propia racha
+// independiente, así que si cambias rápido de sabor, cada uno se agrupa por
+// separado con su propia hora.
+let __salesBatch = {}; // ventas (egresos)
+let __addBatch = {};   // agregados (ingresos)
+
+function _regSaleBatch(product, qtyDelta){
+  let b = __salesBatch[product];
+  if(!b){ b = __salesBatch[product] = { qty:0, date:todayLocalISO(), time:nowHHMM(), timer:null }; }
+  b.qty += qtyDelta;
+  clearTimeout(b.timer);
+  b.timer = setTimeout(()=>{
+    sales.push({product, date:b.date, time:b.time, qty:b.qty, costUnit:getUnitCost(product)});
+    delete __salesBatch[product];
+    saveSilent();
+    try{ cloudSaveQtyDebounced(); }catch(_){}
+    try{ renderSalesDB(); }catch(_){}
+  }, 5000);
+}
+
+function _regAddBatch(product, qtyDelta){
+  let b = __addBatch[product];
+  if(!b){ b = __addBatch[product] = { qty:0, date:todayLocalISO(), time:nowHHMM(), timer:null }; }
+  b.qty += qtyDelta;
+  clearTimeout(b.timer);
+  b.timer = setTimeout(()=>{
+    stockIn.push({product, date:b.date, time:b.time, qty:b.qty});
+    delete __addBatch[product];
+    saveSilent();
+    try{ cloudSaveQtyDebounced(); }catch(_){}
+    try{ renderSalesDB(); }catch(_){}
+  }, 5000);
+}
+
+// Si la app se cierra/oculta con una racha a medio contar, la cerramos ya
+// (con lo que llevaba hasta ese momento) para no perder ese registro.
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState !== 'hidden') return;
+  Object.keys(__salesBatch).forEach(product=>{
+    const b = __salesBatch[product];
+    clearTimeout(b.timer);
+    sales.push({product, date:b.date, time:b.time, qty:b.qty, costUnit:getUnitCost(product)});
+    delete __salesBatch[product];
+  });
+  Object.keys(__addBatch).forEach(product=>{
+    const b = __addBatch[product];
+    clearTimeout(b.timer);
+    stockIn.push({product, date:b.date, time:b.time, qty:b.qty});
+    delete __addBatch[product];
+  });
+});
 let ventasDinero = JSON.parse(localStorage.getItem("ventasDinero") || "[]");
 
 // ---- MIGRACION DE REGISTROS ANTIGUOS (para que Graficas/Reportes lean la base vieja) ----
@@ -4594,6 +4736,7 @@ function saveSilent(){
  try{
   localStorage.setItem("inventory",JSON.stringify(inventory));
   localStorage.setItem("sales",JSON.stringify(sales));
+  localStorage.setItem("stockIn_v1",JSON.stringify(stockIn));
     // UI/drafts para no perder selección (CU/Compras) al salir
   try{
     const ui={
@@ -5796,6 +5939,7 @@ function increase(i, btn){
  saveSilent();
  flash(i,"add");
  try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, +1); }catch(_){}
+ _regAddBatch(inventory[i].name, 1);
  if(__cloudReady){ cloudSaveQtyDebounced(); }
  else { __pendingQtyDeltas[inventory[i].name] = (__pendingQtyDeltas[inventory[i].name]||0) + 1; }
 }
@@ -5860,17 +6004,7 @@ function doSell(i, qty, btn){
  if(qty>(inventory[i].qty||0)) qty=inventory[i].qty||0;
  inventory[i].qty -= qty;
 
- const d=todayLocalISO();
  const p=inventory[i].name;
- const cu = Number(inventory[i].cost)||0;
-
- const existing=sales.find(x=>normalizeISODate(x.date)===d && toUpperSafe(x.product)===toUpperSafe(p));
- if(existing){
-  existing.qty=(parseInt(existing.qty)||0)+qty;
-  existing.costUnit = (existing.costUnit==null) ? cu : existing.costUnit;
- }else{
-  sales.push({product:p,date:d,qty:qty,costUnit:cu});
- }
 
  vibrateSafe([10,30,10]);
  playPop();
@@ -5887,6 +6021,9 @@ function doSell(i, qty, btn){
  _updateCardQty(i);
  flash(i,"sell");
  try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, -qty); }catch(_){}
+ // Agrupa ventas del mismo sabor hechas en menos de 5s en un solo registro
+ // con la hora del primer toque de esa racha (ver _regSaleBatch arriba).
+ _regSaleBatch(p, qty);
  // Igual que en +/- de inventario: si vendes varias veces muy rápido,
  // agrupamos esos toques en un solo guardado a la nube en vez de mandar
  // uno por cada toque (evita que el contador "se vuelva loco").
@@ -6059,6 +6196,7 @@ async function dbAddSaleGuardar(){
   sales.push({
     product: prod,
     date: fecha,
+    time: nowHHMM(),
     qty: qty,
     costUnit: getUnitCost(prod)
   });
@@ -6716,19 +6854,32 @@ function renderSalesDB(){
  const q=(document.getElementById("dbSearch").value||"").toUpperCase();
  const f=normalizeISODate(document.getElementById("dbDate").value||"");
 
- const normalized=(sales||[]).map((s,__id)=>({
-  __id,
+ const normVentas=(sales||[]).map((s,__id)=>({
+  __id, tipo:'venta',
   product:toUpperSafe(s.product),
   displayName:(s.product||"").toString().trim() || "SIN NOMBRE",
   date:normalizeISODate(s.date)||"",
+  time:s.time||"",
   qty:Math.max(1,parseInt(s.qty)||1),
   costUnit:(s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0)
  })).filter(r=>r.date);
 
+ const normIngresos=(stockIn||[]).map((s,__id)=>({
+  __id, tipo:'ingreso',
+  product:toUpperSafe(s.product),
+  displayName:(s.product||"").toString().trim() || "SIN NOMBRE",
+  date:normalizeISODate(s.date)||"",
+  time:s.time||"",
+  qty:Math.max(1,parseInt(s.qty)||1),
+  costUnit:0
+ })).filter(r=>r.date);
+
+ const normalized = normVentas.concat(normIngresos);
+
  const rows=normalized.filter(r=>
   (!f || r.date===f) &&
   (!q || r.product.includes(q) || r.date.includes(q))
- ).sort((a,b)=>a.date.localeCompare(b.date) || a.product.localeCompare(b.product));
+ ).sort((a,b)=>a.date.localeCompare(b.date) || (a.time||"").localeCompare(b.time||"") || a.product.localeCompare(b.product));
 
  const wrap=document.getElementById("salesList");
 
@@ -6740,49 +6891,58 @@ function renderSalesDB(){
   return;
  }
 
- wrap.innerHTML=rows.map((r,i)=>`
-  <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:10px">
-   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-     <span style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em">REGISTRO ${i+1}</span>
-     <span class="smallnote" style="margin:0">CU: <b>${money(r.costUnit)}</b></span>
+ wrap.innerHTML=rows.map((r,i)=>{
+  const esIngreso = r.tipo==='ingreso';
+  const borderColor = esIngreso ? '#bbf7d0' : '#ede9fe';
+  const accentColor  = esIngreso ? '#22c55e' : '#a78bfa';
+  const badgeBg    = esIngreso ? '#f0fdf4' : '#f5f3ff';
+  const badgeColor = esIngreso ? '#16a34a' : '#7c5fe6';
+  const badgeTexto = esIngreso ? '🟢 AGREGADO' : '🟣 VENDIDO';
+  const horaTexto  = r.time ? ` · ${formatHora(r.time)}` : '';
+  const pref = esIngreso ? 'I' : '';
+  return `
+  <div style="background:#fff;border:1.5px solid ${borderColor};border-left:4px solid ${accentColor};border-radius:16px;padding:12px 14px;margin-bottom:10px">
+   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap">
+     <span style="font-size:10px;font-weight:800;color:${badgeColor};letter-spacing:.05em;background:${badgeBg};padding:4px 10px;border-radius:20px;white-space:nowrap">${badgeTexto}${horaTexto}</span>
+     ${esIngreso ? '' : `<span class="smallnote" style="margin:0">CU: <b>${money(r.costUnit)}</b></span>`}
    </div>
 
    <div class="row3">
     <div>
      <div class="lbl">FECHA</div>
-     <input type="date" id="dbD_${i}" value="${r.date}" style="font-size:.84rem;padding:7px 10px">
+     <input type="date" id="db${pref}D_${i}" value="${r.date}" style="font-size:.84rem;padding:7px 10px">
     </div>
     <div>
      <div class="lbl">PRODUCTO</div>
-     <select id="dbP_${i}" style="font-size:.84rem;padding:7px 10px">
+     <select id="db${pref}P_${i}" style="font-size:.84rem;padding:7px 10px">
       ${inventory.map(p=>`<option ${toUpperSafe(p.name)===r.product?"selected":""}>${p.name}</option>`).join("")}
      </select>
     </div>
     <div>
-     <div class="lbl">VENDIDOS</div>
-     <input type="number" id="dbQ_${i}" value="${r.qty}" style="font-size:.84rem;padding:7px 10px">
+     <div class="lbl">${esIngreso?'AGREGADOS':'VENDIDOS'}</div>
+     <input type="number" id="db${pref}Q_${i}" value="${r.qty}" style="font-size:.84rem;padding:7px 10px">
     </div>
    </div>
 
    <div style="display:flex;gap:10px;margin-top:12px">
-    <button type="button" onclick="dbSave(${i})"
-      style="margin:0;flex:1;padding:10px;border-radius:14px;border:none;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);color:#fff;font-weight:700;font-size:.84rem;box-shadow:0 6px 16px rgba(124,95,230,.30)">
+    <button type="button" onclick="${esIngreso?`dbSaveIngreso(${i})`:`dbSave(${i})`}"
+      style="margin:0;flex:1;padding:10px;border-radius:14px;border:none;background:linear-gradient(135deg,${esIngreso?'#22c55e,#16a34a':'#7c5fe6,#5d3fd1'});color:#fff;font-weight:700;font-size:.84rem;box-shadow:0 6px 16px rgba(${esIngreso?'34,197,94':'124,95,230'},.30)">
       Guardar
     </button>
-    <button type="button" onclick="dbDelete(${i})"
+    <button type="button" onclick="${esIngreso?`dbDeleteIngreso(${i})`:`dbDelete(${i})`}"
       style="margin:0;flex:1;padding:10px;border-radius:14px;background:#fef2f2;color:#dc2626;border:1.5px solid #fecaca;font-weight:700;font-size:.84rem">
       Borrar
     </button>
    </div>
   </div>
- `).join("");
+ `;}).join("");
 
  window.__dbRows=rows;
 }
 
 async function dbSave(i){
   const r=window.__dbRows[i];
-  if(!r) return;
+  if(!r || r.tipo!=='venta') return;
   const id = r.__id;
 
   const newDate = document.getElementById(`dbD_${i}`).value;
@@ -6797,7 +6957,7 @@ async function dbSave(i){
       sales.splice(id,1);
     }
   }else{
-    const payload = {product:newProd, date:newDate, qty:newQty, costUnit:r.costUnit};
+    const payload = {product:newProd, date:newDate, time:r.time, qty:newQty, costUnit:r.costUnit};
     if(id!=null && id>=0 && id < sales.length){
       sales[id] = payload;
     }else{
@@ -6813,7 +6973,7 @@ async function dbSave(i){
 
 async function dbDelete(i){
   const r=window.__dbRows[i];
-  if(!r) return;
+  if(!r || r.tipo!=='venta') return;
   if(!(await AppUI.confirm(`Vas a borrar: ${r.displayName}, ${r.qty} vendidos el ${r.date}. Esta acción no se puede deshacer.`, {title:'Borrar registro', danger:true}))) return;
 
   const id = r.__id;
@@ -6826,6 +6986,52 @@ async function dbDelete(i){
   try{ cloudSaveNow(); }catch(_){}
   renderSalesDB();
 }
+
+async function dbSaveIngreso(i){
+  const r=window.__dbRows[i];
+  if(!r || r.tipo!=='ingreso') return;
+  const id = r.__id;
+
+  const newDate = document.getElementById(`dbID_${i}`).value;
+  const newProd = document.getElementById(`dbIP_${i}`).value;
+  const newQty  = parseInt(document.getElementById(`dbIQ_${i}`).value)||0;
+
+  if(!(await AppUI.confirm(`Vas a guardar: ${newProd}, ${newQty} agregados el ${newDate}.`, {title:'Guardar cambios', danger:false}))) return;
+
+  if(newQty<=0){
+    if(id!=null && id>=0 && id < stockIn.length){
+      stockIn.splice(id,1);
+    }
+  }else{
+    const payload = {product:newProd, date:newDate, time:r.time, qty:newQty};
+    if(id!=null && id>=0 && id < stockIn.length){
+      stockIn[id] = payload;
+    }else{
+      stockIn.push(payload);
+    }
+  }
+
+  saveSilent();
+  try{ cloudSaveNow(); }catch(_){}
+  renderSalesDB();
+}
+
+async function dbDeleteIngreso(i){
+  const r=window.__dbRows[i];
+  if(!r || r.tipo!=='ingreso') return;
+  if(!(await AppUI.confirm(`Vas a borrar: ${r.displayName}, ${r.qty} agregados el ${r.date}. Esta acción no se puede deshacer.\n\n⚠️ Esto NO descuenta el inventario actual — solo borra el registro histórico.`, {title:'Borrar registro', danger:true}))) return;
+
+  const id = r.__id;
+
+  if(id!=null && id>=0 && id < stockIn.length){
+    stockIn.splice(id,1);
+  }
+
+  saveSilent();
+  try{ cloudSaveNow(); }catch(_){}
+  renderSalesDB();
+}
+
 
 /* =========================
    HOOKS al abrir STATS
@@ -8887,13 +9093,7 @@ async function vgVenderTodo(){
     totalVendido += realQty;
 
     const cu = Number(p.cost)||0;
-    const existing = sales.find(x=>normalizeISODate(x.date)===d && toUpperSafe(x.product)===toUpperSafe(p.name));
-    if(existing){
-      existing.qty = (parseInt(existing.qty)||0) + realQty;
-      if(existing.costUnit==null) existing.costUnit = cu;
-    }else{
-      sales.push({product:p.name, date:d, qty:realQty, costUnit:cu});
-    }
+    sales.push({product:p.name, date:d, time:nowHHMM(), qty:realQty, costUnit:cu});
   });
 
   saveSilent();
@@ -9229,13 +9429,7 @@ async function vgVenderTodosPedidos(){
     totalVendido += realQty;
 
     const cu = Number(p.cost)||0;
-    const existing = sales.find(x=>normalizeISODate(x.date)===d && toUpperSafe(x.product)===toUpperSafe(p.name));
-    if(existing){
-      existing.qty = (parseInt(existing.qty)||0) + realQty;
-      if(existing.costUnit==null) existing.costUnit = cu;
-    }else{
-      sales.push({product:p.name, date:d, qty:realQty, costUnit:cu});
-    }
+    sales.push({product:p.name, date:d, time:nowHHMM(), qty:realQty, costUnit:cu});
   });
 
   saveSilent();
@@ -9379,13 +9573,7 @@ async function vgVenderPedido(pedidoId){
     totalVendido += realQty;
 
     const cu = Number(p.cost)||0;
-    const existing = sales.find(x=>normalizeISODate(x.date)===d && toUpperSafe(x.product)===toUpperSafe(p.name));
-    if(existing){
-      existing.qty = (parseInt(existing.qty)||0) + realQty;
-      if(existing.costUnit==null) existing.costUnit = cu;
-    }else{
-      sales.push({product:p.name, date:d, qty:realQty, costUnit:cu});
-    }
+    sales.push({product:p.name, date:d, time:nowHHMM(), qty:realQty, costUnit:cu});
   });
 
   saveSilent();
