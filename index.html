@@ -3965,6 +3965,30 @@ document.addEventListener('DOMContentLoaded',()=>{
    <div id="backupList"></div>
  </div>
 
+ <!-- Vista previa antes de restaurar -->
+ <div id="backupPreview" style="display:none;background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
+   <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:2px">👁️ VISTA PREVIA — ANTES DE RESTAURAR</div>
+   <div id="backupPreviewWhen" class="smallnote" style="margin-bottom:10px"></div>
+   <div style="background:#f8f7ff;border-radius:12px;padding:10px 12px;margin-bottom:10px">
+     <div id="backupPreviewList" style="max-height:260px;overflow-y:auto"></div>
+     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid #ede9fe">
+       <span style="font-size:.78rem;font-weight:700;color:#64748b">TOTAL</span>
+       <span id="backupPreviewTotal" style="font-size:1rem;font-weight:900;color:#5d3fd1">0</span>
+     </div>
+   </div>
+   <div class="smallnote" style="margin-bottom:10px">⚠️ Esto va a <b>reemplazar</b> tu inventario y ventas actuales por lo que ves arriba.</div>
+   <div style="display:flex;gap:10px">
+     <button type="button" onclick="cancelarPreviewRestaurar()"
+       style="margin:0;flex:1;padding:10px;border-radius:14px;background:#f8fafc;color:#64748b;border:1.5px solid #e2e8f0;font-weight:700;font-size:.84rem">
+       Cancelar
+     </button>
+     <button type="button" onclick="confirmarPreviewRestaurar()"
+       style="margin:0;flex:1;padding:10px;border-radius:14px;border:none;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;font-weight:800;font-size:.84rem;box-shadow:0 6px 16px rgba(220,38,38,.30)">
+       Sí, restaurar
+     </button>
+   </div>
+ </div>
+
  <!-- EXPORTAR JSON -->
  <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
    <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:8px">📤 EXPORTAR ARCHIVO</div>
@@ -5878,9 +5902,9 @@ function render(){
      <button class="btn plus" onclick="increase(${i}, this)">+</button>
      <button class="btn sell"
         onmousedown="sellHoldStart(${i})"
-        onmouseup="sellHoldEnd()"
+        onmouseup="sellHoldEnd(${i})"
         ontouchstart="sellHoldStart(${i})"
-        ontouchend="sellHoldEnd()"
+        ontouchend="sellHoldEnd(${i})"
         onclick="sell(${i}, this)">
        VENDER
        <div class="checkpop">✓</div>
@@ -5975,20 +5999,25 @@ function decrease(i, btn){
 }
 
 /* VENDER + hold cantidad */
-let __holdTimer=null;
-let __holdActive=false;
+// ⚠️ Antes __holdTimer/__holdActive eran UNA sola variable compartida entre
+// TODOS los sabores. Si vendías uno y de inmediato otro, el "mantener
+// presionado" de un sabor podía activarse por error y bloquear la venta de
+// OTRO sabor sin avisar (justo el bug de "vendí 4 y solo se marcó 1"). Ahora
+// cada sabor (por índice) tiene su propio estado independiente.
+let __holdTimers = {};
+let __holdActiveMap = {};
 
 function sellHoldStart(i){
- __holdActive=false;
- clearTimeout(__holdTimer);
- __holdTimer=setTimeout(()=>{
-  __holdActive=true;
+ __holdActiveMap[i] = false;
+ clearTimeout(__holdTimers[i]);
+ __holdTimers[i] = setTimeout(()=>{
+  __holdActiveMap[i] = true;
   sellAskQty(i);
  }, 450);
 }
 
-function sellHoldEnd(){
- clearTimeout(__holdTimer);
+function sellHoldEnd(i){
+ clearTimeout(__holdTimers[i]);
 }
 
 async function sellAskQty(i){
@@ -6005,13 +6034,14 @@ Máximo: ${max}`,
   okText: "Vender",
   cancelText: "Cancelar"
  });
+ __holdActiveMap[i] = false;
  if(q===null) return;
  doSell(i, q, null);
 }
 
 /* sell click normal */
 function sell(i, btn){
- if(__holdActive) return; // evita doble
+ if(__holdActiveMap[i]){ __holdActiveMap[i] = false; return; } // evita doble
  doSell(i, 1, btn);
 }
 
@@ -7870,6 +7900,8 @@ function exportData(){
  const payload={
   inventory,
   sales,
+  stockIn,
+  vg_pedidos: (typeof __vgPedidos!=='undefined' ? __vgPedidos : vgPedidosLoad()),
   ventasDinero,
   listaPVs,
   pvColores,
@@ -7889,63 +7921,11 @@ const a=document.createElement("a");
 }
 
 // =============================================
-//  COPIAS AUTOMÁTICAS (12am y 5pm) + AVISO SUAVE
+//  AVISO SUAVE PARA GUARDAR COPIA MANUAL
 // =============================================
-
-// Guarda una copia en un slot específico sin rotar los demás
-function _autoBackup(slot){
-  try{
-    saveSilent();
-    const payload = JSON.stringify({
-      inventory, sales, ventasDinero, listaPVs, pvColores,
-      cu_catalog: cuGetCatalog(),
-      cu_recipes: cuGetRecipes(),
-      compras: { plan: comprasGetPlan(), have: comprasGetHave() },
-      savedAt: new Date().toISOString(),
-      autoSaved: true,
-      slot
-    });
-    localStorage.setItem(slot, payload);
-    console.log("✅ Copia automática guardada en:", slot);
-  }catch(e){ console.warn("Auto-backup falló:", e); }
-}
-
-// Revisa si ya se guardó la copia automática de "slot" HOY; si no, la guarda.
-// Esto cubre el caso de que la app esté cerrada justo a la hora programada:
-// en cuanto se abra después de esa hora, se pondrá al día.
-function _ensureAutoBackupToday(slot, hourThreshold){
-  const now = new Date();
-  if(now.getHours() < hourThreshold) return; // aún no llega la hora hoy
-  const hoyStr = now.toISOString().slice(0,10);
-  const doneKey = slot + "_done_" + hoyStr;
-  if(localStorage.getItem(doneKey)) return; // ya se hizo hoy
-  _autoBackup(slot);
-  try{ localStorage.setItem(doneKey, "1"); }catch(_){}
-}
-
-// Revisar al cargar la app (cubre el caso de app cerrada a la hora exacta)
-_ensureAutoBackupToday("backup_auto_medianoche", 0);   // cualquier hora del día ya pasó medianoche
-_ensureAutoBackupToday("backup_auto_5pm", 17);         // solo si ya son las 17:00 o más
-
-// Revisar cada minuto mientras la app esté abierta (para el momento exacto)
-let __lastAutoBackupCheck = "";
-setInterval(() => {
-  const now = new Date();
-  const hhmm = `${now.getHours().toString().padStart(2,"0")}:${now.getMinutes().toString().padStart(2,"0")}`;
-  if(hhmm === __lastAutoBackupCheck) return; // evitar doble disparo
-  __lastAutoBackupCheck = hhmm;
-
-  _ensureAutoBackupToday("backup_auto_medianoche", 0);
-  _ensureAutoBackupToday("backup_auto_5pm", 17);
-}, 60000);
-
-// También revisar cuando la app vuelve al frente (la abriste de nuevo)
-document.addEventListener("visibilitychange", () => {
-  if(document.visibilityState === "visible"){
-    _ensureAutoBackupToday("backup_auto_medianoche", 0);
-    _ensureAutoBackupToday("backup_auto_5pm", 17);
-  }
-});
+// (Se quitaron las copias automáticas de medianoche y 5pm — ya no servían.
+// Ahora solo existen las copias manuales, hasta 10, cada vez que le das
+// "Guardar copia ahora" en Guardado.)
 
 // Aviso suave: si no se ha hecho copia manual hoy, mostrar una vez al día
 (function _checkBackupReminder(){
@@ -7953,11 +7933,10 @@ document.addEventListener("visibilitychange", () => {
     const hoy = new Date().toISOString().slice(0,10);
     const lastRemind = localStorage.getItem("_hc_last_remind");
     if(lastRemind === hoy) return; // ya se avisó hoy
-    const lastBackup = localStorage.getItem("backup_hoy");
-    if(lastBackup){
-      const d = JSON.parse(lastBackup);
-      if(d.savedAt && d.savedAt.slice(0,10) === hoy) return; // ya hay copia de hoy
-    }
+    const raw = localStorage.getItem("backup_manual_v1");
+    const arr = raw ? JSON.parse(raw) : [];
+    const yaHayDeHoy = Array.isArray(arr) && arr.some(d => d.savedAt && d.savedAt.slice(0,10) === hoy);
+    if(yaHayDeHoy) return;
     // Mostrar aviso suave después de 30s de uso
     setTimeout(() => {
       if(typeof AppUI !== "undefined" && AppUI.toast){
@@ -7967,14 +7946,24 @@ document.addEventListener("visibilitychange", () => {
     }, 30000);
   }catch(e){}
 })();
-const BACKUP_KEYS = ["backup_hoy","backup_ayer","backup_antier"];
+const BACKUP_MANUAL_KEY = "backup_manual_v1"; // arreglo con hasta 10 copias manuales (la más reciente primero)
+const BACKUP_MANUAL_MAX = 10;
+
+function _leerCopiasManuales(){
+  try{
+    const raw = localStorage.getItem(BACKUP_MANUAL_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  }catch(_){ return []; }
+}
 
 function guardarCopiaSeguridad(){
   saveSilent();
-  const hoyStr = new Date().toISOString().slice(0,10);
-  const payload = JSON.stringify({
+  const payload = {
     inventory,
     sales,
+    stockIn,
+    vg_pedidos: (typeof __vgPedidos!=='undefined' ? __vgPedidos : vgPedidosLoad()),
     ventasDinero,
     listaPVs,
     pvColores,
@@ -7982,90 +7971,115 @@ function guardarCopiaSeguridad(){
     cu_recipes: cuGetRecipes(),
     compras: { plan: comprasGetPlan(), have: comprasGetHave() },
     savedAt: new Date().toISOString()
-  });
+  };
 
   try{
-    const prevHoyRaw = localStorage.getItem("backup_hoy");
-    let prevHoyEsDeHoy = false;
-    if(prevHoyRaw){
-      try{
-        const prevHoy = JSON.parse(prevHoyRaw);
-        if(prevHoy.savedAt && prevHoy.savedAt.slice(0,10) === hoyStr) prevHoyEsDeHoy = true;
-      }catch(_){}
-    }
-
-    if(prevHoyEsDeHoy){
-      // Ya guardaste hoy antes: solo REEMPLAZAR "Hoy", no rotar nada
-      localStorage.setItem("backup_hoy", payload);
-    }else{
-      // Es la primera copia del día: rotar antier←ayer←hoy←nueva
-      const prev_ayer = localStorage.getItem("backup_hoy");
-      const prev_antier = localStorage.getItem("backup_ayer");
-      if(prev_antier) localStorage.setItem("backup_antier", prev_antier);
-      if(prev_ayer)   localStorage.setItem("backup_ayer", prev_ayer);
-      localStorage.setItem("backup_hoy", payload);
-    }
+    // ✅ Ya no rota "hoy/ayer/antier" con solo 3 espacios: cada vez que le
+    // das Guardar se agrega como una copia NUEVA. Se guardan hasta 10 —
+    // al llegar a la 11, se cae la más vieja.
+    let arr = _leerCopiasManuales();
+    arr.unshift(payload);
+    if(arr.length > BACKUP_MANUAL_MAX) arr = arr.slice(0, BACKUP_MANUAL_MAX);
+    localStorage.setItem(BACKUP_MANUAL_KEY, JSON.stringify(arr));
   }catch(e){ AppUI.toast("⚠️ Sin espacio para guardar copia"); return; }
 
   AppUI.toast("✅ Copia guardada correctamente");
   renderBackupList();
 }
 
-function restaurarCopia(key){
-  const raw = localStorage.getItem(key);
-  if(!raw){ AppUI.toast("No hay copia en ese slot"); return; }
-  const labels = { backup_hoy:"de hoy", backup_ayer:"de ayer", backup_antier:"de antier" };
-  AppUI.confirm(`¿Restaurar la copia ${labels[key]||""}?\nSe reemplazarán tus datos actuales.`, {
-    title:"Restaurar copia",
-    okText:"Sí, restaurar",
-    cancelText:"Cancelar"
-  }).then(ok => {
-    if(!ok) return;
-    try{
-      const d = JSON.parse(raw);
-      if(d.inventory)    { inventory = d.inventory; localStorage.setItem("inventory", JSON.stringify(inventory)); }
-      if(d.sales)        { sales = d.sales; localStorage.setItem("sales", JSON.stringify(sales)); }
-      if(d.ventasDinero) { ventasDinero = d.ventasDinero; localStorage.setItem("ventasDinero", JSON.stringify(ventasDinero)); }
-      if(d.listaPVs)     { listaPVs = d.listaPVs; localStorage.setItem("listaPVs", JSON.stringify(listaPVs)); }
-      if(d.pvColores)    { pvColores = d.pvColores; localStorage.setItem("pvColores", JSON.stringify(pvColores)); }
-      render();
-      try{ renderPVChart(); }catch(_){}
-      try{ cloudSaveNow(); }catch(_){}
-      AppUI.toast("✅ Copia restaurada y subida a la nube");
-    }catch(e){ AppUI.toast("⚠️ Error al restaurar: "+e.message); }
-  });
+// ===== Vista previa antes de restaurar (por sabor) =====
+let __backupPendingRestore = null; // {payload, label}
+
+function _mostrarPreviewRestaurar(payload, label){
+  __backupPendingRestore = { payload, label };
+  const panel = document.getElementById("backupPreview");
+  const whenEl = document.getElementById("backupPreviewWhen");
+  const listEl = document.getElementById("backupPreviewList");
+  const totalEl = document.getElementById("backupPreviewTotal");
+  if(!panel || !listEl) return;
+
+  const when = payload.savedAt ? new Date(payload.savedAt).toLocaleString("es-MX",{hour:"2-digit",minute:"2-digit",day:"2-digit",month:"short",year:"numeric"}) : "—";
+  if(whenEl) whenEl.textContent = `${label} · ${when}`;
+
+  const items = (payload.inventory||[]).slice().sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  const total = items.reduce((a,p)=>a+(Number(p.qty)||0),0);
+
+  listEl.innerHTML = items.length ? items.map(p=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #ede9fe">
+      <span style="font-size:.82rem;font-weight:700;color:#1e1b2e">${escapeHtml(p.name||"")}</span>
+      <span style="font-size:.88rem;font-weight:900;color:#5d3fd1">${Number(p.qty)||0}</span>
+    </div>
+  `).join("") : `<div class="smallnote" style="text-align:center;padding:6px 0">Sin sabores en esta copia.</div>`;
+
+  if(totalEl) totalEl.textContent = total;
+
+  panel.style.display = "block";
+  panel.scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+function cancelarPreviewRestaurar(){
+  __backupPendingRestore = null;
+  const panel = document.getElementById("backupPreview");
+  if(panel) panel.style.display = "none";
+}
+
+function confirmarPreviewRestaurar(){
+  if(!__backupPendingRestore){ return; }
+  const { payload } = __backupPendingRestore;
+  try{
+    if(payload.inventory)    { inventory = payload.inventory; localStorage.setItem("inventory", JSON.stringify(inventory)); }
+    if(payload.sales)        { sales = payload.sales; localStorage.setItem("sales", JSON.stringify(sales)); }
+    if(payload.stockIn)      { stockIn = payload.stockIn; localStorage.setItem("stockIn_v1", JSON.stringify(stockIn)); }
+    if(payload.ventasDinero) { ventasDinero = payload.ventasDinero; localStorage.setItem("ventasDinero", JSON.stringify(ventasDinero)); }
+    if(payload.listaPVs)     { listaPVs = payload.listaPVs; localStorage.setItem("listaPVs", JSON.stringify(listaPVs)); }
+    if(payload.pvColores)    { pvColores = payload.pvColores; localStorage.setItem("pvColores", JSON.stringify(pvColores)); }
+    if(Array.isArray(payload.vg_pedidos)){
+      __vgPedidos = payload.vg_pedidos;
+      localStorage.setItem(VG_PEDIDOS_KEY, JSON.stringify(__vgPedidos));
+      try{ vgRenderPedidos && vgRenderPedidos(); }catch(_){}
+    }
+    render();
+    try{ renderPVChart(); }catch(_){}
+    try{ renderSalesDB && renderSalesDB(); }catch(_){}
+    window.__forzarProximoCloudSave = true;
+    try{ cloudSaveNow(); }catch(_){}
+    AppUI.toast("✅ Copia restaurada y subida a la nube");
+  }catch(e){ AppUI.toast("⚠️ Error al restaurar: "+e.message); }
+
+  __backupPendingRestore = null;
+  const panel = document.getElementById("backupPreview");
+  if(panel) panel.style.display = "none";
+}
+
+// Copias automáticas (medianoche / 5pm) — sin cambios, un solo slot cada una
+// Copias manuales (hasta 10, por índice — la 0 es la más reciente)
+function restaurarCopiaManual(idx){
+  const arr = _leerCopiasManuales();
+  const d = arr[idx];
+  if(!d){ AppUI.toast("No hay copia en ese espacio"); return; }
+  _mostrarPreviewRestaurar(d, `💾 Copia manual #${arr.length - idx}`);
 }
 
 function renderBackupList(){
   const el = document.getElementById("backupList");
   if(!el) return;
-  const slots = [
-    { key:"backup_hoy",              label:"📌 Manual — Hoy" },
-    { key:"backup_ayer",             label:"📌 Manual — Ayer" },
-    { key:"backup_antier",           label:"📌 Manual — Antier" },
-    { key:"backup_auto_medianoche",  label:"🕛 Auto — Medianoche" },
-    { key:"backup_auto_5pm",         label:"🌇 Auto — 5:00 PM" },
-  ];
-  el.innerHTML = slots.map(s => {
-    const raw = localStorage.getItem(s.key);
-    if(!raw) return `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #f1eefb">
-        <div>
-          <div style="font-weight:700;font-size:13.5px;color:#0f172a">${s.label}</div>
-          <div style="font-size:11.5px;color:#94a3b8">Sin copia guardada</div>
-        </div>
-        <span style="font-size:18px;opacity:.5">⬜</span>
-      </div>`;
-    let d; try{ d = JSON.parse(raw); }catch(_){ d={}; }
+
+  const manuales = _leerCopiasManuales();
+  if(!manuales.length){
+    el.innerHTML = `<div class="smallnote" style="padding:8px 0">Aún no has guardado ninguna copia manual.</div>`;
+    return;
+  }
+
+  el.innerHTML = manuales.map((d,idx)=>{
     const when = d.savedAt ? new Date(d.savedAt).toLocaleString("es-MX",{hour:"2-digit",minute:"2-digit",day:"2-digit",month:"short"}) : "—";
     const total = (d.inventory||[]).reduce((a,p)=>a+Number(p.qty||0),0);
     return `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #f1eefb">
         <div>
-          <div style="font-weight:700;font-size:13.5px;color:#0f172a">${s.label}</div>
+          <div style="font-weight:700;font-size:13.5px;color:#0f172a">Copia #${manuales.length - idx}</div>
           <div style="font-size:11.5px;color:#64748b">${when} · ${total} hielitos</div>
         </div>
-        <button type="button" onclick="restaurarCopia('${s.key}')" style="margin:0;padding:7px 14px;font-size:.74rem;font-weight:700;background:#f3f0ff;color:#5d3fd1;border:1.5px solid #ede9fe;border-radius:20px;min-width:unset">Restaurar</button>
+        <button type="button" onclick="restaurarCopiaManual(${idx})" style="margin:0;padding:7px 14px;font-size:.74rem;font-weight:700;background:#f3f0ff;color:#5d3fd1;border:1.5px solid #ede9fe;border-radius:20px;min-width:unset">Ver y restaurar</button>
       </div>`;
   }).join("");
 }
@@ -8076,6 +8090,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if(ioSheet){
     const observer = new MutationObserver(() => {
       if(ioSheet.classList.contains("active")) renderBackupList();
+      else cancelarPreviewRestaurar();
     });
     observer.observe(ioSheet, { attributes:true, attributeFilter:["class"] });
   }
@@ -8114,9 +8129,26 @@ function triggerImport(){
     sales=(d.sales||[]).map(s=>({
      product:(s.product||"").toString().trim(),
      date:normalizeISODate(s.date)||todayLocalISO(),
+     time:s.time||"",
      qty:Math.max(1, parseInt(s.qty)||1),
      costUnit:(s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0)
     }));
+   }
+
+   if(Array.isArray(d.stockIn)){
+    stockIn=(d.stockIn||[]).map(s=>({
+     product:(s.product||"").toString().trim(),
+     date:normalizeISODate(s.date)||todayLocalISO(),
+     time:s.time||"",
+     qty:Math.max(1, parseInt(s.qty)||1)
+    }));
+    localStorage.setItem("stockIn_v1", JSON.stringify(stockIn));
+   }
+
+   if(Array.isArray(d.vg_pedidos)){
+    __vgPedidos=d.vg_pedidos;
+    localStorage.setItem(VG_PEDIDOS_KEY, JSON.stringify(__vgPedidos));
+    try{ vgRenderPedidos && vgRenderPedidos(); }catch(_){}
    }
 
    if(Array.isArray(d.ventasDinero)){
