@@ -121,6 +121,7 @@ function _doCloudSave(){
       inventory:    JSON.parse(localStorage.getItem("inventory")      || "[]"),
       sales:        JSON.parse(localStorage.getItem("sales")          || "[]"),
       stockIn:      JSON.parse(localStorage.getItem("stockIn_v1")     || "[]"),
+      merma:        JSON.parse(localStorage.getItem("merma_v1")       || "[]"),
       ventasDinero: JSON.parse(localStorage.getItem("ventasDinero")   || "[]"),
       listaPVs:     JSON.parse(localStorage.getItem("listaPVs")       || "[]"),
       pvColores:    JSON.parse(localStorage.getItem("pvColores")      || "{}"),
@@ -243,7 +244,7 @@ const __CLOUD_FIELD_MAP = {
   inventory:'inventory', sales:'sales', ventasDinero:'ventasDinero', listaPVs:'listaPVs',
   pvColores:'pvColores', cu_catalog:'cu_catalog_v1', cu_recipes:'cu_recipes_v1',
   compras_plan:'compras_plan_v1', compras_have:'compras_have_v1', vg_pedidos:'vg_pedidos_v1',
-  stockIn:'stockIn_v1'
+  stockIn:'stockIn_v1', merma:'merma_v1'
 };
 
 // ✅ Versión "inteligente": en vez de adivinar con un contador si un snapshot
@@ -298,6 +299,7 @@ function _applyCloudDataSmart(d){
     inventory    = JSON.parse(localStorage.getItem("inventory")    || "[]");
     sales        = JSON.parse(localStorage.getItem("sales")        || "[]");
     stockIn      = JSON.parse(localStorage.getItem("stockIn_v1")   || "[]");
+    merma        = JSON.parse(localStorage.getItem("merma_v1")     || "[]");
     ventasDinero = JSON.parse(localStorage.getItem("ventasDinero") || "[]");
     listaPVs     = JSON.parse(localStorage.getItem("listaPVs")     || "[]");
     pvColores    = JSON.parse(localStorage.getItem("pvColores")    || "{}");
@@ -310,6 +312,10 @@ function _applyCloudDataSmart(d){
     try{
       const dbSheetEl = document.getElementById("editDbSheet");
       if(dbSheetEl && dbSheetEl.classList.contains("active")) renderSalesDB();
+    }catch(_){}
+    try{
+      const mermaSheetEl = document.getElementById("mermaSheet");
+      if(mermaSheetEl && mermaSheetEl.classList.contains("active")) renderMerma();
     }catch(_){}
     try{ renderVentas && renderVentas(); }catch(_){}
     try{ renderVentasChart && renderVentasChart(); }catch(_){}
@@ -3438,6 +3444,11 @@ document.addEventListener('DOMContentLoaded',()=>{
     <div class="mTitle">Proyecciones</div>
     <div class="mSub">Estimado de ventas</div>
   </button>
+  <button class="menuBtn mBtn-3" onclick="goTo('merma')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></div>
+    <div class="mTitle">Merma</div>
+    <div class="mSub">Pérdidas del día</div>
+  </button>
  </div>
 
  <button class="menuFeatured" onclick="goTo('add')">
@@ -3450,6 +3461,42 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 </div>
 
+
+<!-- MERMA -->
+<div class="sheet" id="mermaSheet">
+ <h2 style="margin-bottom:4px">Merma</h2>
+ <div class="smallnote" style="margin-bottom:14px">Pérdidas registradas al descontar con el "−" y confirmar que fue merma.</div>
+
+ <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:14px">
+   <div class="lbl" style="margin-bottom:6px">DÍA A CONSULTAR</div>
+   <input type="date" id="mermaFecha" onchange="renderMerma()" style="width:100%;font-size:.9rem;padding:9px 12px">
+ </div>
+
+ <div style="background:linear-gradient(135deg,#f97316,#dc2626);border-radius:18px;padding:16px;margin-bottom:14px;color:#fff">
+   <div style="font-size:.78rem;font-weight:800;opacity:.9;letter-spacing:.04em">🗑️ MERMA TOTAL DEL DÍA</div>
+   <div style="display:flex;align-items:baseline;gap:14px;margin-top:6px">
+     <div>
+       <div style="font-size:.68rem;opacity:.85">PIEZAS</div>
+       <div id="mermaTotalPiezas" style="font-size:1.8rem;font-weight:900;line-height:1">0</div>
+     </div>
+     <div>
+       <div style="font-size:.68rem;opacity:.85">COSTO PERDIDO</div>
+       <div id="mermaTotalCosto" style="font-size:1.8rem;font-weight:900;line-height:1">$0.00</div>
+     </div>
+   </div>
+ </div>
+
+ <div style="background:#f8f7ff;border-radius:16px;padding:14px 10px;margin-bottom:14px">
+   <div id="mermaChartTitulo" style="font-size:.78rem;font-weight:800;color:#7c5fe6;text-align:center;margin-bottom:8px;letter-spacing:.03em">🌸 MERMA VS VENTAS DEL DÍA</div>
+   <div style="position:relative;width:100%;height:320px">
+     <canvas id="mermaChart"></canvas>
+   </div>
+   <div id="mermaChartInfo" style="margin-top:10px"></div>
+ </div>
+
+ <div style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:.06em;margin-bottom:8px">DETALLE POR SABOR</div>
+ <div id="mermaDetalle"></div>
+</div>
 
 <!-- PROYECCIONES -->
 <div class="sheet" id="proyeccionesSheet">
@@ -4186,6 +4233,9 @@ let sales=safeParseJSON(localStorage.getItem("sales"), [])||[]; // {product,date
 // Registros de INGRESO (lo que se agrega al inventario con +), separado de
 // "sales" para no ensuciar los reportes/gráficas de ventas que ya existen.
 let stockIn=safeParseJSON(localStorage.getItem("stockIn_v1"), [])||[]; // {product,date,time,qty}
+// Registros de MERMA (producto que se dañó/perdió al restar con el "-"),
+// separado de "sales" para no mezclarlo con ventas reales.
+let merma=safeParseJSON(localStorage.getItem("merma_v1"), [])||[]; // {product,date,time,qty,costUnit}
 
 function nowHHMM(){
   const d=new Date();
@@ -4244,6 +4294,24 @@ function _regAddBatch(product, qtyDelta){
   }, 5000);
 }
 
+let __mermaBatch = {}; // mermas agrupadas por producto (misma lógica de 5s)
+function _regMermaBatch(product, qtyDelta){
+  let b = __mermaBatch[product];
+  if(!b){ b = __mermaBatch[product] = { qty:0, date:todayLocalISO(), time:nowHHMM(), timer:null }; }
+  b.qty += qtyDelta;
+  clearTimeout(b.timer);
+  b.timer = setTimeout(()=>{
+    merma.push({product, date:b.date, time:b.time, qty:b.qty, costUnit:getUnitCost(product)});
+    delete __mermaBatch[product];
+    saveSilent();
+    try{ cloudSaveQtyDebounced(); }catch(_){}
+    try{
+      const mermaSheetEl = document.getElementById("mermaSheet");
+      if(mermaSheetEl && mermaSheetEl.classList.contains("active")) renderMerma();
+    }catch(_){}
+  }, 5000);
+}
+
 // Si la app se cierra/oculta con una racha a medio contar, la cerramos ya
 // (con lo que llevaba hasta ese momento) para no perder ese registro.
 document.addEventListener('visibilitychange', () => {
@@ -4260,7 +4328,174 @@ document.addEventListener('visibilitychange', () => {
     stockIn.push({product, date:b.date, time:b.time, qty:b.qty});
     delete __addBatch[product];
   });
+  Object.keys(__mermaBatch).forEach(product=>{
+    const b = __mermaBatch[product];
+    clearTimeout(b.timer);
+    merma.push({product, date:b.date, time:b.time, qty:b.qty, costUnit:getUnitCost(product)});
+    delete __mermaBatch[product];
+  });
+  // ✅ Antes estos 3 bloques solo actualizaban los arreglos en memoria y
+  // dependían del temporizador de 5s (que ya se canceló arriba) para
+  // guardarse. Si cerrabas/minimizabas la app justo en ese momento, esa
+  // venta/entrada/merma pendiente nunca se guardaba en localStorage ni subía
+  // a la nube. Ahora se guarda de inmediato aquí también.
+  saveSilent();
+  try{ cloudSaveNow(); }catch(_){}
 });
+
+function initMermaDefaults(){
+  const f = document.getElementById('mermaFecha');
+  if(f && !f.value) f.value = todayLocalISO();
+}
+
+function renderMerma(){
+  const fEl = document.getElementById('mermaFecha');
+  const fecha = (fEl && fEl.value) ? fEl.value : todayLocalISO();
+
+  const mermasDia = (merma||[]).filter(m => (m.date||"").slice(0,10)===fecha);
+  const ventasDia = (sales||[]).filter(s => (s.date||"").slice(0,10)===fecha);
+
+  const totalPiezasMerma = mermasDia.reduce((a,m)=>a+(Number(m.qty)||0),0);
+  const totalCostoMerma  = mermasDia.reduce((a,m)=>a+((Number(m.costUnit)||getUnitCost(m.product)||0)*(Number(m.qty)||0)),0);
+  const totalPiezasVenta = ventasDia.reduce((a,s)=>a+(Number(s.qty)||0),0);
+
+  const piezasEl = document.getElementById('mermaTotalPiezas');
+  if(piezasEl) piezasEl.textContent = totalPiezasMerma;
+  const costoEl = document.getElementById('mermaTotalCosto');
+  if(costoEl) costoEl.textContent = '$'+totalCostoMerma.toFixed(2);
+
+  // 🌸 Gráfica de flor: Venta vs Merma (en piezas), con % de cada una
+  renderMermaChart([
+    {nombre:'Venta',  valor:totalPiezasVenta, color:'#22c55e'},
+    {nombre:'Merma',  valor:totalPiezasMerma, color:'#dc2626'}
+  ]);
+
+  // Detalle por sabor
+  const porSabor = {};
+  mermasDia.forEach(m=>{
+    const key = (m.product||"").toString();
+    if(!key) return;
+    if(!porSabor[key]) porSabor[key] = {qty:0, costo:0};
+    porSabor[key].qty += Number(m.qty)||0;
+    porSabor[key].costo += (Number(m.costUnit)||getUnitCost(m.product)||0)*(Number(m.qty)||0);
+  });
+
+  const detalleEl = document.getElementById('mermaDetalle');
+  if(detalleEl){
+    const entradas = Object.entries(porSabor).sort((a,b)=>b[1].qty-a[1].qty);
+    if(!entradas.length){
+      detalleEl.innerHTML = `<div class="smallnote" style="text-align:center;padding:10px 0">Sin mermas registradas ese día. 🎉</div>`;
+    }else{
+      detalleEl.innerHTML = entradas.map(([nombre,d])=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1.5px solid #fecaca;border-left:4px solid #dc2626;border-radius:14px;padding:10px 14px;margin-bottom:8px">
+          <div>
+            <div style="font-weight:800;font-size:.88rem;color:#1e1b2e">${escapeHtml(nombre)}</div>
+            <div style="font-size:.74rem;color:#94a3b8">${d.qty} pieza${d.qty!==1?'s':''}</div>
+          </div>
+          <div style="font-weight:900;color:#dc2626;font-size:.9rem">-$${d.costo.toFixed(2)}</div>
+        </div>
+      `).join('');
+    }
+  }
+}
+
+function renderMermaChart(data){
+  const cv = document.getElementById('mermaChart');
+  const info = document.getElementById('mermaChartInfo');
+  const tituloEl = document.getElementById('mermaChartTitulo');
+  if(!cv || !window.Chart) return;
+  if(window.mermaChartObj) window.mermaChartObj.destroy();
+
+  const total = data.reduce((a,x)=>a+(Number(x.valor)||0),0);
+
+  if(tituloEl) tituloEl.textContent = '🌸 MERMA VS VENTAS DEL DÍA';
+
+  if(total<=0){
+    window.mermaChartObj = null;
+    if(info) info.innerHTML = `<div class="smallnote" style="text-align:center">Sin ventas ni merma registradas ese día.</div>`;
+    return;
+  }
+
+  window.mermaChartObj = new Chart(cv, {
+    type:'polarArea',
+    data:{
+      labels: data.map(x=>x.nombre),
+      datasets:[{
+        data: data.map(x=>x.valor),
+        backgroundColor: data.map(x=>x.color+'E6'),
+        borderColor:'#ffffff',
+        borderWidth:3,
+        offset:10,
+        hoverOffset:18
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      layout:{ padding:34 },
+      scales:{
+        r:{
+          display:false,
+          max: (Math.max(...data.map(x=>Number(x.valor)||0)) || 1) * 1.28,
+          grid:{ display:false },
+          ticks:{ display:false }
+        }
+      },
+      plugins:{
+        legend:{
+          display:true,
+          position:'bottom',
+          labels:{ usePointStyle:true, pointStyle:'circle', padding:14, font:{ size:12, weight:'700' } }
+        },
+        tooltip:{
+          backgroundColor:'#1e1b2e',
+          padding:12,
+          titleFont:{size:14,weight:'bold'},
+          bodyFont:{size:13},
+          callbacks:{
+            label:(ctx)=>{
+              const v = Number(ctx.parsed.r ?? ctx.parsed)||0;
+              const pct = total>0 ? (v/total*100) : 0;
+              return ` ${v} piezas · ${pct.toFixed(0)}%`;
+            }
+          }
+        },
+        datalabels:{
+          color:'#1e1b2e',
+          font:{ weight:'900', size:14 },
+          formatter:(value)=>{
+            const pct = total>0 ? (value/total*100) : 0;
+            return `${pct.toFixed(0)}%`;
+          },
+          anchor:'end',
+          align:'end',
+          offset:6,
+          clamp:true,
+          clip:false,
+          textAlign:'center',
+          backgroundColor:'rgba(255,255,255,.94)',
+          borderRadius:10,
+          padding:{top:5,bottom:5,left:8,right:8}
+        }
+      }
+    }
+  });
+
+  if(info){
+    info.innerHTML = data.map(x=>{
+      const pct = total>0 ? (Number(x.valor)||0)/total*100 : 0;
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 4px">
+          <span style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:.85rem;color:#1e1b2e">
+            <span style="width:10px;height:10px;border-radius:50%;background:${x.color};display:inline-block"></span>
+            ${x.nombre}
+          </span>
+          <span style="font-weight:900;font-size:.88rem;color:${x.color}">${x.valor} · ${pct.toFixed(0)}%</span>
+        </div>`;
+    }).join('');
+  }
+}
+
 let ventasDinero = JSON.parse(localStorage.getItem("ventasDinero") || "[]");
 
 // ---- MIGRACION DE REGISTROS ANTIGUOS (para que Graficas/Reportes lean la base vieja) ----
@@ -4770,6 +5005,7 @@ function saveSilent(){
   localStorage.setItem("inventory",JSON.stringify(inventory));
   localStorage.setItem("sales",JSON.stringify(sales));
   localStorage.setItem("stockIn_v1",JSON.stringify(stockIn));
+  localStorage.setItem("merma_v1",JSON.stringify(merma));
     // UI/drafts para no perder selección (CU/Compras) al salir
   try{
     const ui={
@@ -4989,6 +5225,7 @@ function goTo(where){
  if(where==="io") ioSheet.classList.add("active");
  if(where==="cu"){cuSheet.classList.add("active"); cuInit();}
  if(where==="proyecciones"){document.getElementById("proyeccionesSheet").classList.add("active"); initProyecciones();}
+ if(where==="merma"){document.getElementById("mermaSheet").classList.add("active"); initMermaDefaults(); renderMerma();}
  if(where==="compras"){comprasSheet.classList.add("active"); renderCompras();}
  if(where==="vg"){document.getElementById("ventasGrandesSheet").classList.add("active"); vgInit();}
  if(where==="ventas"){
@@ -5979,15 +6216,30 @@ function increase(i, btn){
  else { __pendingQtyDeltas[inventory[i].name] = (__pendingQtyDeltas[inventory[i].name]||0) + 1; }
 }
 
-function decrease(i, btn){
+async function decrease(i, btn){
  if(!_btnThrottle("dec_"+i)) return;
+ if((inventory[i].qty||0)<=0) return;
  vibrateSafe(10);
+
+ // Preguntamos si este descuento es por merma (se dañó/perdió) o solo un
+ // ajuste normal. Si dices que sí, se registra aparte para el módulo Merma
+ // y se suma al costo del día; si dices que no, solo se descuenta como antes.
+ const nombre = inventory[i].name;
+ const esMerma = await AppUI.confirm(
+   `¿"${nombre}" se va a MERMA? (se dañó, se cayó, se echó a perder, etc.)`,
+   {title:'¿Fue merma?', okText:'Sí, mermar', cancelText:'No, solo descontar'}
+ );
+
  if(inventory[i].qty>0){
    inventory[i].qty--;
    _updateCardQty(i);
    saveSilent();
    flash(i,"sub");
    try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, -1); }catch(_){}
+   if(esMerma){
+     _regMermaBatch(nombre, 1);
+     AppUI.toast(`🗑️ ${nombre} va a merma`);
+   }
    if(__cloudReady){ cloudSaveQtyDebounced(); }
    else { __pendingQtyDeltas[inventory[i].name] = (__pendingQtyDeltas[inventory[i].name]||0) - 1; }
  }
@@ -7232,6 +7484,11 @@ let cuCatEditIndex = null; // index being edited in CU catalog
 
 function cuSetCatalog(arr){
   localStorage.setItem(CU_CATALOG_KEY, JSON.stringify(Array.isArray(arr)?arr:[]));
+  // ✅ Antes esto solo se guardaba en este celular. Si llegaba una
+  // actualización de la nube (por cualquier otro cambio) antes de que este
+  // insumo se subiera, la nube "vieja" pisaba el insumo recién agregado —
+  // por eso se veía guardado un momento y luego desaparecía.
+  try{ cloudSaveSoon(); }catch(_){}
 }
 function cuNormalizeCatalog(arr){
   const seen=new Set();
@@ -7548,6 +7805,10 @@ function cuGetRecipes(){
 }
 function cuSetRecipes(obj){
  localStorage.setItem(CU_RECIPES_KEY, JSON.stringify(obj||{}));
+ // ✅ Igual que cuSetCatalog: sin esto la receta se quedaba SOLO local y una
+ // sincronización de la nube (disparada por cualquier otro cambio) podía
+ // pisarla con la versión vieja, borrando lo recién guardado.
+ try{ cloudSaveSoon(); }catch(_){}
 }
 
 // --- MERGE helpers (para importar sin borrar catálogos / CU) ---
@@ -7864,6 +8125,7 @@ function exportData(){
   inventory,
   sales,
   stockIn,
+  merma,
   vg_pedidos: (typeof __vgPedidos!=='undefined' ? __vgPedidos : vgPedidosLoad()),
   ventasDinero,
   listaPVs,
@@ -7926,6 +8188,7 @@ function guardarCopiaSeguridad(){
     inventory,
     sales,
     stockIn,
+    merma,
     vg_pedidos: (typeof __vgPedidos!=='undefined' ? __vgPedidos : vgPedidosLoad()),
     ventasDinero,
     listaPVs,
@@ -7993,6 +8256,7 @@ function confirmarPreviewRestaurar(){
     if(payload.inventory)    { inventory = payload.inventory; localStorage.setItem("inventory", JSON.stringify(inventory)); }
     if(payload.sales)        { sales = payload.sales; localStorage.setItem("sales", JSON.stringify(sales)); }
     if(payload.stockIn)      { stockIn = payload.stockIn; localStorage.setItem("stockIn_v1", JSON.stringify(stockIn)); }
+    if(payload.merma)        { merma = payload.merma; localStorage.setItem("merma_v1", JSON.stringify(merma)); }
     if(payload.ventasDinero) { ventasDinero = payload.ventasDinero; localStorage.setItem("ventasDinero", JSON.stringify(ventasDinero)); }
     if(payload.listaPVs)     { listaPVs = payload.listaPVs; localStorage.setItem("listaPVs", JSON.stringify(listaPVs)); }
     if(payload.pvColores)    { pvColores = payload.pvColores; localStorage.setItem("pvColores", JSON.stringify(pvColores)); }
@@ -8106,6 +8370,17 @@ function triggerImport(){
      qty:Math.max(1, parseInt(s.qty)||1)
     }));
     localStorage.setItem("stockIn_v1", JSON.stringify(stockIn));
+   }
+
+   if(Array.isArray(d.merma)){
+    merma=(d.merma||[]).map(s=>({
+     product:(s.product||"").toString().trim(),
+     date:normalizeISODate(s.date)||todayLocalISO(),
+     time:s.time||"",
+     qty:Math.max(1, parseInt(s.qty)||1),
+     costUnit:(s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0)
+    }));
+    localStorage.setItem("merma_v1", JSON.stringify(merma));
    }
 
    if(Array.isArray(d.vg_pedidos)){
@@ -9175,6 +9450,11 @@ const VG_LLEVADO_KEY_LEGACY = 'vg_llevado_v1'; // formato viejo, solo para migra
 function vgPedidosLoad(){ return safeParseJSON(localStorage.getItem(VG_PEDIDOS_KEY)||'[]', []); }
 function vgPedidosSave(){
   try{ localStorage.setItem(VG_PEDIDOS_KEY, JSON.stringify(__vgPedidos)); }catch(_){}
+  // ✅ Antes no se subía a la nube al tocar "Regresaste"/llevado. Si mientras
+  // tanto llegaba una sincronización de la nube por otro cambio, esa versión
+  // vieja (sin tu toque) pisaba local y parecía que las tarjetas "regresaban"
+  // o cambiaban de posición.
+  try{ cloudSaveSoon(); }catch(_){}
   // ✅ Ya no se llama render() aquí (reconstruía TODA la lista de productos
   // principales en cada toque de +/-). Ajustar llevado/regresado de un
   // pedido no cambia el inventario, así que no hace falta.
@@ -9383,8 +9663,18 @@ function vgItemPedidoHtml(pedido, key, it){
 }
 
 function vgItemsPedidoHtml(pedido){
-  return Object.entries(pedido.items||{}).filter(([,it])=>(it.llevado||0)>0)
-    .map(([key,it])=>vgItemPedidoHtml(pedido, key, it)).join('');
+  // ✅ Antes el orden era el de inserción (el orden en que tocaste cada
+  // sabor al armar el pedido), que cambia de pedido a pedido y no coincide
+  // con la pantalla principal. Ahora se ordena siempre igual que las
+  // tarjetas de "Vender" (el mismo orden del arreglo `inventory`), así las
+  // tarjetas quedan fijas y no "se mueven".
+  const entries = Object.entries(pedido.items||{}).filter(([,it])=>(it.llevado||0)>0);
+  entries.sort((a,b)=>{
+    const ia = (inventory||[]).findIndex(p=>toUpperSafe(p.name)===a[0]);
+    const ib = (inventory||[]).findIndex(p=>toUpperSafe(p.name)===b[0]);
+    return (ia<0?999999:ia) - (ib<0?999999:ib);
+  });
+  return entries.map(([key,it])=>vgItemPedidoHtml(pedido, key, it)).join('');
 }
 
 // ✅ Actualiza SOLO los números/botones que cambiaron dentro de la tarjeta
@@ -11069,9 +11359,15 @@ let ventasChart=null;
 
 function calcularGastoPorFecha(fecha){
  try{
-  return sales
+  const costoVentas = sales
    .filter(s => (s.date||"").slice(0,10)===fecha)
    .reduce((acc,s)=> acc + ((Number(s.costUnit)||getUnitCost(s.product)||0) * (Number(s.qty)||0)),0);
+  // ✅ La merma también es un costo real del día: cada vez que se confirma
+  // algo como merma, su costo se suma aquí, al costo diario de todo.
+  const costoMerma = (merma||[])
+   .filter(m => (m.date||"").slice(0,10)===fecha)
+   .reduce((acc,m)=> acc + ((Number(m.costUnit)||getUnitCost(m.product)||0) * (Number(m.qty)||0)),0);
+  return costoVentas + costoMerma;
  }catch(e){
   return 0;
  }
