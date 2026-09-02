@@ -1598,7 +1598,7 @@ body{ padding-bottom: 92px; }
   gap:4px;
   background:none;
   border:none;
-  padding:6px 2px;
+  padding:10px 2px;
   border-radius:14px;
   color:#64748b;
   font-size:.68rem;
@@ -1606,8 +1606,9 @@ body{ padding-bottom: 92px; }
   cursor:pointer;
   transition:.15s;
 }
+.bnBtn span{ display:none; }
 .bnBtn svg{
-  width:22px;height:22px;
+  width:26px;height:26px;
   fill:none;
   stroke:currentColor;
   stroke-width:2;
@@ -1619,7 +1620,7 @@ body{ padding-bottom: 92px; }
 .bnBtn.bnMenu.active{ transform:scale(.94); }
 @media (max-width:360px){
   .bnBtn{ font-size:.62rem; }
-  .bnBtn svg{ width:20px;height:20px; }
+  .bnBtn svg{ width:24px;height:24px; }
 }
 
 /* Barra superior fija con flecha de regreso (en todos los módulos) — pequeña y discreta */
@@ -3381,6 +3382,10 @@ document.addEventListener('DOMContentLoaded',()=>{
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14.5a3.5 3.5 0 0 1 0 7H7"/></svg>
     <span>Ventas</span>
   </button>
+  <button class="bnBtn" onclick="goTo('vg')">
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+    <span>Ventas Grandes</span>
+  </button>
   <button class="bnBtn" onclick="goTo('io')">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
     <span>Guardado</span>
@@ -3449,15 +3454,12 @@ document.addEventListener('DOMContentLoaded',()=>{
     <div class="mTitle">Merma</div>
     <div class="mSub">Pérdidas del día</div>
   </button>
+  <button class="menuBtn mBtn-11" onclick="goTo('add')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 21h8"/><path d="M12 21v-5"/><path d="M7 10.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5c0 2.6-1.6 4.7-3.8 5.3H10.8C8.6 15.2 7 13.1 7 10.5Z"/></svg></div>
+    <div class="mTitle">Nuevo Sabor</div>
+    <div class="mSub">Agregar al inventario</div>
+  </button>
  </div>
-
- <button class="menuFeatured" onclick="goTo('add')">
-   <div class="mfIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 21h8"/><path d="M12 21v-5"/><path d="M7 10.5c0-3 2.2-5.5 5-5.5s5 2.5 5 5.5c0 2.6-1.6 4.7-3.8 5.3H10.8C8.6 15.2 7 13.1 7 10.5Z"/></svg></div>
-   <div class="mfText">
-     <div class="mfTitle">Nuevo Sabor</div>
-     <div class="mfSub">Agregar un sabor al inventario</div>
-   </div>
- </button>
 
 </div>
 
@@ -8199,15 +8201,41 @@ function guardarCopiaSeguridad(){
     savedAt: new Date().toISOString()
   };
 
-  try{
-    // ✅ Ya no rota "hoy/ayer/antier" con solo 3 espacios: cada vez que le
-    // das Guardar se agrega como una copia NUEVA. Se guardan hasta 10 —
-    // al llegar a la 11, se cae la más vieja.
-    let arr = _leerCopiasManuales();
-    arr.unshift(payload);
-    if(arr.length > BACKUP_MANUAL_MAX) arr = arr.slice(0, BACKUP_MANUAL_MAX);
-    localStorage.setItem(BACKUP_MANUAL_KEY, JSON.stringify(arr));
-  }catch(e){ AppUI.toast("⚠️ Sin espacio para guardar copia"); return; }
+  // ✅ Antes, si el celular se quedaba sin espacio en localStorage al llegar
+  // a 10 copias, simplemente fallaba con "Sin espacio" y no guardaba nada
+  // (el recorte a 10 copias pasaba ANTES de escribir, pero el error real es
+  // que el navegador ya no tiene espacio libre, no que "ya van 10"). Ahora,
+  // si falla por falta de espacio, se va quitando la copia más vieja del
+  // arreglo y reintentando, hasta que quepa — así SIEMPRE se guarda la copia
+  // nueva, aunque eso signifique quedarte con menos de 10 copias viejas.
+  let arr = _leerCopiasManuales();
+  arr.unshift(payload);
+  if(arr.length > BACKUP_MANUAL_MAX) arr = arr.slice(0, BACKUP_MANUAL_MAX);
+
+  let guardado = false;
+  let seQuitaronExtra = false;
+  while(arr.length > 0){
+    try{
+      localStorage.setItem(BACKUP_MANUAL_KEY, JSON.stringify(arr));
+      guardado = true;
+      break;
+    }catch(e){
+      if(arr.length <= 1) break; // ya solo queda la copia nueva y ni así cupo
+      arr.pop(); // quita la copia más vieja (la última del arreglo) y reintenta
+      seQuitaronExtra = true;
+    }
+  }
+
+  if(!guardado){
+    AppUI.toast("⚠️ Sin espacio en el celular para guardar copia. Borra copias viejas en 'Ver y restaurar' o libera espacio del dispositivo.");
+    return;
+  }
+
+  if(seQuitaronExtra){
+    AppUI.toast(`✅ Copia guardada (se quitaron copias viejas por falta de espacio, quedaron ${arr.length})`);
+    renderBackupList();
+    return;
+  }
 
   AppUI.toast("✅ Copia guardada correctamente");
   renderBackupList();
@@ -10262,7 +10290,7 @@ function openSellQtyModal(productName, max){
   el.input.value = "";
   el.input.max = String(max);
 
-  const quicks = [1,2,3,5,10].filter(n=>n<=max);
+  const quicks = Array.from({length:10}, (_,i)=>i+1).filter(n=>n<=max);
   if(!quicks.length) quicks.push(Math.max(1,max));
   el.quick.innerHTML = quicks.map(n=>`
     <button type="button" onclick="_sellQtyResolve(${n})"
