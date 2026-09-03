@@ -6138,7 +6138,7 @@ function render(){
 
     <div class="actions">
      <button class="btn minus" onclick="decrease(${i}, this)">−</button>
-     <button class="btn plus" onclick="increase(${i}, this)">+</button>
+     <button class="btn plus" onpointerdown="_plusHoldStart(${i})" onpointerup="_plusHoldEnd(${i})" onpointerleave="_plusHoldCancel()" onpointercancel="_plusHoldCancel()">+</button>
      <button class="btn sell" onclick="sell(${i}, this)">
        VENDER
        <div class="checkpop">✓</div>
@@ -6218,6 +6218,54 @@ function increase(i, btn){
  else { __pendingQtyDeltas[inventory[i].name] = (__pendingQtyDeltas[inventory[i].name]||0) + 1; }
 }
 
+function increaseBy(i, n){
+ if(!(n>0)) return;
+ vibrateSafe(15);
+ inventory[i].qty += n;
+ _updateCardQty(i);
+ saveSilent();
+ flash(i,"add");
+ try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, +n); }catch(_){}
+ _regAddBatch(inventory[i].name, n);
+ if(__cloudReady){ cloudSaveQtyDebounced(); }
+ else { __pendingQtyDeltas[inventory[i].name] = (__pendingQtyDeltas[inventory[i].name]||0) + n; }
+}
+
+async function addQtyPrompt(i){
+ const nombre = inventory[i]?.name || '';
+ const n = await AppUI.promptNumber(`¿Cuántos "${nombre}" quieres agregar?`, {
+   title:'Agregar cantidad', placeholder:'Ej. 10', value:'', min:1, max:99999,
+   okText:'Agregar', cancelText:'Cancelar'
+ });
+ if(n===null || !Number.isFinite(n) || n<=0) return;
+ increaseBy(i, n);
+}
+
+// ✅ Mantener presionado el "+" para agregar varios de una vez, en lugar de
+// tener que picarlo uno por uno. Un toque normal (soltar antes de 500ms)
+// sigue sumando de 1 en 1 como siempre; si mantienes presionado, se cancela
+// ese "toque" y se abre la ventana para escribir cuántos agregar.
+let __plusHoldTimer = null;
+let __plusHoldFired = false;
+function _plusHoldStart(i){
+ __plusHoldFired = false;
+ clearTimeout(__plusHoldTimer);
+ __plusHoldTimer = setTimeout(()=>{
+   __plusHoldFired = true;
+   vibrateSafe(20);
+   addQtyPrompt(i);
+ }, 500);
+}
+function _plusHoldEnd(i){
+ clearTimeout(__plusHoldTimer);
+ if(!__plusHoldFired){ increase(i); }
+ __plusHoldFired = false;
+}
+function _plusHoldCancel(){
+ clearTimeout(__plusHoldTimer);
+ __plusHoldFired = false;
+}
+
 async function decrease(i, btn){
  if(!_btnThrottle("dec_"+i)) return;
  if((inventory[i].qty||0)<=0) return;
@@ -6231,6 +6279,11 @@ async function decrease(i, btn){
    `¿"${nombre}" se va a MERMA? (se dañó, se cayó, se echó a perder, etc.)`,
    {title:'¿Fue merma?', okText:'Sí, mermar', cancelText:'No, solo descontar'}
  );
+
+ // ✅ Si cerraste con la X (o tocaste fuera, o Escape), eso es cancelar
+ // TODO — no debe descontar nada. Antes esto seguía de largo y descontaba
+ // igual, como si hubieras dicho "No, solo descontar".
+ if(esMerma===null) return;
 
  if(inventory[i].qty>0){
    inventory[i].qty--;
@@ -10133,6 +10186,8 @@ const AppUI = (()=>{
       }
 
       function cancel(){
+        // Usada por el botón "No"/"Cancelar": es una respuesta real y
+        // válida (ej. "No, solo descontar").
         if(!resolver) return close();
         if(mode==='prompt') resolver(null);
         else if(mode==='confirm') resolver(false);
@@ -10140,17 +10195,29 @@ const AppUI = (()=>{
         close();
       }
 
+      function dismiss(){
+        // ✅ Usada por la X, tocar fuera del cuadro, o Escape: esto significa
+        // "me arrepentí / me salí", NO es lo mismo que tocar "No". Antes
+        // resolvía igual que "No" (false), así que salirte con la X seguía
+        // ejecutando la acción (ej. seguía descontando). Ahora resuelve
+        // `null`, una respuesta distinta, para que cada pantalla que lo
+        // necesite pueda detectar "se canceló todo" y no hacer nada.
+        if(!resolver) return close();
+        resolver(null);
+        close();
+      }
+
       // close on backdrop click
-      el.overlay.addEventListener('click', (e)=>{ if(e.target===el.overlay) cancel(); });
-      el.x && el.x.addEventListener('click', cancel);
+      el.overlay.addEventListener('click', (e)=>{ if(e.target===el.overlay) dismiss(); });
+      el.x && el.x.addEventListener('click', dismiss);
       el.cancel.addEventListener('click', cancel);
       el.ok.addEventListener('click', ok);
       el.input && el.input.addEventListener('keydown', (e)=>{
         if(e.key==='Enter'){ e.preventDefault(); ok(); }
-        if(e.key==='Escape'){ e.preventDefault(); cancel(); }
+        if(e.key==='Escape'){ e.preventDefault(); dismiss(); }
       });
       document.addEventListener('keydown', (e)=>{
-        if(el && el.overlay.getAttribute('aria-hidden')==='false' && e.key==='Escape') cancel();
+        if(el && el.overlay.getAttribute('aria-hidden')==='false' && e.key==='Escape') dismiss();
       });
 
       // expone close internamente
