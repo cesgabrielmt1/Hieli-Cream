@@ -1411,6 +1411,14 @@ h1{font-size:1.9rem;font-weight:900;margin:0 0 6px}
   font-weight: 800 !important;
   box-shadow: 0 10px 22px rgba(0,0,0,.16) !important;
   transition: transform .12s ease, box-shadow .12s ease !important;
+  /* ✅ Evita que al presionar firme/mantener presionado el navegador
+     muestre el menú de selección de texto o la "lupa" de Android — eso
+     interrumpe el toque y puede dejarlo a medias o hacer que parezca que
+     no respondió / respondió doble. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
 }
 .btn:active{ transform: scale(.95) !important; }
 
@@ -3624,7 +3632,6 @@ document.addEventListener('DOMContentLoaded',()=>{
 
  <div style="display:flex;gap:6px;background:#f1f0ff;border-radius:14px;padding:4px;margin-bottom:14px">
    <button type="button" onclick="showVentasTab('registro')" id="ventasTabRegistro" style="flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.78rem;background:#fff;color:#5d3fd1">Registro</button>
-   <button type="button" onclick="showVentasTab('dia')" id="ventasTabComparativaDia" style="flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.78rem;background:transparent;color:#7c7c9a">Comparativa Día</button>
    <button type="button" onclick="showVentasTab('pv')" id="ventasTabComparativaPv" style="flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.78rem;background:transparent;color:#7c7c9a">Comparativa PV</button>
  </div>
 
@@ -3663,42 +3670,6 @@ document.addEventListener('DOMContentLoaded',()=>{
      <button id="ventasBtnGuardar" onclick="ventaBtnAction()" style="margin-top:10px;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:12px;font-size:.88rem;transition:background .3s">Guardar venta</button>
    </div>
    <div id="ventasHistorial" style="display:none!important;margin-top:18px"></div>
- </div>
-
- <div id="ventasComparativaDiaTab" style="display:none;">
-   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-     <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px">
-       <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">INGRESO TOTAL</div>
-       <div style="font-size:1.3rem;font-weight:900;color:#1e1b2e" id="ventasCompIngresos">$0.00</div>
-     </div>
-     <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px">
-       <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">COSTO TOTAL</div>
-       <div style="font-size:1.3rem;font-weight:900;color:#1e1b2e" id="ventasCompCosto">$0.00</div>
-     </div>
-   </div>
-   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px;margin-bottom:12px">
-     <div style="font-size:10px;font-weight:700;color:#16a34a;letter-spacing:.06em;margin-bottom:4px">GANANCIA TOTAL</div>
-     <div style="font-size:1.5rem;font-weight:900;color:#16a34a" id="ventasCompGanancia">$0.00</div>
-   </div>
-
-   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
-     <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">COMPARAR PERIODO</div>
-     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-       <input type="date" id="fechaInicio" style="font-size:.84rem;padding:7px 10px">
-       <input type="date" id="fechaFin" style="font-size:.84rem;padding:7px 10px">
-     </div>
-     <button onclick="compararPeriodo()" style="background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:12px;font-size:.88rem">Comparar</button>
-   </div>
-
-   <div class="chartPanel"><div class="chartScroll">
-     <div id="ventasPillLegend" style="display:none;justify-content:center;gap:22px;margin-bottom:10px;font-size:.8rem;font-weight:800;color:#334155">
-       <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:50%;background:linear-gradient(180deg,#f472b6,#f97316)"></span>Costos</span>
-       <span style="display:flex;align-items:center;gap:6px"><span style="width:14px;height:14px;border-radius:50%;background:linear-gradient(180deg,#c4b5fd,#6366f1)"></span>Ingreso</span>
-     </div>
-     <div class="moneyChartScroll"><div class="moneyChartInner"><div class="chart-wrap-ventas" id="wrap-ventas"><div class="moneyChartScroll">
-       <div class="moneyChartInner"><canvas id="ventasChart"></canvas></div>
-     </div></div></div></div>
-   </div></div>
  </div>
 
  <div id="ventasComparativaPvTab" style="display:none;">
@@ -6138,7 +6109,12 @@ function render(){
 
     <div class="actions">
      <button class="btn minus" onclick="decrease(${i}, this)">−</button>
-     <button class="btn plus" onpointerdown="_plusHoldStart(${i})" onpointerup="_plusHoldEnd(${i})" onpointerleave="_plusHoldCancel()" onpointercancel="_plusHoldCancel()">+</button>
+     <button class="btn plus"
+       onclick="increase(${i}, this)"
+       ontouchstart="_plusHoldStart(${i})"
+       ontouchend="_plusHoldEnd(event)"
+       ontouchcancel="_plusHoldCancel()"
+     >+</button>
      <button class="btn sell" onclick="sell(${i}, this)">
        VENDER
        <div class="checkpop">✓</div>
@@ -6180,11 +6156,14 @@ function flash(i, type){
  }, 850);
 }
 
-// Bloqueo anti-tap-rápido: evita que +/- se dispare más de 1 vez cada 80ms por producto
+// Bloqueo anti-tap-rápido: evita que +/-/Vender se disparen más de 1 vez
+// seguida por el mismo producto. Se subió de 80ms a 400ms porque 80ms no
+// alcanzaba a filtrar el "rebote" que meten algunas pantallas cuando picas
+// muy fuerte/firme (mandan 2 toques casi pegados en vez de 1).
 const __btnLock = {};
 function _btnThrottle(key){
   const now = Date.now();
-  if(__btnLock[key] && now - __btnLock[key] < 80) return false;
+  if(__btnLock[key] && now - __btnLock[key] < 400) return false;
   __btnLock[key] = now;
   return true;
 }
@@ -6242,9 +6221,16 @@ async function addQtyPrompt(i){
 }
 
 // ✅ Mantener presionado el "+" para agregar varios de una vez, en lugar de
-// tener que picarlo uno por uno. Un toque normal (soltar antes de 500ms)
-// sigue sumando de 1 en 1 como siempre; si mantienes presionado, se cancela
-// ese "toque" y se abre la ventana para escribir cuántos agregar.
+// tener que picarlo uno por uno. Un toque normal sigue funcionando con el
+// "onclick" de siempre (agrega 1, como toda la vida — es el evento más
+// confiable, nunca se duplica). Aquí SOLO detectamos si mantuviste
+// presionado ≥500ms usando touchstart/touchend; si fue una pulsación larga,
+// se cancela el click normal (preventDefault) para que no se sumen los dos
+// a la vez (el +1 del click Y la cantidad del cuadro de diálogo).
+// ⚠️ Antes esto usaba pointerdown/pointerup, pero en este navegador esos
+// eventos a veces se disparaban DOS VECES por un solo toque (por eso un
+// clic "se volvía loco" y sumaba de más). touchstart/touchend + el onclick
+// nativo del botón es mucho más confiable.
 let __plusHoldTimer = null;
 let __plusHoldFired = false;
 function _plusHoldStart(i){
@@ -6256,9 +6242,11 @@ function _plusHoldStart(i){
    addQtyPrompt(i);
  }, 500);
 }
-function _plusHoldEnd(i){
+function _plusHoldEnd(e){
  clearTimeout(__plusHoldTimer);
- if(!__plusHoldFired){ increase(i); }
+ if(__plusHoldFired && e && e.cancelable){
+   try{ e.preventDefault(); }catch(_){ }
+ }
  __plusHoldFired = false;
 }
 function _plusHoldCancel(){
@@ -10366,7 +10354,10 @@ function openSellQtyModal(productName, max){
 
   el.overlay.setAttribute('aria-hidden','false');
   document.body.style.overflow = 'hidden';
-  setTimeout(()=>{ el.input && el.input.focus(); }, 0);
+  // ✅ Antes se enfocaba el campo de texto automáticamente al abrir, lo que
+  // abría el teclado de inmediato y empujaba los botones de acceso rápido
+  // (1,2,3...) hacia arriba, fuera de la vista. Ahora el teclado solo
+  // aparece si tú tocas el campo "O escribe otra cantidad".
 
   return new Promise((resolve)=>{ __sellQtyResolver = resolve; });
 }
@@ -12076,15 +12067,12 @@ function actualizarResumenGrafica(labels,gastos,ganancias){
 <script>
 function showVentasTab(tab){
  var r=document.getElementById('ventasRegistroTab');
- var d=document.getElementById('ventasComparativaDiaTab');
  var p=document.getElementById('ventasComparativaPvTab');
  var bR=document.getElementById('ventasTabRegistro');
- var bD=document.getElementById('ventasTabComparativaDia');
  var bP=document.getElementById('ventasTabComparativaPv');
  if(r) r.style.display = tab==='registro' ? 'block' : 'none';
- if(d) d.style.display = tab==='dia' ? 'block' : 'none';
  if(p) p.style.display = tab==='pv' ? 'block' : 'none';
- [[bR,'registro'],[bD,'dia'],[bP,'pv']].forEach(function(pair){
+ [[bR,'registro'],[bP,'pv']].forEach(function(pair){
    var btn=pair[0], name=pair[1];
    if(!btn) return;
    btn.style.background = tab===name ? '#fff' : 'transparent';
