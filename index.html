@@ -3477,13 +3477,33 @@ document.addEventListener('DOMContentLoaded',()=>{
  <h2 style="margin-bottom:4px">Merma</h2>
  <div class="smallnote" style="margin-bottom:14px">Pérdidas registradas al descontar con el "−" y confirmar que fue merma.</div>
 
- <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:14px">
-   <div class="lbl" style="margin-bottom:6px">DÍA A CONSULTAR</div>
-   <input type="date" id="mermaFecha" onchange="renderMerma()" style="width:100%;font-size:.9rem;padding:9px 12px">
+ <!-- Filtros: rango de fechas + sabor -->
+ <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
+   <div class="lbl" style="margin-bottom:6px">RANGO DE FECHAS</div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+     <div>
+       <div class="lbl" style="font-size:10px">DESDE</div>
+       <input type="date" id="mermaDesde" onchange="renderMerma()" style="width:100%;font-size:.84rem;padding:7px 10px">
+     </div>
+     <div>
+       <div class="lbl" style="font-size:10px">HASTA</div>
+       <input type="date" id="mermaHasta" onchange="renderMerma()" style="width:100%;font-size:.84rem;padding:7px 10px">
+     </div>
+   </div>
+   <div class="lbl" style="margin-bottom:6px">SABOR</div>
+   <select id="mermaSaborFiltro" onchange="renderMerma()" style="width:100%;font-size:.84rem;padding:9px 10px;border-radius:12px;border:1.5px solid #ede9fe;background:#faf9ff;font-weight:700;color:#1e1b2e">
+     <option value="__ALL__">Todos los sabores</option>
+   </select>
+ </div>
+
+ <!-- Modo de vista: pura merma vs con ganancia -->
+ <div style="display:flex;gap:6px;background:#f1f0ff;border-radius:14px;padding:4px;margin-bottom:14px">
+   <button type="button" onclick="setMermaModo('pura')" id="mermaModoPura" style="flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.78rem;background:#fff;color:#5d3fd1">Pura merma</button>
+   <button type="button" onclick="setMermaModo('ganancia')" id="mermaModoGanancia" style="flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.78rem;background:transparent;color:#7c7c9a">Con ganancia</button>
  </div>
 
  <div style="background:linear-gradient(135deg,#f97316,#dc2626);border-radius:18px;padding:16px;margin-bottom:14px;color:#fff">
-   <div style="font-size:.78rem;font-weight:800;opacity:.9;letter-spacing:.04em">🗑️ MERMA TOTAL DEL DÍA</div>
+   <div style="font-size:.78rem;font-weight:800;opacity:.9;letter-spacing:.04em">🗑️ MERMA EN EL RANGO</div>
    <div style="display:flex;align-items:baseline;gap:14px;margin-top:6px">
      <div>
        <div style="font-size:.68rem;opacity:.85">PIEZAS</div>
@@ -3496,8 +3516,35 @@ document.addEventListener('DOMContentLoaded',()=>{
    </div>
  </div>
 
+ <!-- Solo visible en modo "Con ganancia" -->
+ <div id="mermaGananciaPanel" style="display:none;background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:14px;margin-bottom:14px">
+   <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">IMPACTO EN LA GANANCIA</div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+     <div>
+       <div style="font-size:.68rem;color:#94a3b8">INGRESOS</div>
+       <div style="font-size:1.05rem;font-weight:800;color:#2563eb" id="mermaGIngresos">$0.00</div>
+     </div>
+     <div>
+       <div style="font-size:.68rem;color:#94a3b8">GASTO EN VENTAS</div>
+       <div style="font-size:1.05rem;font-weight:800;color:#dc2626" id="mermaGGasto">$0.00</div>
+     </div>
+     <div>
+       <div style="font-size:.68rem;color:#94a3b8">GANANCIA BRUTA</div>
+       <div style="font-size:1.05rem;font-weight:800;color:#16a34a" id="mermaGBruta">$0.00</div>
+     </div>
+     <div>
+       <div style="font-size:.68rem;color:#94a3b8">GANANCIA NETA (- merma)</div>
+       <div style="font-size:1.05rem;font-weight:800" id="mermaGNeta">$0.00</div>
+     </div>
+   </div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap">
+     <span style="background:#fef2f2;color:#dc2626;font-size:.72rem;font-weight:800;padding:5px 10px;border-radius:20px" id="mermaPctGanancia">0% de la ganancia se perdió en merma</span>
+     <span style="background:#f5f3ff;color:#5d3fd1;font-size:.72rem;font-weight:800;padding:5px 10px;border-radius:20px" id="mermaPctIngresos">0% de los ingresos</span>
+   </div>
+ </div>
+
  <div style="background:#f8f7ff;border-radius:16px;padding:14px 10px;margin-bottom:14px">
-   <div id="mermaChartTitulo" style="font-size:.78rem;font-weight:800;color:#7c5fe6;text-align:center;margin-bottom:8px;letter-spacing:.03em">🌸 MERMA VS VENTAS DEL DÍA</div>
+   <div id="mermaChartTitulo" style="font-size:.78rem;font-weight:800;color:#7c5fe6;text-align:center;margin-bottom:8px;letter-spacing:.03em">🗑️ MERMA POR SABOR</div>
    <div style="position:relative;width:100%;height:320px">
      <canvas id="mermaChart"></canvas>
    </div>
@@ -3507,6 +3554,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  <div style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:.06em;margin-bottom:8px">DETALLE POR SABOR</div>
  <div id="mermaDetalle"></div>
 </div>
+
 
 <!-- PROYECCIONES -->
 <div class="sheet" id="proyeccionesSheet">
@@ -3778,43 +3826,24 @@ document.addEventListener('DOMContentLoaded',()=>{
 <!-- HISTORY -->
 <div class="sheet" id="historySheet">
  <h2 style="margin-bottom:4px">Reportes</h2>
- <div class="smallnote" style="margin-bottom:14px">Resumen de ventas, gastos y ganancia por rango de fechas.</div>
+ <div class="smallnote" style="margin-bottom:14px">Ingresos, gastos, merma y ganancia — con porcentajes, por rango de fechas.</div>
 
  <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:14px">
    <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">FILTRAR POR FECHA</div>
    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
      <div>
        <div class="lbl" style="font-size:10px">DESDE</div>
-       <input type="date" id="hFrom" style="font-size:.84rem;padding:7px 10px">
+       <input type="date" id="hFrom" onchange="renderHistory()" style="font-size:.84rem;padding:7px 10px">
      </div>
      <div>
        <div class="lbl" style="font-size:10px">HASTA</div>
-       <input type="date" id="hTo" style="font-size:.84rem;padding:7px 10px">
+       <input type="date" id="hTo" onchange="renderHistory()" style="font-size:.84rem;padding:7px 10px">
      </div>
    </div>
    <button type="button" onclick="renderHistory()"
      style="margin:0;width:100%;padding:10px;border-radius:14px;border:none;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);color:#fff;font-weight:700;font-size:.84rem;box-shadow:0 6px 16px rgba(124,95,230,.30)">
      Aplicar filtro
    </button>
- </div>
-
- <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px">
-     <div style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">VENDIDOS</div>
-     <div style="font-size:1.5rem;font-weight:800;color:#101826" id="hTotal">0</div>
-   </div>
-   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px">
-     <div style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">GASTADO</div>
-     <div style="font-size:1.5rem;font-weight:800;color:#dc2626" id="hSpend">$0.00</div>
-   </div>
-   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px">
-     <div style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">INGRESOS</div>
-     <div style="font-size:1.5rem;font-weight:800;color:#2563eb" id="hIncome">$0.00</div>
-   </div>
-   <div style="background:linear-gradient(135deg,#f0fdf4,#fff);border:1.5px solid #bbf7d0;border-radius:16px;padding:12px 14px">
-     <div style="font-size:10px;font-weight:800;color:#16a34a;letter-spacing:.06em;margin-bottom:4px">GANANCIA</div>
-     <div style="font-size:1.5rem;font-weight:800;color:#16a34a" id="hProfit">$0.00</div>
-   </div>
  </div>
 
  <button type="button" onclick="downloadPDF()"
@@ -4317,35 +4346,129 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function initMermaDefaults(){
-  const f = document.getElementById('mermaFecha');
-  if(f && !f.value) f.value = todayLocalISO();
+  const d = document.getElementById('mermaDesde');
+  const h = document.getElementById('mermaHasta');
+  const hoy = todayLocalISO();
+  if(d && !d.value) d.value = hoy;
+  if(h && !h.value) h.value = hoy;
+  if(!window.__mermaModo) window.__mermaModo = 'pura';
+  poblarFiltroMermaSabor();
+}
+
+function poblarFiltroMermaSabor(){
+  const sel = document.getElementById('mermaSaborFiltro');
+  if(!sel) return;
+  const prev = sel.value;
+  // Unimos los sabores actuales del inventario con los que aparezcan en el
+  // historial de merma (por si un sabor ya se borró del inventario pero
+  // sigue teniendo mermas registradas).
+  const nombres = new Set();
+  (inventory||[]).forEach(p=>{ if(p && p.name) nombres.add(p.name.toString()); });
+  (merma||[]).forEach(m=>{ if(m && m.product) nombres.add(m.product.toString()); });
+  const lista = [...nombres].sort((a,b)=>a.localeCompare(b,'es'));
+  sel.innerHTML = '<option value="__ALL__">Todos los sabores</option>' +
+    lista.map(n=>`<option value="${escapeHtmlAttr(n)}">${escapeHtml(n)}</option>`).join('');
+  if(prev && sel.querySelector(`option[value="${CSS.escape(prev)}"]`)) sel.value = prev;
+}
+
+function setMermaModo(modo){
+  window.__mermaModo = modo;
+  const bP = document.getElementById('mermaModoPura');
+  const bG = document.getElementById('mermaModoGanancia');
+  if(bP){ bP.style.background = modo==='pura' ? '#fff' : 'transparent'; bP.style.color = modo==='pura' ? '#5d3fd1' : '#7c7c9a'; }
+  if(bG){ bG.style.background = modo==='ganancia' ? '#fff' : 'transparent'; bG.style.color = modo==='ganancia' ? '#5d3fd1' : '#7c7c9a'; }
+  const panel = document.getElementById('mermaGananciaPanel');
+  if(panel) panel.style.display = modo==='ganancia' ? 'block' : 'none';
+  renderMerma();
 }
 
 function renderMerma(){
-  const fEl = document.getElementById('mermaFecha');
-  const fecha = (fEl && fEl.value) ? fEl.value : todayLocalISO();
+  const dEl = document.getElementById('mermaDesde');
+  const hEl = document.getElementById('mermaHasta');
+  const sabEl = document.getElementById('mermaSaborFiltro');
+  const desde = (dEl && dEl.value) ? dEl.value : todayLocalISO();
+  const hasta = (hEl && hEl.value) ? hEl.value : desde;
+  const saborFiltro = (sabEl && sabEl.value) ? sabEl.value : '__ALL__';
+  const modo = window.__mermaModo || 'pura';
 
-  const mermasDia = (merma||[]).filter(m => (m.date||"").slice(0,10)===fecha);
-  const ventasDia = (sales||[]).filter(s => (s.date||"").slice(0,10)===fecha);
+  const enRango = (fechaStr)=>{
+    const f = (fechaStr||"").slice(0,10);
+    return f && f>=desde && f<=hasta;
+  };
 
-  const totalPiezasMerma = mermasDia.reduce((a,m)=>a+(Number(m.qty)||0),0);
-  const totalCostoMerma  = mermasDia.reduce((a,m)=>a+((Number(m.costUnit)||getUnitCost(m.product)||0)*(Number(m.qty)||0)),0);
-  const totalPiezasVenta = ventasDia.reduce((a,s)=>a+(Number(s.qty)||0),0);
+  let mermasRango = (merma||[]).filter(m => enRango(m.date));
+  if(saborFiltro !== '__ALL__'){
+    mermasRango = mermasRango.filter(m => (m.product||"").toString() === saborFiltro);
+  }
+
+  const totalPiezasMerma = mermasRango.reduce((a,m)=>a+(Number(m.qty)||0),0);
+  const totalCostoMerma  = mermasRango.reduce((a,m)=>a+((Number(m.costUnit)||getUnitCost(m.product)||0)*(Number(m.qty)||0)),0);
 
   const piezasEl = document.getElementById('mermaTotalPiezas');
   if(piezasEl) piezasEl.textContent = totalPiezasMerma;
   const costoEl = document.getElementById('mermaTotalCosto');
   if(costoEl) costoEl.textContent = '$'+totalCostoMerma.toFixed(2);
 
-  // 🌸 Gráfica de flor: Venta vs Merma (en piezas), con % de cada una
-  renderMermaChart([
-    {nombre:'Venta',  valor:totalPiezasVenta, color:'#22c55e'},
-    {nombre:'Merma',  valor:totalPiezasMerma, color:'#dc2626'}
-  ]);
+  // ---- Panel "Con ganancia": impacto de la merma sobre el negocio en el mismo rango/sabor ----
+  if(modo==='ganancia'){
+    let ventasRango = (sales||[]).filter(s => enRango(s.date));
+    if(saborFiltro !== '__ALL__'){
+      ventasRango = ventasRango.filter(s => (s.product||"").toString() === saborFiltro);
+    }
+    const gastoVentas = ventasRango.reduce((a,s)=>{
+      const qty = Math.max(1, parseInt(s.qty)||1);
+      const cu = (s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0);
+      return a + qty*cu;
+    },0);
 
-  // Detalle por sabor
+    let ingresosRango;
+    if(saborFiltro !== '__ALL__'){
+      // No hay desglose de dinero por sabor en Ventas (Registro), así que
+      // estimamos el ingreso de ESE sabor a prorrata de lo que representó
+      // en piezas vendidas dentro del total del rango.
+      const totalPiezasVentaRango = (sales||[]).filter(s=>enRango(s.date))
+        .reduce((a,s)=>a+Math.max(1,parseInt(s.qty)||1),0);
+      const piezasVentaSabor = ventasRango.reduce((a,s)=>a+Math.max(1,parseInt(s.qty)||1),0);
+      const ingresosTotalesRango = (ventasDinero||[])
+        .filter(v=> v.fecha && enRango(v.fecha)).reduce((a,b)=>a+(Number(b.vendido)||0),0);
+      ingresosRango = totalPiezasVentaRango>0 ? (ingresosTotalesRango * (piezasVentaSabor/totalPiezasVentaRango)) : 0;
+    }else{
+      ingresosRango = (ventasDinero||[])
+        .filter(v=> v.fecha && enRango(v.fecha)).reduce((a,b)=>a+(Number(b.vendido)||0),0);
+    }
+
+    const gananciaBruta = ingresosRango - gastoVentas;
+    const gananciaNeta = gananciaBruta - totalCostoMerma;
+    const pctPerdidoGanancia = gananciaBruta>0 ? (totalCostoMerma/gananciaBruta*100) : (totalCostoMerma>0 ? 100 : 0);
+    const pctPerdidoIngresos = ingresosRango>0 ? (totalCostoMerma/ingresosRango*100) : 0;
+
+    const setTxt=(id,txt)=>{ const e=document.getElementById(id); if(e) e.textContent=txt; };
+    setTxt('mermaGIngresos', money(ingresosRango));
+    setTxt('mermaGGasto', money(gastoVentas));
+    setTxt('mermaGBruta', money(gananciaBruta));
+    const gNetaEl = document.getElementById('mermaGNeta');
+    if(gNetaEl){ gNetaEl.textContent = money(gananciaNeta); gNetaEl.style.color = gananciaNeta<0 ? '#dc2626' : '#16a34a'; }
+    setTxt('mermaPctGanancia', `${pctPerdidoGanancia.toFixed(1)}% de la ganancia se perdió en merma`);
+    setTxt('mermaPctIngresos', `${pctPerdidoIngresos.toFixed(1)}% de los ingresos`);
+  }
+
+  // ---- Gráfica: merma por sabor (siempre, en ambos modos) ----
+  const porSaborChart = {};
+  mermasRango.forEach(m=>{
+    const key = (m.product||"").toString();
+    if(!key) return;
+    porSaborChart[key] = (porSaborChart[key]||0) + (Number(m.qty)||0);
+  });
+  const paletaMerma = ['#dc2626','#f97316','#f59e0b','#e11d48','#c2410c','#ea580c','#b91c1c','#d97706'];
+  const chartData = Object.entries(porSaborChart)
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0,8)
+    .map(([nombre,valor],idx)=>({nombre, valor, color:paletaMerma[idx%paletaMerma.length]}));
+  renderMermaChart(chartData);
+
+  // ---- Detalle por sabor (tabla) ----
   const porSabor = {};
-  mermasDia.forEach(m=>{
+  mermasRango.forEach(m=>{
     const key = (m.product||"").toString();
     if(!key) return;
     if(!porSabor[key]) porSabor[key] = {qty:0, costo:0};
@@ -4357,17 +4480,20 @@ function renderMerma(){
   if(detalleEl){
     const entradas = Object.entries(porSabor).sort((a,b)=>b[1].qty-a[1].qty);
     if(!entradas.length){
-      detalleEl.innerHTML = `<div class="smallnote" style="text-align:center;padding:10px 0">Sin mermas registradas ese día. 🎉</div>`;
+      detalleEl.innerHTML = `<div class="smallnote" style="text-align:center;padding:10px 0">Sin mermas registradas en ese rango. 🎉</div>`;
     }else{
-      detalleEl.innerHTML = entradas.map(([nombre,d])=>`
+      const pctBase = totalCostoMerma>0 ? totalCostoMerma : 0;
+      detalleEl.innerHTML = entradas.map(([nombre,d])=>{
+        const pct = pctBase>0 ? (d.costo/pctBase*100) : 0;
+        return `
         <div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1.5px solid #fecaca;border-left:4px solid #dc2626;border-radius:14px;padding:10px 14px;margin-bottom:8px">
           <div>
             <div style="font-weight:800;font-size:.88rem;color:#1e1b2e">${escapeHtml(nombre)}</div>
-            <div style="font-size:.74rem;color:#94a3b8">${d.qty} pieza${d.qty!==1?'s':''}</div>
+            <div style="font-size:.74rem;color:#94a3b8">${d.qty} pieza${d.qty!==1?'s':''} · ${pct.toFixed(0)}% de la merma</div>
           </div>
           <div style="font-weight:900;color:#dc2626;font-size:.9rem">-$${d.costo.toFixed(2)}</div>
-        </div>
-      `).join('');
+        </div>`;
+      }).join('');
     }
   }
 }
@@ -4381,45 +4507,44 @@ function renderMermaChart(data){
 
   const total = data.reduce((a,x)=>a+(Number(x.valor)||0),0);
 
-  if(tituloEl) tituloEl.textContent = '🌸 MERMA VS VENTAS DEL DÍA';
+  if(tituloEl) tituloEl.textContent = '🗑️ MERMA POR SABOR';
 
   if(total<=0){
     window.mermaChartObj = null;
-    if(info) info.innerHTML = `<div class="smallnote" style="text-align:center">Sin ventas ni merma registradas ese día.</div>`;
+    if(info) info.innerHTML = `<div class="smallnote" style="text-align:center">Sin merma registrada en ese rango.</div>`;
     return;
   }
 
   window.mermaChartObj = new Chart(cv, {
-    type:'polarArea',
+    type:'bar',
     data:{
       labels: data.map(x=>x.nombre),
       datasets:[{
         data: data.map(x=>x.valor),
         backgroundColor: data.map(x=>x.color+'E6'),
-        borderColor:'#ffffff',
-        borderWidth:3,
-        offset:10,
-        hoverOffset:18
+        borderRadius:8,
+        maxBarThickness:38
       }]
     },
     options:{
+      indexAxis:'y',
       responsive:true,
       maintainAspectRatio:false,
-      layout:{ padding:34 },
+      // ✅ Antes la etiqueta "1 (25%)" se cortaba porque la barra más larga
+      // llegaba hasta el borde del área de la gráfica y no quedaba espacio
+      // para el texto. Ahora dejamos ~45% de espacio extra en el eje y más
+      // relleno a la derecha, así la etiqueta siempre cabe completa.
+      layout:{ padding:{right:56,top:6,bottom:6,left:6} },
       scales:{
-        r:{
-          display:false,
-          max: (Math.max(...data.map(x=>Number(x.valor)||0)) || 1) * 1.28,
-          grid:{ display:false },
-          ticks:{ display:false }
-        }
+        x:{
+          grid:{ color:'#f1eefb' },
+          ticks:{ font:{size:11} },
+          suggestedMax: (Math.max(...data.map(x=>Number(x.valor)||0)) || 1) * 1.45
+        },
+        y:{ grid:{ display:false }, ticks:{ font:{size:12,weight:'700'} } }
       },
       plugins:{
-        legend:{
-          display:true,
-          position:'bottom',
-          labels:{ usePointStyle:true, pointStyle:'circle', padding:14, font:{ size:12, weight:'700' } }
-        },
+        legend:{ display:false },
         tooltip:{
           backgroundColor:'#1e1b2e',
           padding:12,
@@ -4427,7 +4552,7 @@ function renderMermaChart(data){
           bodyFont:{size:13},
           callbacks:{
             label:(ctx)=>{
-              const v = Number(ctx.parsed.r ?? ctx.parsed)||0;
+              const v = Number(ctx.parsed.x ?? ctx.parsed)||0;
               const pct = total>0 ? (v/total*100) : 0;
               return ` ${v} piezas · ${pct.toFixed(0)}%`;
             }
@@ -4435,20 +4560,16 @@ function renderMermaChart(data){
         },
         datalabels:{
           color:'#1e1b2e',
-          font:{ weight:'900', size:14 },
+          font:{ weight:'900', size:12 },
           formatter:(value)=>{
             const pct = total>0 ? (value/total*100) : 0;
-            return `${pct.toFixed(0)}%`;
+            return `${value} (${pct.toFixed(0)}%)`;
           },
           anchor:'end',
           align:'end',
-          offset:6,
+          offset:4,
           clamp:true,
-          clip:false,
-          textAlign:'center',
-          backgroundColor:'rgba(255,255,255,.94)',
-          borderRadius:10,
-          padding:{top:5,bottom:5,left:8,right:8}
+          clip:false
         }
       }
     }
@@ -4461,7 +4582,7 @@ function renderMermaChart(data){
         <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 4px">
           <span style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:.85rem;color:#1e1b2e">
             <span style="width:10px;height:10px;border-radius:50%;background:${x.color};display:inline-block"></span>
-            ${x.nombre}
+            ${escapeHtml(x.nombre)}
           </span>
           <span style="font-weight:900;font-size:.88rem;color:${x.color}">${x.valor} · ${pct.toFixed(0)}%</span>
         </div>`;
@@ -8882,32 +9003,43 @@ function renderHistory(){
  const ingresos = (ventasDinero||[])
    .filter(v=> v.fecha && (!from || v.fecha>=from) && (!to || v.fecha<=to))
    .reduce((a,b)=> a + (Number(b.vendido)||0), 0);
- const ganancia = ingresos - gasto;
+ const gananciaBruta = ingresos - gasto;
 
- hTotal.textContent=total;
- hSpend.textContent=money(gasto);
- const hIncomeEl = document.getElementById("hIncome");
- const hProfitEl = document.getElementById("hProfit");
- if(hIncomeEl) hIncomeEl.textContent = money(ingresos);
- if(hProfitEl){
-   hProfitEl.textContent = money(ganancia);
-   hProfitEl.style.color = ganancia < 0 ? "#dc2626" : "#16a34a";
- }
+ // ✅ Merma del mismo rango, para mostrar su impacto real en el reporte
+ const mermaRango = (merma||[]).filter(m=>{
+   const f=(m.date||"").slice(0,10);
+   return f && (!from || f>=from) && (!to || f<=to);
+ });
+ const piezasMerma = mermaRango.reduce((a,m)=>a+(Number(m.qty)||0),0);
+ const costoMerma  = mermaRango.reduce((a,m)=>a+((Number(m.costUnit)||getUnitCost(m.product)||0)*(Number(m.qty)||0)),0);
+ const gananciaNeta = gananciaBruta - costoMerma;
 
- // Sumatoria por sabor (para que se vea pro)
+ // Sumatoria por sabor (ventas), con la merma de ese mismo sabor a un lado
  const byFlavor=new Map();
  arr.forEach(r=>{
   const k=cuNormKey(r.name);
-  const prev=byFlavor.get(k)||{name:r.name,qty:0,spent:0,costUnit:Number(r.costUnit)||0};
+  const prev=byFlavor.get(k)||{name:r.name,qty:0,spent:0,costUnit:Number(r.costUnit)||0,mermaQty:0,mermaCosto:0};
   prev.qty += r.qty;
   prev.spent += r.qty*(Number(r.costUnit)||0);
   prev.costUnit = Number(r.costUnit)||0;
   byFlavor.set(k,prev);
  });
+ mermaRango.forEach(m=>{
+  const k=cuNormKey(m.product);
+  const prev=byFlavor.get(k)||{name:(m.product||"").toString(),qty:0,spent:0,costUnit:0,mermaQty:0,mermaCosto:0};
+  prev.mermaQty += Number(m.qty)||0;
+  prev.mermaCosto += (Number(m.costUnit)||getUnitCost(m.product)||0)*(Number(m.qty)||0);
+  byFlavor.set(k,prev);
+ });
  const sumArr=[...byFlavor.values()].sort((a,b)=> b.qty-a.qty || a.name.localeCompare(b.name,"es"));
 
- const gananciaColor = ganancia < 0 ? "#dc2626" : "#16a34a";
- const margenPct = ingresos>0 ? ((ganancia/ingresos)*100) : 0;
+ // Para la gráfica de "en qué se fue el ingreso" (costo, merma, ganancia)
+ const margenNetoPct = ingresos>0 ? (gananciaNeta/ingresos*100) : 0;
+ const repCosto = Math.max(0, gasto);
+ const repMerma = Math.max(0, costoMerma);
+ const repGanancia = Math.max(0, ingresos - repCosto - repMerma);
+
+ const gananciaColor = gananciaNeta < 0 ? "#dc2626" : "#16a34a";
 
  historyWrap.innerHTML = `
   <div style="background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:18px;padding:18px;margin-bottom:14px;color:#fff">
@@ -8921,19 +9053,35 @@ function renderHistory(){
      <div style="font-weight:800;font-size:1.7rem;line-height:1.1">${total}</div>
     </div>
    </div>
-   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.25)">
-    <div>
-     <div style="font-size:.68rem;opacity:.8">Ingresos</div>
-     <div style="font-weight:800;font-size:1rem">${money(ingresos)}</div>
-    </div>
-    <div>
-     <div style="font-size:.68rem;opacity:.8">Gastado</div>
-     <div style="font-weight:800;font-size:1rem">${money(gasto)}</div>
-    </div>
-    <div>
-     <div style="font-size:.68rem;opacity:.8">Ganancia</div>
-     <div style="font-weight:800;font-size:1rem">${money(ganancia)} ${ingresos>0 ? `<span style="font-size:.68rem;opacity:.85">(${margenPct.toFixed(0)}%)</span>` : ""}</div>
-    </div>
+   <div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,.25)">
+    <div style="font-size:.72rem;opacity:.85">GANANCIA NETA (ya restando la merma)</div>
+    <div style="font-weight:900;font-size:2rem;line-height:1.15">${money(gananciaNeta)} <span style="font-size:.85rem;font-weight:700;opacity:.85">${ingresos>0?`(${margenNetoPct.toFixed(0)}%)`:''}</span></div>
+   </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px">
+    <div style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">INGRESOS</div>
+    <div style="font-size:1.3rem;font-weight:900;color:#2563eb">${money(ingresos)}</div>
+   </div>
+   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px">
+    <div style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">GASTADO</div>
+    <div style="font-size:1.3rem;font-weight:900;color:#dc2626">${money(gasto)}</div>
+   </div>
+   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px">
+    <div style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">MERMA</div>
+    <div style="font-size:1.3rem;font-weight:900;color:#f97316">${money(costoMerma)}</div>
+   </div>
+   <div style="background:linear-gradient(135deg,#f0fdf4,#fff);border:1.5px solid #bbf7d0;border-radius:16px;padding:12px 14px">
+    <div style="font-size:10px;font-weight:800;color:#16a34a;letter-spacing:.06em;margin-bottom:4px">GANANCIA NETA</div>
+    <div style="font-size:1.3rem;font-weight:900;color:${gananciaColor}">${money(gananciaNeta)}</div>
+   </div>
+  </div>
+
+  <div style="background:#f8f7ff;border-radius:16px;padding:14px 10px;margin-bottom:14px">
+   <div style="font-size:.78rem;font-weight:800;color:#7c5fe6;text-align:center;margin-bottom:8px;letter-spacing:.03em">🥧 EN QUÉ SE FUE TU INGRESO</div>
+   <div style="position:relative;width:100%;height:230px">
+    <canvas id="reportPieChart"></canvas>
    </div>
   </div>
 
@@ -8945,32 +9093,35 @@ function renderHistory(){
       <tr style="text-align:left;color:#94a3b8;font-weight:800;font-size:11px">
        <th style="padding:8px 6px;border-bottom:1px solid #f1eefb">SABOR</th>
        <th style="padding:8px 6px;border-bottom:1px solid #f1eefb;text-align:right">VENDIDOS</th>
-       <th style="padding:8px 6px;border-bottom:1px solid #f1eefb;text-align:right">CU</th>
        <th style="padding:8px 6px;border-bottom:1px solid #f1eefb;text-align:right">GASTADO</th>
+       <th style="padding:8px 6px;border-bottom:1px solid #f1eefb;text-align:right">MERMA</th>
       </tr>
      </thead>
      <tbody>
       ${
        sumArr.length ? sumArr.map(r=>`
         <tr>
-         <td style="padding:9px 6px;border-bottom:1px solid #f8f7fc;font-weight:700;font-size:.86rem">${r.name}</td>
+         <td style="padding:9px 6px;border-bottom:1px solid #f8f7fc;font-weight:700;font-size:.86rem">${escapeHtml(r.name)}</td>
          <td style="padding:9px 6px;border-bottom:1px solid #f8f7fc;text-align:right;font-weight:700;font-size:.86rem">${r.qty}</td>
-         <td style="padding:9px 6px;border-bottom:1px solid #f8f7fc;text-align:right;font-weight:700;font-size:.86rem">${money(r.costUnit)}</td>
          <td style="padding:9px 6px;border-bottom:1px solid #f8f7fc;text-align:right;font-weight:700;font-size:.86rem">${money(r.spent)}</td>
+         <td style="padding:9px 6px;border-bottom:1px solid #f8f7fc;text-align:right;font-weight:700;font-size:.86rem;color:${r.mermaQty>0?'#dc2626':'#94a3b8'}">${r.mermaQty>0 ? `${r.mermaQty} · ${money(r.mermaCosto)}` : '—'}</td>
         </tr>
-       `).join("") : `<tr><td colspan="4" style="padding:14px;color:#94a3b8;text-align:center">No hay ventas en ese rango.</td></tr>`
+       `).join("") : `<tr><td colspan="4" style="padding:14px;color:#94a3b8;text-align:center">No hay ventas ni merma en ese rango.</td></tr>`
       }
      </tbody>
     </table>
    </div>
   </div>
 
-  <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:14px">
-   <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">DETALLE</div>
+  <button type="button" onclick="toggleReportDetalle()" id="reportDetalleBtn"
+   style="margin:0;width:100%;padding:12px;border-radius:14px;border:1.5px solid #ede9fe;background:#faf9ff;color:#5d3fd1;font-weight:700;font-size:.82rem;margin-bottom:10px">
+   Ver detalle completo (${arr.length} registro${arr.length!==1?'s':''}) ▾
+  </button>
+  <div id="reportDetalleWrap" style="display:none;background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:14px">
    ${
     arr.length ? arr.map(r=>`
      <div style="background:#faf9ff;border:1px solid #f1eefb;border-radius:12px;padding:10px 12px;margin-bottom:8px">
-      <div style="font-weight:700;font-size:.88rem;color:#101826">${r.name}</div>
+      <div style="font-weight:700;font-size:.88rem;color:#101826">${escapeHtml(r.name)}</div>
       <div style="font-size:.72rem;color:#94a3b8;margin-bottom:6px">${r.date}</div>
       <div style="display:flex;gap:16px;font-size:.78rem;color:#475569">
        <span>Vendidos: <b style="color:#101826">${r.qty}</b></span>
@@ -8982,6 +9133,80 @@ function renderHistory(){
    }
   </div>
  `;
+
+ renderReportPieChart([
+   {nombre:'Costo de venta', valor:repCosto, color:'#dc2626'},
+   {nombre:'Merma',          valor:repMerma, color:'#f97316'},
+   {nombre:'Ganancia neta',  valor:repGanancia, color:'#16a34a'}
+ ]);
+}
+
+function toggleReportDetalle(){
+ const wrap = document.getElementById('reportDetalleWrap');
+ const btn = document.getElementById('reportDetalleBtn');
+ if(!wrap || !btn) return;
+ const abierto = wrap.style.display !== 'none';
+ wrap.style.display = abierto ? 'none' : 'block';
+ btn.textContent = btn.textContent.replace(abierto ? '▴' : '▾', abierto ? '▾' : '▴');
+}
+
+// ✅ Gráfica ligera y visual de "en qué se fue el ingreso" — reemplaza el
+// bloque de porcentajes/barra que resultaba abrumador; ahora es un solo
+// vistazo con dona + leyenda.
+function renderReportPieChart(data){
+ const cv = document.getElementById('reportPieChart');
+ if(!cv || !window.Chart) return;
+ if(window.reportPieChartObj) window.reportPieChartObj.destroy();
+ const total = data.reduce((a,x)=>a+(Number(x.valor)||0),0);
+ if(total<=0){
+   window.reportPieChartObj = null;
+   const wrap = cv.parentElement;
+   if(wrap) wrap.innerHTML = `<div class="smallnote" style="text-align:center;padding:20px 0">Sin datos suficientes en ese rango.</div>`;
+   return;
+ }
+ window.reportPieChartObj = new Chart(cv, {
+   type:'doughnut',
+   data:{
+     labels: data.map(x=>x.nombre),
+     datasets:[{
+       data: data.map(x=>Math.max(0,x.valor)),
+       backgroundColor: data.map(x=>x.color),
+       borderColor:'#fff',
+       borderWidth:3
+     }]
+   },
+   options:{
+     responsive:true,
+     maintainAspectRatio:false,
+     cutout:'62%',
+     plugins:{
+       legend:{
+         display:true,
+         position:'bottom',
+         labels:{ usePointStyle:true, pointStyle:'circle', padding:12, font:{ size:11, weight:'700' } }
+       },
+       tooltip:{
+         backgroundColor:'#1e1b2e',
+         padding:12,
+         callbacks:{
+           label:(ctx)=>{
+             const v = Number(ctx.parsed)||0;
+             const pct = total>0 ? (v/total*100) : 0;
+             return ` ${money(v)} · ${pct.toFixed(0)}%`;
+           }
+         }
+       },
+       datalabels:{
+         color:'#fff',
+         font:{ weight:'900', size:12 },
+         formatter:(value)=>{
+           const pct = total>0 ? (value/total*100) : 0;
+           return pct>=6 ? `${pct.toFixed(0)}%` : '';
+         }
+       }
+     }
+   }
+ });
 }
 
 /* PDF carta + gráfica abajo sin deformar */
@@ -9038,6 +9263,16 @@ function downloadPDF(){
     const totalGanancia = totalIngresos - totalGastado;
     const margenPct = totalIngresos>0 ? ((totalGanancia/totalIngresos)*100) : 0;
 
+    // ✅ Merma del mismo rango, para que el PDF también refleje su impacto
+    const mermaRangoPDF = (merma||[]).filter(m=>{
+      const f=(m.date||"").slice(0,10);
+      return f && (!from || f>=from) && (!to || f<=to);
+    });
+    const totalMermaCosto = mermaRangoPDF.reduce((a,m)=>a+((Number(m.costUnit)||getUnitCost(m.product)||0)*(Number(m.qty)||0)),0);
+    const totalMermaPiezas = mermaRangoPDF.reduce((a,m)=>a+(Number(m.qty)||0),0);
+    const totalGananciaNeta = totalGanancia - totalMermaCosto;
+    const margenNetoPct = totalIngresos>0 ? ((totalGananciaNeta/totalIngresos)*100) : 0;
+
     // ----- Gráfica del REPORTE: SIEMPRE VENTAS por sabor (del rango elegido) -----
     const labels = resumen.map(r=>r.name);
     const values = resumen.map(r=>Number(r.qty)||0);
@@ -9054,6 +9289,7 @@ function downloadPDF(){
     const COLOR_LINE=[226,232,240];
     const COLOR_GREEN=[22,163,74];
     const COLOR_RED=[220,38,38];
+    const COLOR_ORANGE=[234,88,12];
 
     function ensure(hNeed){
       if(y + hNeed > H-56){
@@ -9237,7 +9473,14 @@ function header(){
 
     const gananciaTxt = money(totalGanancia) + (totalIngresos>0 ? `  (${margenPct.toFixed(0)}%)` : '');
     card(mx,        y, w2, 56, 'INGRESOS', money(totalIngresos), COLOR_BLUE);
-    card(mx+w2+gap, y, w2, 56, 'GANANCIA', gananciaTxt, totalGanancia<0 ? COLOR_RED : COLOR_GREEN);
+    card(mx+w2+gap, y, w2, 56, 'GANANCIA BRUTA', gananciaTxt, totalGanancia<0 ? COLOR_RED : COLOR_GREEN);
+    y += 56+gap;
+
+    // ✅ Nueva fila: Merma y Ganancia neta (ya restando la merma)
+    const mermaTxt = money(totalMermaCosto) + (totalMermaPiezas>0 ? `  (${totalMermaPiezas} pza)` : '');
+    const gananciaNetaTxt = money(totalGananciaNeta) + (totalIngresos>0 ? `  (${margenNetoPct.toFixed(0)}%)` : '');
+    card(mx,        y, w2, 56, 'MERMA', mermaTxt, COLOR_ORANGE);
+    card(mx+w2+gap, y, w2, 56, 'GANANCIA NETA', gananciaNetaTxt, totalGananciaNeta<0 ? COLOR_RED : COLOR_GREEN);
     y += 56+gap;
 
     // tarjeta de gasto, ancho completo, discreta
