@@ -129,7 +129,9 @@ function _doCloudSave(){
       cu_recipes:   JSON.parse(localStorage.getItem("cu_recipes_v1")  || "{}"),
       compras_plan: JSON.parse(localStorage.getItem("compras_plan_v1")|| "{}"),
       compras_have: JSON.parse(localStorage.getItem("compras_have_v1")|| "{}"),
-      vg_pedidos:   JSON.parse(localStorage.getItem("vg_pedidos_v1")  || "[]")
+      vg_pedidos:   JSON.parse(localStorage.getItem("vg_pedidos_v1")  || "[]"),
+      tiendas:      JSON.parse(localStorage.getItem("tiendas_v1")     || "[]"),
+      traspasos:    JSON.parse(localStorage.getItem("traspasos_v1")   || "[]")
     };
 
     // Solo incluimos en el payload los módulos que de verdad cambiaron en
@@ -244,7 +246,7 @@ const __CLOUD_FIELD_MAP = {
   inventory:'inventory', sales:'sales', ventasDinero:'ventasDinero', listaPVs:'listaPVs',
   pvColores:'pvColores', cu_catalog:'cu_catalog_v1', cu_recipes:'cu_recipes_v1',
   compras_plan:'compras_plan_v1', compras_have:'compras_have_v1', vg_pedidos:'vg_pedidos_v1',
-  stockIn:'stockIn_v1', merma:'merma_v1'
+  stockIn:'stockIn_v1', merma:'merma_v1', tiendas:'tiendas_v1', traspasos:'traspasos_v1'
 };
 
 // ✅ Versión "inteligente": en vez de adivinar con un contador si un snapshot
@@ -303,6 +305,8 @@ function _applyCloudDataSmart(d){
     ventasDinero = JSON.parse(localStorage.getItem("ventasDinero") || "[]");
     listaPVs     = JSON.parse(localStorage.getItem("listaPVs")     || "[]");
     pvColores    = JSON.parse(localStorage.getItem("pvColores")    || "{}");
+    tiendas      = JSON.parse(localStorage.getItem("tiendas_v1")   || "[]");
+    traspasos    = JSON.parse(localStorage.getItem("traspasos_v1") || "[]");
     if(typeof __vgPedidos !== 'undefined'){
       __vgPedidos = JSON.parse(localStorage.getItem("vg_pedidos_v1") || "[]");
       try{ vgRender && vgRender(); }catch(_){}
@@ -316,6 +320,10 @@ function _applyCloudDataSmart(d){
     try{
       const mermaSheetEl = document.getElementById("mermaSheet");
       if(mermaSheetEl && mermaSheetEl.classList.contains("active")) renderMerma();
+    }catch(_){}
+    try{
+      const tiendasSheetEl = document.getElementById("tiendasSheet");
+      if(tiendasSheetEl && tiendasSheetEl.classList.contains("active")) renderTiendas();
     }catch(_){}
     try{ renderVentas && renderVentas(); }catch(_){}
     try{ renderVentasChart && renderVentasChart(); }catch(_){}
@@ -3467,6 +3475,11 @@ document.addEventListener('DOMContentLoaded',()=>{
     <div class="mTitle">Nuevo Sabor</div>
     <div class="mSub">Agregar al inventario</div>
   </button>
+  <button class="menuBtn mBtn-12" onclick="goTo('tiendas')">
+    <div class="mIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9Z"/><path d="M9 20v-6h6v6"/></svg></div>
+    <div class="mTitle">Tiendas</div>
+    <div class="mSub">Traspasos y ventas por sucursal</div>
+  </button>
  </div>
 
 </div>
@@ -3553,6 +3566,13 @@ document.addEventListener('DOMContentLoaded',()=>{
 
  <div style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:.06em;margin-bottom:8px">DETALLE POR SABOR</div>
  <div id="mermaDetalle"></div>
+</div>
+
+<!-- TIENDAS -->
+<div class="sheet" id="tiendasSheet">
+ <h2 style="margin-bottom:4px">Tiendas</h2>
+ <div class="smallnote" style="margin-bottom:14px">Manda inventario de la Matriz a una tienda, véndelo o descuéntalo ahí, y regrésalo cuando quieras. Todo se suma a tus reportes y ganancia principales.</div>
+ <div id="tiendasContent"></div>
 </div>
 
 
@@ -4238,6 +4258,17 @@ let stockIn=safeParseJSON(localStorage.getItem("stockIn_v1"), [])||[]; // {produ
 // Registros de MERMA (producto que se dañó/perdió al restar con el "-"),
 // separado de "sales" para no mezclarlo con ventas reales.
 let merma=safeParseJSON(localStorage.getItem("merma_v1"), [])||[]; // {product,date,time,qty,costUnit}
+// Tiendas: sucursales que reciben inventario por traspaso desde la Matriz.
+// tiendas = [{id, nombre, stock:{ "NOMBRE SABOR": qty, ... }}]
+let tiendas=safeParseJSON(localStorage.getItem("tiendas_v1"), [])||[];
+// Historial de traspasos entre Matriz y tiendas (auditoría, no afecta stock por sí solo).
+let traspasos=safeParseJSON(localStorage.getItem("traspasos_v1"), [])||[];
+
+function saveTiendas(){
+  try{ localStorage.setItem("tiendas_v1", JSON.stringify(tiendas)); }catch(_){}
+  try{ localStorage.setItem("traspasos_v1", JSON.stringify(traspasos)); }catch(_){}
+  try{ cloudSaveSoon(); }catch(_){}
+}
 
 function nowHHMM(){
   const d=new Date();
@@ -4588,6 +4619,250 @@ function renderMermaChart(data){
         </div>`;
     }).join('');
   }
+}
+
+/* =========================
+   TIENDAS (sucursales con inventario propio)
+   - tiendas_v1: [{id, nombre, stock:{ "SABOR": qty }}]
+   - traspasos_v1: historial de movimientos Matriz<->Tienda
+   - Vender/descontar en una tienda usa las MISMAS colas de `sales`/`merma`
+     que la Matriz, así todo se refleja junto en Reportes/Base de datos.
+========================= */
+
+function tiendaFindById(id){
+  return (tiendas||[]).find(t=>t.id===id);
+}
+
+function crearTienda(){
+  AppUI.promptText('Nombre de la nueva tienda', {title:'Nueva tienda', placeholder:'Ej. Sucursal Centro', okText:'Crear'})
+    .then(nombre=>{
+      if(nombre===null) return; // canceló
+      nombre = (nombre||'').trim();
+      if(!nombre){ AppUI.toast('Escribe un nombre para la tienda'); return; }
+      tiendas.push({ id:'t_'+Date.now()+'_'+Math.random().toString(36).slice(2,7), nombre, stock:{} });
+      saveTiendas();
+      renderTiendas();
+    });
+}
+
+async function eliminarTienda(id){
+  const t = tiendaFindById(id);
+  if(!t) return;
+  const totalStock = Object.values(t.stock||{}).reduce((a,b)=>a+(Number(b)||0),0);
+  if(totalStock>0){
+    AppUI.toast('⚠️ Esta tienda todavía tiene inventario. Regresa todo a Matriz antes de eliminarla.');
+    return;
+  }
+  const ok = await AppUI.confirm(`¿Eliminar la tienda "${t.nombre}"? Esto no se puede deshacer.`, {title:'Eliminar tienda', danger:true});
+  if(ok!==true) return;
+  tiendas = tiendas.filter(x=>x.id!==id);
+  saveTiendas();
+  window.__tiendaActivaId = null;
+  renderTiendas();
+}
+
+function abrirTienda(id){
+  window.__tiendaActivaId = id;
+  renderTiendas();
+}
+function cerrarTiendaDetalle(){
+  window.__tiendaActivaId = null;
+  renderTiendas();
+}
+
+function transferirMatrizATienda(tiendaId){
+  const t = tiendaFindById(tiendaId);
+  if(!t) return;
+  const sel = document.getElementById('tiendaTransferProducto');
+  const inp = document.getElementById('tiendaTransferCantidad');
+  if(!sel || !inp) return;
+  const producto = sel.value;
+  const cantidad = parseInt(inp.value)||0;
+  if(!producto){ AppUI.toast('Elige un sabor'); return; }
+  if(cantidad<=0){ AppUI.toast('Escribe una cantidad válida'); return; }
+  const idx = inventory.findIndex(p=>p.name===producto);
+  if(idx<0){ AppUI.toast('Ese sabor ya no existe en Matriz'); return; }
+  const disponible = inventory[idx].qty||0;
+  if(cantidad>disponible){ AppUI.toast(`Solo hay ${disponible} en Matriz`); return; }
+
+  inventory[idx].qty -= cantidad;
+  t.stock[producto] = (Number(t.stock[producto])||0) + cantidad;
+  traspasos.unshift({ id:'tr_'+Date.now(), fecha:todayLocalISO(), hora:nowHHMM(), tiendaId:t.id, tiendaNombre:t.nombre, producto, cantidad, direccion:'matriz->tienda' });
+
+  saveSilent();
+  saveTiendas();
+  render();
+  renderTiendas();
+  AppUI.toast(`✅ Enviaste ${cantidad} de ${producto} a ${t.nombre}`);
+}
+
+async function regresarATiendaMatriz(tiendaId, producto){
+  const t = tiendaFindById(tiendaId);
+  if(!t) return;
+  const disponible = Number(t.stock[producto])||0;
+  if(disponible<=0) return;
+  const cantidad = await AppUI.promptNumber(`¿Cuántos "${producto}" regresan de ${t.nombre} a Matriz?`, {
+    title:'Regresar a Matriz', min:1, max:disponible, value:disponible, okText:'Regresar'
+  });
+  if(cantidad===null || !cantidad || cantidad<=0) return;
+
+  const idx = inventory.findIndex(p=>p.name===producto);
+  if(idx<0){ AppUI.toast('Ese sabor ya no existe en el inventario de Matriz — no se puede regresar automáticamente.'); return; }
+
+  t.stock[producto] = Math.max(0, disponible-cantidad);
+  inventory[idx].qty = (inventory[idx].qty||0) + cantidad;
+  traspasos.unshift({ id:'tr_'+Date.now(), fecha:todayLocalISO(), hora:nowHHMM(), tiendaId:t.id, tiendaNombre:t.nombre, producto, cantidad, direccion:'tienda->matriz' });
+
+  saveSilent();
+  saveTiendas();
+  render();
+  renderTiendas();
+  AppUI.toast(`✅ Regresaste ${cantidad} de ${producto} a Matriz`);
+}
+
+async function venderEnTienda(tiendaId, producto){
+  const t = tiendaFindById(tiendaId);
+  if(!t) return;
+  const max = Number(t.stock[producto])||0;
+  if(max<=0){ AppUI.toast('Sin existencia de este sabor en esta tienda'); return; }
+  const q = await openSellQtyModal(producto, max);
+  if(q===null || !q || q<=0) return;
+
+  t.stock[producto] = Math.max(0, max-q);
+  // ✅ Se registra en la MISMA cola "sales" que usa la Matriz, para que
+  // cuente junto con todo lo demás en Reportes, Base de datos, etc.
+  sales.push({ product:producto, date:todayLocalISO(), time:nowHHMM(), qty:q, costUnit:getUnitCost(producto) });
+
+  saveSilent();
+  saveTiendas();
+  renderTiendas();
+  AppUI.toast(`✅ Vendiste ${q} de ${producto} en ${t.nombre}`);
+}
+
+async function decreaseEnTienda(tiendaId, producto){
+  const t = tiendaFindById(tiendaId);
+  if(!t) return;
+  const qtyActual = Number(t.stock[producto])||0;
+  if(qtyActual<=0) return;
+
+  const esMerma = await AppUI.confirm(
+    `¿"${producto}" se va a MERMA en ${t.nombre}? (se dañó, se cayó, se echó a perder, etc.)`,
+    {title:'¿Fue merma?', okText:'Sí, mermar', cancelText:'No, solo descontar'}
+  );
+  // Salir con la X = cancelar todo, no descuenta nada (mismo criterio que en Matriz).
+  if(esMerma===null) return;
+
+  t.stock[producto] = Math.max(0, qtyActual-1);
+  if(esMerma){
+    // ✅ Se registra en la MISMA cola "merma" que usa la Matriz.
+    merma.push({ product:producto, date:todayLocalISO(), time:nowHHMM(), qty:1, costUnit:getUnitCost(producto) });
+  }
+  saveSilent();
+  saveTiendas();
+  renderTiendas();
+}
+
+function renderTiendas(){
+  const wrap = document.getElementById('tiendasContent');
+  if(!wrap) return;
+  const activaId = window.__tiendaActivaId;
+  if(activaId){
+    const t = tiendaFindById(activaId);
+    if(!t){ window.__tiendaActivaId = null; renderTiendas(); return; }
+    _renderTiendaDetalle(wrap, t);
+  }else{
+    _renderTiendasLista(wrap);
+  }
+}
+
+function _renderTiendasLista(wrap){
+  const botonNueva = `
+    <button type="button" onclick="crearTienda()"
+      style="margin:0;width:100%;padding:12px;border-radius:14px;border:none;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);color:#fff;font-weight:700;font-size:.86rem;margin-bottom:14px">
+      + Nueva tienda
+    </button>`;
+
+  if(!tiendas.length){
+    wrap.innerHTML = botonNueva + `<div class="smallnote" style="text-align:center;padding:10px 0">Aún no tienes tiendas registradas.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = botonNueva + tiendas.map(t=>{
+    const total = Object.values(t.stock||{}).reduce((a,b)=>a+(Number(b)||0),0);
+    return `
+    <div onclick="abrirTienda('${t.id}')" style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;cursor:pointer">
+      <div>
+        <div style="font-weight:800;font-size:.95rem;color:#1e1b2e">🏬 ${escapeHtml(t.nombre)}</div>
+        <div style="font-size:.76rem;color:#94a3b8;margin-top:2px">${total} pieza${total!==1?'s':''} en existencia</div>
+      </div>
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#94a3b8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+    </div>`;
+  }).join('');
+}
+
+function _renderTiendaDetalle(wrap, t){
+  const stockEntries = Object.entries(t.stock||{})
+    .filter(([,q])=>Number(q)>0)
+    .sort((a,b)=>a[0].localeCompare(b[0],'es'));
+  const totalPiezas = stockEntries.reduce((a,[,q])=>a+(Number(q)||0),0);
+
+  const opcionesInventario = (inventory||[])
+    .filter(p=>(p.qty||0)>0)
+    .map(p=>`<option value="${escapeHtmlAttr(p.name)}">${escapeHtml(p.name)} (${p.qty} en Matriz)</option>`).join('');
+
+  wrap.innerHTML = `
+    <button type="button" onclick="cerrarTiendaDetalle()"
+      style="margin:0 0 12px 0;padding:8px 14px;border-radius:12px;border:1.5px solid #ede9fe;background:#faf9ff;color:#5d3fd1;font-weight:700;font-size:.8rem">
+      ← Todas las tiendas
+    </button>
+
+    <div style="background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:18px;padding:16px;margin-bottom:14px;color:#fff;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-weight:800;font-size:1.1rem">🏬 ${escapeHtml(t.nombre)}</div>
+        <div style="font-size:.76rem;opacity:.85;margin-top:2px">${totalPiezas} pieza${totalPiezas!==1?'s':''} en esta tienda</div>
+      </div>
+      <button type="button" onclick="eliminarTienda('${t.id}')" title="Eliminar tienda"
+        style="margin:0;width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,.18);color:#fff;font-size:1rem;flex-shrink:0">🗑️</button>
+    </div>
+
+    <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:14px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">ENVIAR DESDE MATRIZ</div>
+      ${
+        opcionesInventario ? `
+        <select id="tiendaTransferProducto" style="width:100%;font-size:.84rem;padding:9px 10px;border-radius:12px;border:1.5px solid #ede9fe;background:#faf9ff;font-weight:700;color:#1e1b2e;margin-bottom:8px">
+          ${opcionesInventario}
+        </select>
+        <div style="display:flex;gap:8px">
+          <input type="number" id="tiendaTransferCantidad" placeholder="Cantidad" min="1" style="flex:1;font-size:.84rem;padding:9px 10px">
+          <button type="button" onclick="transferirMatrizATienda('${t.id}')"
+            style="margin:0;padding:9px 16px;border-radius:12px;border:none;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);color:#fff;font-weight:700;font-size:.84rem;white-space:nowrap">
+            Enviar
+          </button>
+        </div>
+        ` : `<div class="smallnote">No hay existencias en Matriz para enviar.</div>`
+      }
+    </div>
+
+    <div style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:.06em;margin-bottom:8px">INVENTARIO DE ESTA TIENDA</div>
+    ${
+      stockEntries.length ? stockEntries.map(([nombre,qty])=>`
+        <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <div style="font-weight:800;font-size:.92rem;color:#1e1b2e">${escapeHtml(nombre)}</div>
+            <div style="font-weight:900;font-size:1.1rem;color:#5d3fd1">${qty}</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button type="button" data-tid="${escapeHtmlAttr(t.id)}" data-nombre="${escapeHtmlAttr(nombre)}" onclick="decreaseEnTienda(this.dataset.tid,this.dataset.nombre)"
+              style="flex:0 0 44px;margin:0;padding:9px 0;border-radius:12px;border:none;background:linear-gradient(135deg,#f06f8c,#e0445f);color:#fff;font-weight:800;font-size:1.1rem">−</button>
+            <button type="button" data-tid="${escapeHtmlAttr(t.id)}" data-nombre="${escapeHtmlAttr(nombre)}" onclick="venderEnTienda(this.dataset.tid,this.dataset.nombre)"
+              style="flex:1;margin:0;padding:9px 0;border-radius:12px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:800;font-size:.86rem">VENDER</button>
+            <button type="button" data-tid="${escapeHtmlAttr(t.id)}" data-nombre="${escapeHtmlAttr(nombre)}" onclick="regresarATiendaMatriz(this.dataset.tid,this.dataset.nombre)" title="Regresar a Matriz"
+              style="flex:0 0 44px;margin:0;padding:9px 0;border-radius:12px;border:1.5px solid #ede9fe;background:#faf9ff;color:#5d3fd1;font-weight:800;font-size:1rem">↩</button>
+          </div>
+        </div>
+      `).join('') : `<div class="smallnote" style="text-align:center;padding:10px 0">Esta tienda no tiene inventario todavía. Usa "Enviar desde Matriz" para mandarle sabores.</div>`
+    }
+  `;
 }
 
 let ventasDinero = JSON.parse(localStorage.getItem("ventasDinero") || "[]");
@@ -5320,6 +5595,7 @@ function goTo(where){
  if(where==="cu"){cuSheet.classList.add("active"); cuInit();}
  if(where==="proyecciones"){document.getElementById("proyeccionesSheet").classList.add("active"); initProyecciones();}
  if(where==="merma"){document.getElementById("mermaSheet").classList.add("active"); initMermaDefaults(); renderMerma();}
+ if(where==="tiendas"){document.getElementById("tiendasSheet").classList.add("active"); renderTiendas();}
  if(where==="compras"){comprasSheet.classList.add("active"); renderCompras();}
  if(where==="vg"){document.getElementById("ventasGrandesSheet").classList.add("active"); vgInit();}
  if(where==="ventas"){
@@ -8296,6 +8572,8 @@ function exportData(){
   pvColores,
   cu_catalog: cuGetCatalog(),
   cu_recipes: cuGetRecipes(),
+  tiendas,
+  traspasos,
   compras: {
     plan: comprasGetPlan(),
     have: comprasGetHave()
@@ -8359,6 +8637,8 @@ function guardarCopiaSeguridad(){
     pvColores,
     cu_catalog: cuGetCatalog(),
     cu_recipes: cuGetRecipes(),
+    tiendas,
+    traspasos,
     compras: { plan: comprasGetPlan(), have: comprasGetHave() },
     savedAt: new Date().toISOString()
   };
@@ -8450,6 +8730,8 @@ function confirmarPreviewRestaurar(){
     if(payload.ventasDinero) { ventasDinero = payload.ventasDinero; localStorage.setItem("ventasDinero", JSON.stringify(ventasDinero)); }
     if(payload.listaPVs)     { listaPVs = payload.listaPVs; localStorage.setItem("listaPVs", JSON.stringify(listaPVs)); }
     if(payload.pvColores)    { pvColores = payload.pvColores; localStorage.setItem("pvColores", JSON.stringify(pvColores)); }
+    if(Array.isArray(payload.tiendas))   { tiendas = payload.tiendas; localStorage.setItem("tiendas_v1", JSON.stringify(tiendas)); }
+    if(Array.isArray(payload.traspasos)) { traspasos = payload.traspasos; localStorage.setItem("traspasos_v1", JSON.stringify(traspasos)); }
     if(Array.isArray(payload.vg_pedidos)){
       __vgPedidos = payload.vg_pedidos;
       localStorage.setItem(VG_PEDIDOS_KEY, JSON.stringify(__vgPedidos));
@@ -8458,6 +8740,7 @@ function confirmarPreviewRestaurar(){
     render();
     try{ renderPVChart(); }catch(_){}
     try{ renderSalesDB && renderSalesDB(); }catch(_){}
+    try{ renderTiendas && renderTiendas(); }catch(_){}
     window.__forzarProximoCloudSave = true;
     try{ cloudSaveNow(); }catch(_){}
     AppUI.toast("✅ Copia restaurada y subida a la nube");
@@ -8577,6 +8860,16 @@ function triggerImport(){
     __vgPedidos=d.vg_pedidos;
     localStorage.setItem(VG_PEDIDOS_KEY, JSON.stringify(__vgPedidos));
     try{ vgRenderPedidos && vgRenderPedidos(); }catch(_){}
+   }
+
+   if(Array.isArray(d.tiendas)){
+    tiendas=d.tiendas;
+    localStorage.setItem("tiendas_v1", JSON.stringify(tiendas));
+    try{ renderTiendas && renderTiendas(); }catch(_){}
+   }
+   if(Array.isArray(d.traspasos)){
+    traspasos=d.traspasos;
+    localStorage.setItem("traspasos_v1", JSON.stringify(traspasos));
    }
 
    if(Array.isArray(d.ventasDinero)){
