@@ -4707,21 +4707,140 @@ async function eliminarTienda(id){
 function abrirTienda(id){
   window.__tiendaActivaId = id;
   window.__tzTab = null; // se recalcula el tab por default (Enviar/Inventario) según esta tienda
+  window.__tzGraficaFrom = '';
+  window.__tzGraficaTo = '';
   renderTiendas();
 }
 
-// Cambia entre las cápsulas "Enviar" e "Inventario" dentro del detalle de una tienda.
+// Cambia entre las cápsulas "Enviar", "Inventario" y "Gráfica" dentro del detalle de una tienda.
 function tzSetTab(tab){
   window.__tzTab = tab;
   const enviarView = document.getElementById('tzEnviarView');
   const inventarioView = document.getElementById('tzInventarioView');
+  const graficaView = document.getElementById('tzGraficaView');
   const btnE = document.getElementById('tzTabBtnEnviar');
   const btnI = document.getElementById('tzTabBtnInventario');
+  const btnG = document.getElementById('tzTabBtnGrafica');
   if(enviarView) enviarView.style.display = tab==='enviar' ? '' : 'none';
   if(inventarioView) inventarioView.style.display = tab==='inventario' ? '' : 'none';
+  if(graficaView) graficaView.style.display = tab==='grafica' ? '' : 'none';
   if(btnE){ btnE.style.background = tab==='enviar' ? '#fff' : 'transparent'; btnE.style.color = tab==='enviar' ? '#5d3fd1' : '#7c7c9a'; }
   if(btnI){ btnI.style.background = tab==='inventario' ? '#fff' : 'transparent'; btnI.style.color = tab==='inventario' ? '#5d3fd1' : '#7c7c9a'; }
+  if(btnG){ btnG.style.background = tab==='grafica' ? '#fff' : 'transparent'; btnG.style.color = tab==='grafica' ? '#5d3fd1' : '#7c7c9a'; }
+  if(tab==='grafica') tzGraficaRender();
 }
+
+// Atajos de periodo para la gráfica de la tienda.
+function tzGraficaSetPreset(preset){
+  let from='', to='';
+  if(preset==='hoy'){ from = todayLocalISO(); to = todayLocalISO(); }
+  else if(preset==='semana'){ from = addDaysISO(todayLocalISO(), -6); to = todayLocalISO(); }
+  else if(preset==='mes'){ from = todayLocalISO().slice(0,8)+'01'; to = todayLocalISO(); }
+  // 'todo' deja from/to vacíos
+  window.__tzGraficaFrom = from;
+  window.__tzGraficaTo = to;
+  const fromEl = document.getElementById('tzGraficaFrom');
+  const toEl = document.getElementById('tzGraficaTo');
+  if(fromEl) fromEl.value = from;
+  if(toEl) toEl.value = to;
+  tzGraficaRender();
+}
+
+// Cuando el usuario edita las fechas a mano.
+function tzGraficaCustom(){
+  const fromEl = document.getElementById('tzGraficaFrom');
+  const toEl = document.getElementById('tzGraficaTo');
+  window.__tzGraficaFrom = (fromEl && fromEl.value) || '';
+  window.__tzGraficaTo = (toEl && toEl.value) || '';
+  tzGraficaRender();
+}
+
+// Ventas por sabor de ESTA tienda en el rango elegido — versión simplificada de "Productos vendidos".
+function tzGraficaRender(){
+  const t = tiendaFindById(window.__tiendaActivaId);
+  if(!t) return;
+  const from = normalizeISODate(window.__tzGraficaFrom||'');
+  const to = normalizeISODate(window.__tzGraficaTo||'');
+
+  const filas = (sales||[]).filter(s=>{
+    if(s.tiendaId!==t.id) return false;
+    const d = normalizeISODate(s.date)||'';
+    if(from && d<from) return false;
+    if(to && d>to) return false;
+    return true;
+  });
+
+  const byFlavor = new Map();
+  filas.forEach(s=>{
+    const qty = Math.max(1, parseInt(s.qty)||1);
+    const cu = (s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0);
+    if(!byFlavor.has(s.product)) byFlavor.set(s.product, {nombre:s.product, qty:0, gasto:0});
+    const b = byFlavor.get(s.product);
+    b.qty += qty;
+    b.gasto += qty*cu;
+  });
+  const arr = [...byFlavor.values()].sort((a,b)=>b.qty-a.qty);
+  const totalQty = arr.reduce((a,x)=>a+x.qty,0);
+  const totalGasto = arr.reduce((a,x)=>a+x.gasto,0);
+
+  const totalEl = document.getElementById('tzGraficaTotal');
+  const gastoEl = document.getElementById('tzGraficaGasto');
+  if(totalEl) totalEl.textContent = totalQty;
+  if(gastoEl) gastoEl.textContent = money(totalGasto);
+
+  const cv = document.getElementById('tzGraficaChart');
+  const wrap = document.getElementById('tzGraficaChartWrap');
+  const empty = document.getElementById('tzGraficaEmpty');
+  if(!cv || !window.Chart) return;
+  if(window.tzGraficaChartObj) window.tzGraficaChartObj.destroy();
+
+  if(!arr.length){
+    window.tzGraficaChartObj = null;
+    cv.style.display = 'none';
+    if(empty) empty.style.display = 'block';
+    return;
+  }
+  cv.style.display = 'block';
+  if(empty) empty.style.display = 'none';
+  if(wrap) wrap.style.height = Math.max(160, arr.length*34) + 'px';
+
+  const colores = ['#7c5fe6','#22c55e','#f59e0b','#e0445f','#2563eb','#16a34a','#f97316','#0ea5e9','#dc2626','#a855f7'];
+
+  window.tzGraficaChartObj = new Chart(cv, {
+    type:'bar',
+    data:{
+      labels: arr.map(x=>x.nombre),
+      datasets:[{
+        data: arr.map(x=>x.qty),
+        backgroundColor: arr.map((_,i)=>colores[i%colores.length]+'E6'),
+        borderRadius:8,
+        maxBarThickness:28
+      }]
+    },
+    options:{
+      indexAxis:'y',
+      responsive:true,
+      maintainAspectRatio:false,
+      layout:{ padding:{right:44,top:6,bottom:6,left:6} },
+      scales:{
+        x:{ grid:{color:'#f1eefb'}, ticks:{font:{size:11}}, suggestedMax:(Math.max(...arr.map(x=>x.qty))||1)*1.3 },
+        y:{ grid:{display:false}, ticks:{font:{size:11,weight:'700'}} }
+      },
+      plugins:{
+        legend:{ display:false },
+        tooltip:{
+          backgroundColor:'#1e1b2e', padding:12,
+          callbacks:{ label:(ctx)=> ` ${ctx.parsed.x} piezas` }
+        },
+        datalabels:{
+          color:'#1e1b2e', font:{weight:'900',size:11},
+          formatter:(v)=>v, anchor:'end', align:'end', offset:4, clamp:true, clip:false
+        }
+      }
+    }
+  });
+}
+
 function cerrarTiendaDetalle(){
   window.__tiendaActivaId = null;
   renderTiendas();
@@ -4929,12 +5048,16 @@ function _renderTiendaDetalle(wrap, t){
 
     <div style="display:flex;gap:6px;background:#f1f0ff;border-radius:14px;padding:4px;margin-bottom:14px">
       <button type="button" id="tzTabBtnEnviar" onclick="tzSetTab('enviar')"
-        style="box-sizing:border-box;flex:1;margin:0;padding:10px;border:none;border-radius:11px;font-weight:800;font-size:.82rem">
+        style="box-sizing:border-box;flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.8rem">
         Enviar
       </button>
       <button type="button" id="tzTabBtnInventario" onclick="tzSetTab('inventario')"
-        style="box-sizing:border-box;flex:1;margin:0;padding:10px;border:none;border-radius:11px;font-weight:800;font-size:.82rem">
+        style="box-sizing:border-box;flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.8rem">
         Inventario
+      </button>
+      <button type="button" id="tzTabBtnGrafica" onclick="tzSetTab('grafica')"
+        style="box-sizing:border-box;flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.8rem">
+        Gráfica
       </button>
     </div>
 
@@ -4983,6 +5106,47 @@ function _renderTiendaDetalle(wrap, t){
           </div>
         `).join('') : `<div class="smallnote" style="text-align:center;padding:10px 0">Esta tienda no tiene inventario todavía. Usa "Enviar desde Matriz" para mandarle sabores.</div>`
       }
+    </div>
+
+    <div id="tzGraficaView">
+      <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
+        <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">PERIODO</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+          <button type="button" onclick="tzGraficaSetPreset('hoy')" style="box-sizing:border-box;flex:1;margin:0;padding:8px 4px;border-radius:10px;border:1.5px solid #ede9fe;background:#faf9ff;color:#5d3fd1;font-weight:700;font-size:.76rem">Hoy</button>
+          <button type="button" onclick="tzGraficaSetPreset('semana')" style="box-sizing:border-box;flex:1;margin:0;padding:8px 4px;border-radius:10px;border:1.5px solid #ede9fe;background:#faf9ff;color:#5d3fd1;font-weight:700;font-size:.76rem">7 días</button>
+          <button type="button" onclick="tzGraficaSetPreset('mes')" style="box-sizing:border-box;flex:1;margin:0;padding:8px 4px;border-radius:10px;border:1.5px solid #ede9fe;background:#faf9ff;color:#5d3fd1;font-weight:700;font-size:.76rem">Este mes</button>
+          <button type="button" onclick="tzGraficaSetPreset('todo')" style="box-sizing:border-box;flex:1;margin:0;padding:8px 4px;border-radius:10px;border:1.5px solid #ede9fe;background:#faf9ff;color:#5d3fd1;font-weight:700;font-size:.76rem">Todo</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <div class="lbl" style="font-size:10px">DESDE</div>
+            <input type="date" id="tzGraficaFrom" value="${escapeHtmlAttr(window.__tzGraficaFrom||'')}" onchange="tzGraficaCustom()" style="font-size:.84rem;padding:7px 10px">
+          </div>
+          <div>
+            <div class="lbl" style="font-size:10px">HASTA</div>
+            <input type="date" id="tzGraficaTo" value="${escapeHtmlAttr(window.__tzGraficaTo||'')}" onchange="tzGraficaCustom()" style="font-size:.84rem;padding:7px 10px">
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px">
+          <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">VENDIDOS</div>
+          <div style="font-size:1.4rem;font-weight:900;color:#1e1b2e" id="tzGraficaTotal">0</div>
+        </div>
+        <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px">
+          <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">GASTADO</div>
+          <div style="font-size:1.4rem;font-weight:900;color:#1e1b2e" id="tzGraficaGasto">$0.00</div>
+        </div>
+      </div>
+
+      <div style="background:#f8f7ff;border-radius:16px;padding:14px 10px">
+        <div style="font-size:.78rem;font-weight:800;color:#7c5fe6;text-align:center;margin-bottom:8px;letter-spacing:.03em">VENTAS POR SABOR</div>
+        <div style="position:relative;width:100%;height:200px" id="tzGraficaChartWrap">
+          <canvas id="tzGraficaChart"></canvas>
+        </div>
+        <div class="smallnote" id="tzGraficaEmpty" style="display:none;text-align:center;padding:20px 0">Sin ventas registradas en ese rango.</div>
+      </div>
     </div>
   `;
 
