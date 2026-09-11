@@ -131,7 +131,8 @@ function _doCloudSave(){
       compras_have: JSON.parse(localStorage.getItem("compras_have_v1")|| "{}"),
       vg_pedidos:   JSON.parse(localStorage.getItem("vg_pedidos_v1")  || "[]"),
       tiendas:      JSON.parse(localStorage.getItem("tiendas_v1")     || "[]"),
-      traspasos:    JSON.parse(localStorage.getItem("traspasos_v1")   || "[]")
+      traspasos:    JSON.parse(localStorage.getItem("traspasos_v1")   || "[]"),
+      pvVentas:     JSON.parse(localStorage.getItem("pvVentas_v1")    || "[]")
     };
 
     // Solo incluimos en el payload los módulos que de verdad cambiaron en
@@ -154,23 +155,34 @@ function _doCloudSave(){
       return;
     }
 
-    // 🛡️ RED DE SEGURIDAD ANTI-DESTRUCCIÓN: si el inventario que vamos a
-    // subir se desplomó de golpe respecto a la última versión confirmada de
-    // la nube (ej. de 15 sabores a 2, o a 0), lo más probable es que este
-    // dispositivo tenga datos viejos o corruptos — NO que de verdad se hayan
-    // borrado casi todos los sabores a propósito. En ese caso NO subimos
-    // automáticamente (para no volver a destruir el inventario real): se
-    // avisa y se detiene, y hay que confirmar manualmente desde Guardado.
-    if(payload.inventory && __cloudBaseline && Array.isArray(__cloudBaseline.inventory) && !window.__forzarProximoCloudSave){
-      const antes = __cloudBaseline.inventory.length;
-      const ahora = payload.inventory.length;
-      if(antes >= 3 && ahora < antes * 0.5){
-        console.warn(`cloudSave BLOQUEADO: inventario pasó de ${antes} a ${ahora} sabores — posible pérdida de datos, no se sube automáticamente.`);
-        updateCloudStamp("⚠️ Cambio grande detectado — no se subió (revisa tu inventario)");
-        try{ AppUI.toast("⚠️ Tu inventario bajó mucho de golpe. No lo subimos a la nube para protegerte. Si de verdad borraste varios sabores, ve a Guardado y sincroniza manualmente."); }catch(_){}
-        window.__cloudSaveBloqueadoPorSeguridad = true;
-        try{ const w=document.getElementById('ioSyncBlockedWarning'); if(w) w.style.display='block'; }catch(_){}
-        return;
+    // 🛡️ RED DE SEGURIDAD ANTI-DESTRUCCIÓN: si el inventario (o las ventas)
+    // que vamos a subir se desploman de golpe respecto a la última versión
+    // confirmada de la nube (ej. de 15 sabores a 2, o de 491 ventas a 482),
+    // lo más probable es que este dispositivo tenga datos viejos o
+    // corruptos — NO que de verdad se hayan borrado casi todos a propósito.
+    // En ese caso NO subimos automáticamente (para no que lo viejo sustituya
+    // lo nuevo): se avisa y se detiene, y hay que confirmar manualmente
+    // desde Guardado.
+    const __antiDestruccionCampos = [
+      {key:'inventory',    label:'inventario',  minAntes:3},
+      {key:'sales',        label:'ventas',      minAntes:5},
+      {key:'ventasDinero', label:'registro de ventas de PV', minAntes:5}
+    ];
+    if(__cloudBaseline && !window.__forzarProximoCloudSave){
+      for(const campo of __antiDestruccionCampos){
+        const antesArr = __cloudBaseline[campo.key];
+        const ahoraArr = payload[campo.key];
+        if(!Array.isArray(antesArr) || !Array.isArray(ahoraArr)) continue;
+        const antes = antesArr.length;
+        const ahora = ahoraArr.length;
+        if(antes >= campo.minAntes && ahora < antes * 0.5){
+          console.warn(`cloudSave BLOQUEADO: ${campo.label} pasó de ${antes} a ${ahora} — posible pérdida de datos, no se sube automáticamente.`);
+          updateCloudStamp("⚠️ Cambio grande detectado — no se subió (revisa tus datos)");
+          try{ AppUI.toast(`⚠️ Tu ${campo.label} bajó mucho de golpe. No lo subimos a la nube para protegerte. Si de verdad borraste varios registros, ve a Guardado y sincroniza manualmente.`); }catch(_){}
+          window.__cloudSaveBloqueadoPorSeguridad = true;
+          try{ const w=document.getElementById('ioSyncBlockedWarning'); if(w) w.style.display='block'; }catch(_){}
+          return;
+        }
       }
     }
     window.__cloudSaveBloqueadoPorSeguridad = false;
@@ -246,7 +258,7 @@ const __CLOUD_FIELD_MAP = {
   inventory:'inventory', sales:'sales', ventasDinero:'ventasDinero', listaPVs:'listaPVs',
   pvColores:'pvColores', cu_catalog:'cu_catalog_v1', cu_recipes:'cu_recipes_v1',
   compras_plan:'compras_plan_v1', compras_have:'compras_have_v1', vg_pedidos:'vg_pedidos_v1',
-  stockIn:'stockIn_v1', merma:'merma_v1', tiendas:'tiendas_v1', traspasos:'traspasos_v1'
+  stockIn:'stockIn_v1', merma:'merma_v1', tiendas:'tiendas_v1', traspasos:'traspasos_v1', pvVentas:'pvVentas_v1'
 };
 
 // ✅ Versión "inteligente": en vez de adivinar con un contador si un snapshot
@@ -264,6 +276,11 @@ const __CLOUD_FIELD_MAP = {
 function _applyCloudDataSmart(d){
   if(!__cloudBaseline) __cloudBaseline = {};
   let changedSomething = false;
+  let huboRechazoSospechoso = false;
+
+  // Campos donde una caída brusca de tamaño es más probable que sea un
+  // dispositivo con datos viejos pisando lo nuevo, que un borrado real.
+  const __antiDestruccionPull = { inventory:3, sales:5, ventasDinero:5 };
 
   Object.keys(__CLOUD_FIELD_MAP).forEach(field=>{
     if(!(field in d)) return; // este campo nunca se ha guardado en la nube
@@ -282,6 +299,18 @@ function _applyCloudDataSmart(d){
       const baselineVal = __cloudBaseline[field];
       const baselineStr = baselineVal===undefined ? undefined : JSON.stringify(baselineVal);
       if(incomingStr !== baselineStr){
+        // 🛡️ Antes de aplicar, revisar que no sea una caída sospechosa
+        // (ej. 491 ventas locales -> 482 llegando de la nube): eso no puede
+        // pasar que lo viejo sustituya lo nuevo, así que se ignora y se
+        // reprograma una subida correctiva con lo bueno que ya tenemos local.
+        const minAntes = __antiDestruccionPull[field];
+        if(minAntes && esArray && Array.isArray(localVal) && localVal.length >= minAntes && incomingVal.length < localVal.length * 0.5){
+          console.warn(`cloudPull IGNORADO: ${field} de la nube trae ${incomingVal.length} mientras que local tiene ${localVal.length} — se ignora para no pisar lo nuevo con lo viejo.`);
+          huboRechazoSospechoso = true;
+          // no se aplica localmente y NO se actualiza el baseline de este
+          // campo, para que el próximo guardado vuelva a subir lo bueno.
+          return;
+        }
         // Dato realmente nuevo — se aplica
         localStorage.setItem(storageKey, incomingStr);
         changedSomething = true;
@@ -295,6 +324,13 @@ function _applyCloudDataSmart(d){
     __cloudBaseline[field] = incomingVal;
   });
 
+  if(huboRechazoSospechoso){
+    try{ AppUI.toast("⚠️ Llegó un dato viejo desde otro celular y lo ignoramos para proteger tu información más reciente."); }catch(_){}
+    // Forzar una subida correctiva para que la nube quede con lo bueno.
+    window.__forzarProximoCloudSave = true;
+    setTimeout(()=>{ try{ _doCloudSave(); }catch(_){} }, 1200);
+  }
+
   if(!changedSomething) return;
 
   try{
@@ -307,6 +343,7 @@ function _applyCloudDataSmart(d){
     pvColores    = JSON.parse(localStorage.getItem("pvColores")    || "{}");
     tiendas      = JSON.parse(localStorage.getItem("tiendas_v1")   || "[]");
     traspasos    = JSON.parse(localStorage.getItem("traspasos_v1") || "[]");
+    if(typeof pvVentas !== 'undefined') pvVentas = JSON.parse(localStorage.getItem("pvVentas_v1") || "[]");
     if(typeof __vgPedidos !== 'undefined'){
       __vgPedidos = JSON.parse(localStorage.getItem("vg_pedidos_v1") || "[]");
       try{ vgRender && vgRender(); }catch(_){}
@@ -3864,12 +3901,6 @@ document.addEventListener('DOMContentLoaded',()=>{
       <div class="lbl" style="font-size:10px">PUNTO DE VENTA</div>
       <select id="statsPvFiltro" onchange="statsPvCustom()" style="font-size:.84rem;padding:7px 10px;width:100%"></select>
     </div>
-    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-      <button type="button" onclick="statsPvSetPreset('hoy')" style="box-sizing:border-box;flex:1;margin:0;padding:8px 4px;border-radius:10px;border:1.5px solid #ede9fe;background:#faf9ff;color:#5d3fd1;font-weight:700;font-size:.76rem">Hoy</button>
-      <button type="button" onclick="statsPvSetPreset('semana')" style="box-sizing:border-box;flex:1;margin:0;padding:8px 4px;border-radius:10px;border:1.5px solid #ede9fe;background:#faf9ff;color:#5d3fd1;font-weight:700;font-size:.76rem">7 días</button>
-      <button type="button" onclick="statsPvSetPreset('mes')" style="box-sizing:border-box;flex:1;margin:0;padding:8px 4px;border-radius:10px;border:1.5px solid #ede9fe;background:#faf9ff;color:#5d3fd1;font-weight:700;font-size:.76rem">Este mes</button>
-      <button type="button" onclick="statsPvSetPreset('todo')" style="box-sizing:border-box;flex:1;margin:0;padding:8px 4px;border-radius:10px;border:1.5px solid #ede9fe;background:#faf9ff;color:#5d3fd1;font-weight:700;font-size:.76rem">Todo</button>
-    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div>
         <div class="lbl" style="font-size:10px">DESDE</div>
@@ -3882,24 +3913,37 @@ document.addEventListener('DOMContentLoaded',()=>{
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
     <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px">
-      <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">TOTAL VENDIDOS</div>
-      <div style="font-size:1.5rem;font-weight:900;color:#1e1b2e" id="statsPvTotal">0</div>
+      <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">VENDIDOS</div>
+      <div style="font-size:1.4rem;font-weight:900;color:#1e1b2e" id="statsPvTotal">0</div>
     </div>
     <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px">
-      <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">TOTAL GASTADO</div>
-      <div style="font-size:1.5rem;font-weight:900;color:#1e1b2e" id="statsPvSpend">$0.00</div>
+      <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">GASTADO</div>
+      <div style="font-size:1.4rem;font-weight:900;color:#dc2626" id="statsPvSpend">$0.00</div>
     </div>
   </div>
-
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+    <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:14px;padding:12px 14px">
+      <div style="font-size:10px;font-weight:700;color:#94a3b8;letter-spacing:.06em;margin-bottom:4px">INGRESO</div>
+      <div style="font-size:1.4rem;font-weight:900;color:#1e1b2e" id="statsPvIngreso">$0.00</div>
+    </div>
+    <div style="background:linear-gradient(135deg,#f0fdf4,#fff);border:1.5px solid #bbf7d0;border-radius:14px;padding:12px 14px">
+      <div style="font-size:10px;font-weight:700;color:#16a34a;letter-spacing:.06em;margin-bottom:4px">GANANCIA</div>
+      <div style="font-size:1.4rem;font-weight:900;color:#16a34a" id="statsPvGanancia">$0.00</div>
+    </div>
+  </div>
   <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:8px;margin-top:4px">GRÁFICA — VENTAS POR SABOR</div>
-  <div style="background:#f8f7ff;border-radius:16px;padding:14px 10px;margin-bottom:14px">
-    <div style="position:relative;width:100%;height:200px" id="statsPvChartWrap">
-      <canvas id="statsPvChart"></canvas>
-    </div>
-    <div class="smallnote" id="statsPvEmpty" style="display:none;text-align:center;padding:20px 0">Sin ventas de puntos de venta en ese rango.</div>
-  </div>
+  <div class="chartPanel" id="statsPvChartPanel"><div class="chartScroll">
+    <div class="chart-wrap" id="statsPvChartWrap"><canvas id="statsPvChart"></canvas></div>
+  </div></div>
+  <div class="smallnote" id="statsPvEmpty" style="display:none;text-align:center;padding:14px 0">Selecciona un rango de fechas para ver resultados.</div>
+
+  <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:8px;margin-top:4px">GRÁFICA — COMPARATIVA POR PV</div>
+  <div class="chartPanel" id="statsPvCompareChartPanel"><div class="chartScroll">
+    <div class="chart-wrap" id="statsPvCompareChartWrap"><canvas id="statsPvCompareChart"></canvas></div>
+  </div></div>
+  <div class="smallnote" id="statsPvCompareEmpty" style="display:none;text-align:center;padding:14px 0">Selecciona un rango de fechas para ver resultados.</div>
 
   <div style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:.06em;margin-bottom:8px">POR DÍA</div>
   <div id="statsPvPorDia"></div>
@@ -4372,10 +4416,18 @@ let merma=safeParseJSON(localStorage.getItem("merma_v1"), [])||[]; // {product,d
 let tiendas=safeParseJSON(localStorage.getItem("tiendas_v1"), [])||[];
 // Historial de traspasos entre Matriz y tiendas (auditoría, no afecta stock por sí solo).
 let traspasos=safeParseJSON(localStorage.getItem("traspasos_v1"), [])||[];
+// Ventas registradas por Punto de Venta (Ir a llevar / Vender todo con PV elegido):
+// {id, pv, fecha, hora, monto, costo, ganancia, items:[{producto,qty}]}
+let pvVentas=safeParseJSON(localStorage.getItem("pvVentas_v1"), [])||[];
 
 function saveTiendas(){
   try{ localStorage.setItem("tiendas_v1", JSON.stringify(tiendas)); }catch(_){}
   try{ localStorage.setItem("traspasos_v1", JSON.stringify(traspasos)); }catch(_){}
+  try{ cloudSaveSoon(); }catch(_){}
+}
+
+function savePvVentas(){
+  try{ localStorage.setItem("pvVentas_v1", JSON.stringify(pvVentas)); }catch(_){}
   try{ cloudSaveSoon(); }catch(_){}
 }
 
@@ -4393,6 +4445,9 @@ function formatHora(hhmm){
   return `${h}:${m} ${ampm}`;
 }
 
+// ===== Ventas de las cards principales (no Ventas Grandes) =====
+// Siempre se registran al PV "Casa" — no hay que elegir nada.
+
 // ===== Agrupamiento de ventas/agregados rápidos (base de datos) =====
 // Si tocas varias veces seguidas el mismo sabor en menos de 5s, se junta en
 // UN solo registro (con la hora del primer toque de esa racha) en vez de
@@ -4402,14 +4457,18 @@ function formatHora(hhmm){
 let __salesBatch = {}; // ventas (egresos)
 let __addBatch = {};   // agregados (ingresos)
 
-function _regSaleBatch(product, qtyDelta){
-  let b = __salesBatch[product];
-  if(!b){ b = __salesBatch[product] = { qty:0, date:todayLocalISO(), time:nowHHMM(), timer:null }; }
+function _regSaleBatch(product, qtyDelta, pv){
+  const pvKey = pv || '';
+  const batchKey = product + '|' + pvKey;
+  let b = __salesBatch[batchKey];
+  if(!b){ b = __salesBatch[batchKey] = { product, pv:pvKey, qty:0, date:todayLocalISO(), time:nowHHMM(), timer:null }; }
   b.qty += qtyDelta;
   clearTimeout(b.timer);
   b.timer = setTimeout(()=>{
-    sales.push({product, date:b.date, time:b.time, qty:b.qty, costUnit:getUnitCost(product)});
-    delete __salesBatch[product];
+    const row = {product:b.product, date:b.date, time:b.time, qty:b.qty, costUnit:getUnitCost(b.product)};
+    if(b.pv) row.pv = b.pv;
+    sales.push(row);
+    delete __salesBatch[batchKey];
     saveSilent();
     try{ cloudSaveQtyDebounced(); }catch(_){}
     try{
@@ -4458,11 +4517,13 @@ function _regMermaBatch(product, qtyDelta){
 // (con lo que llevaba hasta ese momento) para no perder ese registro.
 document.addEventListener('visibilitychange', () => {
   if(document.visibilityState !== 'hidden') return;
-  Object.keys(__salesBatch).forEach(product=>{
-    const b = __salesBatch[product];
+  Object.keys(__salesBatch).forEach(batchKey=>{
+    const b = __salesBatch[batchKey];
     clearTimeout(b.timer);
-    sales.push({product, date:b.date, time:b.time, qty:b.qty, costUnit:getUnitCost(product)});
-    delete __salesBatch[product];
+    const row = {product:b.product, date:b.date, time:b.time, qty:b.qty, costUnit:getUnitCost(b.product)};
+    if(b.pv) row.pv = b.pv;
+    sales.push(row);
+    delete __salesBatch[batchKey];
   });
   Object.keys(__addBatch).forEach(product=>{
     const b = __addBatch[product];
@@ -6501,8 +6562,9 @@ function statsPvPoblarFiltro(){
   const sel = document.getElementById('statsPvFiltro');
   if(!sel) return;
   const prev = sel.value;
+  const pvs = (listaPVs||[]).includes('Casa') ? (listaPVs||[]) : ['Casa', ...(listaPVs||[])];
   sel.innerHTML = `<option value="">Todos los PVs</option>` +
-    (listaPVs||[]).map(p=>`<option value="${escapeHtmlAttr(p)}">${escapeHtml(p)}</option>`).join('');
+    pvs.map(p=>`<option value="${escapeHtmlAttr(p)}">${escapeHtml(p)}</option>`).join('');
   if(prev){
     const opt = Array.from(sel.options).find(o=>o.value===prev);
     if(opt) sel.value = prev;
@@ -6524,11 +6586,58 @@ function statsPvSetPreset(preset){
 
 function statsPvCustom(){ statsPvRender(); }
 
+// Ingreso real por PV, tomado de lo que registras a mano en "Ventas" (ventasDinero.pvs),
+// para poder cruzarlo con el costo (de "sales") y sacar la ganancia por PV.
+function _pvIngresoData(from, to){
+  const porPv = new Map();   // nombre PV -> ingreso total en el rango
+  const porDia = new Map();  // fecha -> Map(nombre PV -> ingreso ese día)
+  (ventasDinero||[]).forEach(row=>{
+    const d = normalizeISODate(row.fecha)||row.fecha||'';
+    if(!d) return;
+    if(from && d<from) return;
+    if(to && d>to) return;
+    (row.pvs||[]).forEach(p=>{
+      const nombre = (p.nombre||'').toString().trim();
+      const monto = Number(p.monto)||0;
+      if(!nombre || !monto) return;
+      porPv.set(nombre, (porPv.get(nombre)||0)+monto);
+      if(!porDia.has(d)) porDia.set(d, new Map());
+      const dm = porDia.get(d);
+      dm.set(nombre, (dm.get(nombre)||0)+monto);
+    });
+  });
+  return {porPv, porDia};
+}
+
 // Ventas por sabor + por día de TODOS los puntos de venta (o uno solo si se filtra) — versión simplificada, igual estilo que General.
 function statsPvRender(){
   const pvFiltro = document.getElementById('statsPvFiltro')?.value || '';
   const from = normalizeISODate(document.getElementById('statsPvFrom')?.value || '');
   const to = normalizeISODate(document.getElementById('statsPvTo')?.value || '');
+
+  const totalEl = document.getElementById('statsPvTotal');
+  const gastoEl = document.getElementById('statsPvSpend');
+  const ingresoEl = document.getElementById('statsPvIngreso');
+  const gananciaEl = document.getElementById('statsPvGanancia');
+  const panel = document.getElementById('statsPvChartPanel');
+  const empty = document.getElementById('statsPvEmpty');
+  const panelCmp = document.getElementById('statsPvCompareChartPanel');
+  const emptyCmp = document.getElementById('statsPvCompareEmpty');
+  const porDiaWrap = document.getElementById('statsPvPorDia');
+
+  // Sin un rango de fechas explícito no mostramos nada (evita cargar TODO el historial por default).
+  if(!from && !to){
+    if(totalEl) totalEl.textContent = '0';
+    if(gastoEl) gastoEl.textContent = '$0.00';
+    if(ingresoEl) ingresoEl.textContent = '$0.00';
+    if(gananciaEl) gananciaEl.textContent = '$0.00';
+    if(panel) panel.style.display = 'none';
+    if(empty) empty.style.display = 'block';
+    if(panelCmp) panelCmp.style.display = 'none';
+    if(emptyCmp) emptyCmp.style.display = 'block';
+    if(porDiaWrap) porDiaWrap.innerHTML = `<div class="smallnote" style="text-align:center;padding:10px 0">Selecciona un rango de fechas para ver resultados.</div>`;
+    return;
+  }
 
   const filas = (sales||[]).filter(s=>{
     if(!s.pv) return false; // solo ventas etiquetadas con un punto de venta
@@ -6541,6 +6650,7 @@ function statsPvRender(){
 
   const byFlavor = new Map();
   const byDia = new Map();
+  const byPvQty = new Map();
   filas.forEach(s=>{
     const qty = Math.max(1, parseInt(s.qty)||1);
     const cu = (s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0);
@@ -6552,64 +6662,95 @@ function statsPvRender(){
     if(!byDia.has(d)) byDia.set(d, {fecha:d, qty:0, gasto:0});
     const bd = byDia.get(d);
     bd.qty += qty; bd.gasto += qty*cu;
+
+    byPvQty.set(s.pv, (byPvQty.get(s.pv)||0) + qty);
   });
 
   const arrFlavor = [...byFlavor.values()].sort((a,b)=>b.qty-a.qty);
-  const arrDia = [...byDia.values()].sort((a,b)=> b.fecha.localeCompare(a.fecha));
   const totalQty = arrFlavor.reduce((a,x)=>a+x.qty,0);
   const totalGasto = arrFlavor.reduce((a,x)=>a+x.gasto,0);
 
-  const totalEl = document.getElementById('statsPvTotal');
-  const gastoEl = document.getElementById('statsPvSpend');
+  // ✅ Ingreso sale de lo que registras a mano en "Ventas" > Gestionar PVs
+  // (ventasDinero.pvs). La ganancia es ese ingreso menos el gasto (costo de "sales").
+  const { porPv: porPvIngreso, porDia: porDiaIngreso } = _pvIngresoData(from, to);
+  const totalIngreso = pvFiltro
+    ? (porPvIngreso.get(pvFiltro)||0)
+    : [...porPvIngreso.values()].reduce((a,b)=>a+b,0);
+  const totalGanancia = totalIngreso - totalGasto;
+  porDiaIngreso.forEach((mapaPv, d)=>{
+    const ingresoDia = pvFiltro
+      ? (mapaPv.get(pvFiltro)||0)
+      : [...mapaPv.values()].reduce((a,b)=>a+b,0);
+    if(!ingresoDia) return;
+    if(!byDia.has(d)) byDia.set(d, {fecha:d, qty:0, gasto:0});
+    const bd = byDia.get(d);
+    bd.ingreso = (bd.ingreso||0) + ingresoDia;
+  });
+  byDia.forEach(bd=>{ bd.ganancia = (bd.ingreso||0) - (bd.gasto||0); });
+
+  const arrDia = [...byDia.values()].sort((a,b)=> b.fecha.localeCompare(a.fecha));
+
   if(totalEl) totalEl.textContent = totalQty;
   if(gastoEl) gastoEl.textContent = money(totalGasto);
+  if(ingresoEl) ingresoEl.textContent = money(totalIngreso);
+  if(gananciaEl) gananciaEl.textContent = money(totalGanancia);
 
+  // Gráfica de sabores — mismo look "gordito" con scroll adaptable que Productos vendidos general
   const cv = document.getElementById('statsPvChart');
-  const wrap = document.getElementById('statsPvChartWrap');
-  const empty = document.getElementById('statsPvEmpty');
-  if(cv && window.Chart){
-    if(window.statsPvChartObj) window.statsPvChartObj.destroy();
+  if(cv){
     if(!arrFlavor.length){
-      window.statsPvChartObj = null;
-      cv.style.display = 'none';
+      if(panel) panel.style.display = 'none';
       if(empty) empty.style.display = 'block';
     } else {
-      cv.style.display = 'block';
+      if(panel) panel.style.display = 'block';
       if(empty) empty.style.display = 'none';
-      if(wrap) wrap.style.height = Math.max(160, arrFlavor.length*34) + 'px';
 
-      const colores = ['#7c5fe6','#22c55e','#f59e0b','#e0445f','#2563eb','#16a34a','#f97316','#0ea5e9','#dc2626','#a855f7'];
-      window.statsPvChartObj = new Chart(cv, {
-        type:'bar',
-        data:{
-          labels: arrFlavor.map(x=>x.nombre),
-          datasets:[{
-            data: arrFlavor.map(x=>x.qty),
-            backgroundColor: arrFlavor.map((_,i)=>colores[i%colores.length]+'E6'),
-            borderRadius:8,
-            maxBarThickness:28
-          }]
-        },
-        options:{
-          indexAxis:'y',
-          responsive:true,
-          maintainAspectRatio:false,
-          layout:{ padding:{right:44,top:6,bottom:6,left:6} },
-          scales:{
-            x:{ grid:{color:'#f1eefb'}, ticks:{font:{size:11}}, suggestedMax:(Math.max(...arrFlavor.map(x=>x.qty))||1)*1.3 },
-            y:{ grid:{display:false}, ticks:{font:{size:11,weight:'700'}} }
-          },
-          plugins:{
-            legend:{ display:false },
-            tooltip:{ backgroundColor:'#1e1b2e', padding:12, callbacks:{ label:(ctx)=> ` ${ctx.parsed.x} piezas` } },
-            datalabels:{ color:'#1e1b2e', font:{weight:'900',size:11}, formatter:(v)=>v, anchor:'end', align:'end', offset:4, clamp:true, clip:false }
-          }
-        }
+      const colores = arrFlavor.map((x,i)=>{
+        const p = inventory.find(inv=>toUpperSafe(inv.name)===toUpperSafe(x.nombre));
+        return (p && p.color) ? p.color : PASTELS[i % PASTELS.length];
+      });
+
+      fitCanvasForBars(cv, arrFlavor.length, 520);
+      drawBarChartFallback(cv, arrFlavor.map(x=>x.nombre), arrFlavor.map(x=>x.qty), colores, {
+        title: "Ventas",
+        yLabel: "Vendidos",
+        valuePlacement: "above",
+        rotateDeg: 55,
+        xLabelAnchor: "endAtBarCenter",
+        animate: true,
+        duration: 420
       });
     }
   }
 
-  const porDiaWrap = document.getElementById('statsPvPorDia');
+  // Gráfica comparativa: total de PIEZAS vendidas de cada PV en el rango seleccionado
+  const arrPvCompare = [...byPvQty.entries()]
+    .map(([nombre,qty])=>({nombre,qty}))
+    .sort((a,b)=>b.qty-a.qty);
+  const cvCmp = document.getElementById('statsPvCompareChart');
+  if(cvCmp){
+    if(!arrPvCompare.length){
+      if(panelCmp) panelCmp.style.display = 'none';
+      if(emptyCmp) emptyCmp.style.display = 'block';
+    } else {
+      if(panelCmp) panelCmp.style.display = 'block';
+      if(emptyCmp) emptyCmp.style.display = 'none';
+
+      const coloresCmp = arrPvCompare.map(x=>getColorPV(x.nombre));
+
+      fitCanvasForBars(cvCmp, arrPvCompare.length, 520);
+      drawBarChartFallback(cvCmp, arrPvCompare.map(x=>x.nombre), arrPvCompare.map(x=>x.qty), coloresCmp, {
+        title: "Piezas vendidas",
+        yLabel: "Vendidos",
+        valuePlacement: "above",
+        rotateDeg: 55,
+        xLabelAnchor: "endAtBarCenter",
+        animate: true,
+        duration: 420
+      });
+    }
+  }
+
   if(porDiaWrap){
     if(!arrDia.length){
       porDiaWrap.innerHTML = `<div class="smallnote" style="text-align:center;padding:10px 0">Sin ventas en ese rango.</div>`;
@@ -6619,7 +6760,7 @@ function statsPvRender(){
           <div style="font-weight:700;font-size:.86rem;color:#1e1b2e">${escapeHtml(d.fecha)}</div>
           <div style="text-align:right">
             <div style="font-weight:900;font-size:.94rem;color:#5d3fd1">${d.qty} pza${d.qty!==1?'s':''}</div>
-            <div style="font-size:.72rem;color:#94a3b8">${money(d.gasto)}</div>
+            <div style="font-size:.72rem;color:#94a3b8">Costo ${money(d.gasto)}${d.ingreso ? ` · Ganancia <b style="color:#16a34a">${money(d.ganancia||0)}</b>` : ''}</div>
           </div>
         </div>
       `).join('');
@@ -7010,12 +7151,7 @@ function render(){
 
     <div class="actions">
      <button class="btn minus" onclick="decrease(${i}, this)">−</button>
-     <button class="btn plus"
-       onclick="increase(${i}, this)"
-       ontouchstart="_plusHoldStart(${i})"
-       ontouchend="_plusHoldEnd(event)"
-       ontouchcancel="_plusHoldCancel()"
-     >+</button>
+     <button class="btn plus" onclick="addQtyPrompt(${i})">+</button>
      <button class="btn sell" onclick="sell(${i}, this)">
        VENDER
        <div class="checkpop">✓</div>
@@ -7226,9 +7362,14 @@ function doSell(i, qty, btn){
  _updateCardQty(i);
  flash(i,"sell");
  try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, -qty); }catch(_){}
- // Agrupa ventas del mismo sabor hechas en menos de 5s en un solo registro
- // con la hora del primer toque de esa racha (ver _regSaleBatch arriba).
- _regSaleBatch(p, qty);
+ // Cada venta se registra al toque, sin agrupar varios toques en un solo registro.
+ const __saleRow = {product:p, date:todayLocalISO(), time:nowHHMM(), qty, costUnit:getUnitCost(p), pv:'Casa'};
+ sales.push(__saleRow);
+ saveSilent();
+ try{
+   const dbSheetEl = document.getElementById("editDbSheet");
+   if(dbSheetEl && dbSheetEl.classList.contains("active")){ renderSalesDB(); try{ renderTraspasosDB(); }catch(_){} }
+ }catch(_){}
  // Igual que en +/- de inventario: si vendes varias veces muy rápido,
  // agrupamos esos toques en un solo guardado a la nube en vez de mandar
  // uno por cada toque (evita que el contador "se vuelva loco").
@@ -7720,6 +7861,13 @@ function fitCanvasForBars(canvas, barCount, minWidth){
      w = Math.max(baseWidth, barCount * perBar);
      h = 360; // Altura un poco mayor para que los nombres inclinados de los sabores quepan perfectos
  } 
+ else if (canvas.id === "statsPvChart" || canvas.id === "statsPvCompareChart") {
+     // Gráfica de sabores / comparativa por PV dentro de "Productos vendidos" > PV
+     // Barras gorditas y con scroll horizontal que se adapta a cuántos datos haya
+     const perBar = 58;
+     w = Math.max(baseWidth, barCount * perBar);
+     h = 320;
+ } 
  else {
      // Gráfica genérica de respaldo
      w = baseWidth;
@@ -8135,7 +8283,8 @@ function renderSalesDB(){
   date:normalizeISODate(s.date)||"",
   time:s.time||"",
   qty:Math.max(1,parseInt(s.qty)||1),
-  costUnit:(s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0)
+  costUnit:(s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0),
+  pv:s.pv||''
  })).filter(r=>r.date);
 
  const normIngresos=(stockIn||[]).map((s,__id)=>({
@@ -8197,6 +8346,14 @@ function renderSalesDB(){
      <input type="number" id="db${pref}Q_${i}" value="${r.qty}" style="font-size:.84rem;padding:7px 10px">
     </div>
    </div>
+   ${esIngreso ? '' : `
+   <div style="margin-top:8px">
+     <div class="lbl">DE DÓNDE VIENE (PV)</div>
+     <select id="dbPV_${i}" style="font-size:.84rem;padding:7px 10px;width:100%">
+      <option value="" ${!r.pv?"selected":""}>Sin PV (no cuenta en Puntos de venta)</option>
+      ${(['Casa', ...((listaPVs||[]).filter(p=>p!=='Casa'))]).map(pv=>`<option value="${escapeHtmlAttr(pv)}" ${r.pv===pv?"selected":""}>${escapeHtml(pv)}</option>`).join("")}
+     </select>
+   </div>`}
 
    <div style="display:flex;gap:10px;margin-top:12px">
     <button type="button" onclick="${esIngreso?`dbSaveIngreso(${i})`:`dbSave(${i})`}"
@@ -8222,6 +8379,8 @@ async function dbSave(i){
   const newDate = document.getElementById(`dbD_${i}`).value;
   const newProd = document.getElementById(`dbP_${i}`).value;
   const newQty  = parseInt(document.getElementById(`dbQ_${i}`).value)||0;
+  const newPvEl = document.getElementById(`dbPV_${i}`);
+  const newPv   = newPvEl ? (newPvEl.value||'') : (r.pv||'');
 
   if(!(await AppUI.confirm(`Vas a guardar: ${newProd}, ${newQty} vendidos el ${newDate}.`, {title:'Guardar cambios', danger:false}))) return;
 
@@ -8232,6 +8391,7 @@ async function dbSave(i){
     }
   }else{
     const payload = {product:newProd, date:newDate, time:r.time, qty:newQty, costUnit:r.costUnit};
+    if(newPv) payload.pv = newPv;
     if(id!=null && id>=0 && id < sales.length){
       sales[id] = payload;
     }else{
@@ -9147,6 +9307,7 @@ function exportData(){
   cu_recipes: cuGetRecipes(),
   tiendas,
   traspasos,
+  pvVentas,
   compras: {
     plan: comprasGetPlan(),
     have: comprasGetHave()
@@ -9212,6 +9373,7 @@ function guardarCopiaSeguridad(){
     cu_recipes: cuGetRecipes(),
     tiendas,
     traspasos,
+    pvVentas,
     compras: { plan: comprasGetPlan(), have: comprasGetHave() },
     savedAt: new Date().toISOString()
   };
@@ -9305,6 +9467,7 @@ function confirmarPreviewRestaurar(){
     if(payload.pvColores)    { pvColores = payload.pvColores; localStorage.setItem("pvColores", JSON.stringify(pvColores)); }
     if(Array.isArray(payload.tiendas))   { tiendas = payload.tiendas; localStorage.setItem("tiendas_v1", JSON.stringify(tiendas)); }
     if(Array.isArray(payload.traspasos)) { traspasos = payload.traspasos; localStorage.setItem("traspasos_v1", JSON.stringify(traspasos)); }
+    if(Array.isArray(payload.pvVentas))  { pvVentas = payload.pvVentas; localStorage.setItem("pvVentas_v1", JSON.stringify(pvVentas)); }
     if(Array.isArray(payload.vg_pedidos)){
       __vgPedidos = payload.vg_pedidos;
       localStorage.setItem(VG_PEDIDOS_KEY, JSON.stringify(__vgPedidos));
@@ -9443,6 +9606,10 @@ function triggerImport(){
    if(Array.isArray(d.traspasos)){
     traspasos=d.traspasos;
     localStorage.setItem("traspasos_v1", JSON.stringify(traspasos));
+   }
+   if(Array.isArray(d.pvVentas)){
+    pvVentas=d.pvVentas;
+    localStorage.setItem("pvVentas_v1", JSON.stringify(pvVentas));
    }
 
    if(Array.isArray(d.ventasDinero)){
@@ -9931,10 +10098,19 @@ function renderHistory(){
    if(!d || (from && d<from) || (to && d>to)) return;
    const qty=Math.max(1, parseInt(s.qty)||1);
    const cu=(s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0);
-   if(!byPv.has(s.pv)) byPv.set(s.pv, {nombre:s.pv, qty:0, spent:0});
+   if(!byPv.has(s.pv)) byPv.set(s.pv, {nombre:s.pv, qty:0, spent:0, ingreso:0, ganancia:0});
    const b=byPv.get(s.pv);
    b.qty += qty;
    b.spent += qty*cu;
+ });
+ (pvVentas||[]).forEach(v=>{
+   const d=normalizeISODate(v.fecha)||"";
+   if(!d || (from && d<from) || (to && d>to)) return;
+   if(!v.pv) return;
+   if(!byPv.has(v.pv)) byPv.set(v.pv, {nombre:v.pv, qty:0, spent:0, ingreso:0, ganancia:0});
+   const b=byPv.get(v.pv);
+   b.ingreso += Number(v.monto)||0;
+   b.ganancia += Number(v.ganancia)||0;
  });
  const pvArr=[...byPv.values()].sort((a,b)=> b.qty-a.qty || a.nombre.localeCompare(b.nombre,"es"));
 
@@ -10059,6 +10235,7 @@ function renderHistory(){
         <th style="padding:8px 6px;border-bottom:1px solid #f1eefb">PV</th>
         <th style="padding:8px 6px;border-bottom:1px solid #f1eefb;text-align:right">VENDIDOS</th>
         <th style="padding:8px 6px;border-bottom:1px solid #f1eefb;text-align:right">GASTADO</th>
+        <th style="padding:8px 6px;border-bottom:1px solid #f1eefb;text-align:right">GANANCIA</th>
        </tr>
       </thead>
       <tbody>
@@ -10067,6 +10244,7 @@ function renderHistory(){
          <td style="padding:9px 6px;border-bottom:1px solid #f8f7fc;font-weight:700;font-size:.86rem">${escapeHtml(r.nombre)}</td>
          <td style="padding:9px 6px;border-bottom:1px solid #f8f7fc;text-align:right;font-weight:700;font-size:.86rem">${r.qty}</td>
          <td style="padding:9px 6px;border-bottom:1px solid #f8f7fc;text-align:right;font-weight:700;font-size:.86rem">${money(r.spent)}</td>
+         <td style="padding:9px 6px;border-bottom:1px solid #f8f7fc;text-align:right;font-weight:700;font-size:.86rem;color:${r.ingreso>0?'#16a34a':'#94a3b8'}">${r.ingreso>0 ? money(r.ganancia) : '—'}</td>
         </tr>
        `).join('')}
       </tbody>
@@ -10503,16 +10681,19 @@ function vgCardHtml(p){
   const color = p.color || '#e0e7ff';
   const strip = color + 'cc';
 
+  const reservado = vgReservadoPorSabor(p.name);
+  const disponible = Math.max(0, (p.qty||0) - reservado);
+
   const sel = __vgSel[key] || 0;
-  const pct = p.qty > 0 ? Math.round((sel/p.qty)*100) : 0;
-  const isMax = sel >= p.qty;
+  const pct = disponible > 0 ? Math.round((sel/disponible)*100) : 0;
+  const isMax = sel >= disponible;
   const isEmpty = sel === 0;
   return `
     <div id="vgCard_${key}" style="background:#fff;border:1.5px solid #ede9fe;border-left:5px solid ${strip};border-radius:16px;padding:12px 14px;margin-bottom:10px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div>
           <div style="font-weight:800;font-size:.95rem;color:#101826">${p.name}</div>
-          <div style="font-size:.72rem;color:#94a3b8">Disponibles: <b style="color:${isMax?'#dc2626':'#475569'}">${p.qty}</b></div>
+          <div style="font-size:.72rem;color:#94a3b8">Disponibles: <b style="color:${isMax?'#dc2626':'#475569'}">${disponible}</b>${reservado>0?` <span style="color:#f59e0b">(${reservado} ya apartados de ${p.qty})</span>`:''}</div>
         </div>
         <div id="vgCardSel_${key}" style="font-size:1.05rem;font-weight:900;color:${isEmpty?'#94a3b8':'#5d3fd1'}">${sel}</div>
       </div>
@@ -10524,11 +10705,11 @@ function vgCardHtml(p){
       <div style="display:flex;gap:8px;align-items:center">
         <button type="button" id="vgCardMinus_${key}" onclick="vgDec('${key}')"
           style="margin:0;flex:0 0 42px;height:42px;border-radius:12px;background:#fef2f2;border:1.5px solid #fecaca;color:#dc2626;font-size:1.3rem;font-weight:800;display:flex;align-items:center;justify-content:center;${isEmpty?'opacity:.3;pointer-events:none':''}" ${isEmpty?'disabled':''}>−</button>
-        <input type="number" id="vgCardInput_${key}" min="0" max="${p.qty}" value="${sel}"
-          onchange="vgSetManual('${key}',this.value,'${p.qty}')"
-          oninput="vgSetManual('${key}',this.value,'${p.qty}')"
+        <input type="number" id="vgCardInput_${key}" min="0" max="${disponible}" value="${sel}"
+          onchange="vgSetManual('${key}',this.value,'${disponible}')"
+          oninput="vgSetManual('${key}',this.value,'${disponible}')"
           style="flex:1;text-align:center;font-size:1.1rem;font-weight:800;border-radius:12px;border:1.5px solid #ede9fe;padding:8px 4px;font-family:inherit;color:#1e1b2e;background:${isEmpty?'#faf9ff':'#f5f3ff'}">
-        <button type="button" id="vgCardPlus_${key}" onclick="vgInc('${key}','${p.qty}')"
+        <button type="button" id="vgCardPlus_${key}" onclick="vgInc('${key}','${disponible}')"
           style="margin:0;flex:0 0 42px;height:42px;border-radius:12px;background:#f3f0ff;border:1.5px solid #ede9fe;color:#5d3fd1;font-size:1.3rem;font-weight:800;display:flex;align-items:center;justify-content:center;${isMax?'opacity:.3;pointer-events:none':''}" ${isMax?'disabled':''}>+</button>
       </div>
     </div>`;
@@ -10560,9 +10741,12 @@ function vgRefreshCard(key){
   const cont = document.getElementById(`vgCard_${key}`);
   if(!p || !cont){ vgRender(); return; }
 
+  const reservado = vgReservadoPorSabor(p.name);
+  const disponible = Math.max(0, (p.qty||0) - reservado);
+
   const sel = __vgSel[key] || 0;
-  const pct = p.qty > 0 ? Math.round((sel/p.qty)*100) : 0;
-  const isMax = sel >= p.qty;
+  const pct = disponible > 0 ? Math.round((sel/disponible)*100) : 0;
+  const isMax = sel >= disponible;
   const isEmpty = sel === 0;
 
   const selEl = document.getElementById(`vgCardSel_${key}`);
@@ -10584,12 +10768,17 @@ function vgRefreshCard(key){
   }
   const inputEl = document.getElementById(`vgCardInput_${key}`);
   if(inputEl && document.activeElement !== inputEl) inputEl.value = sel;
+  if(inputEl) inputEl.max = disponible;
   const plusEl = document.getElementById(`vgCardPlus_${key}`);
   if(plusEl){
     plusEl.disabled = isMax;
     plusEl.style.opacity = isMax ? '.3' : '';
     plusEl.style.pointerEvents = isMax ? 'none' : '';
+    plusEl.setAttribute('onclick', `vgInc('${key}','${disponible}')`);
   }
+  const minusElOn = document.getElementById(`vgCardInput_${key}`);
+  if(minusElOn) minusElOn.setAttribute('onchange', `vgSetManual('${key}',this.value,'${disponible}')`);
+  if(minusElOn) minusElOn.setAttribute('oninput', `vgSetManual('${key}',this.value,'${disponible}')`);
 
   vgUpdateTotals();
 }
@@ -10691,6 +10880,8 @@ async function vgVenderTodo(){
 
   const d = todayLocalISO();
   let totalVendido = 0;
+  let totalCosto = 0;
+  const itemsVendidos = [];
 
   entries.forEach(([key, qty])=>{
     const idx = (inventory||[]).findIndex(p=>toUpperSafe(p.name)===key);
@@ -10703,10 +10894,25 @@ async function vgVenderTodo(){
     totalVendido += realQty;
 
     const cu = Number(p.cost)||0;
+    totalCosto += realQty*cu;
     const row = {product:p.name, date:d, time:nowHHMM(), qty:realQty, costUnit:cu};
     if(pv) row.pv = pv;
     sales.push(row);
+    itemsVendidos.push({producto:p.name, qty:realQty});
   });
+
+  // ✅ Si va a un PV, se pregunta cuánto se cobró para poder calcular la ganancia de ese PV.
+  if(pv && itemsVendidos.length){
+    const monto = await pedirMontoVenta(pv, totalCosto);
+    if(monto!==null){
+      pvVentas.push({
+        id:'pvv_'+Date.now()+'_'+Math.floor(Math.random()*1000),
+        pv, fecha:d, hora:nowHHMM(), monto, costo:totalCosto, ganancia:monto-totalCosto,
+        items:itemsVendidos
+      });
+      savePvVentas();
+    }
+  }
 
   saveSilent();
   try{ cloudSaveNow(); }catch(_){}
@@ -11134,26 +11340,44 @@ async function vgVenderTodosPedidos(){
   let totalVendido = 0;
 
   // ✅ Se procesa pedido por pedido (no agregado en un solo mapa) para poder
-  // etiquetar cada venta con el PV que le corresponde a SU pedido.
-  pedidosActivos.forEach(pedido=>{
-    Object.entries(pedido.items||{}).forEach(([key,it])=>{
+  // etiquetar cada venta con el PV que le corresponde a SU pedido, y
+  // preguntar el monto cobrado por cada pedido con PV (cada uno es una
+  // venta/transacción distinta, con su propia ganancia).
+  for(const pedido of pedidosActivos){
+    let costoPedido = 0;
+    const itemsPedido = [];
+    for(const [key,it] of Object.entries(pedido.items||{})){
       const vendido = Math.max(0, (it.llevado||0)-(it.regresado||0));
-      if(vendido<=0) return;
+      if(vendido<=0) continue;
       const idx = (inventory||[]).findIndex(p=>toUpperSafe(p.name)===key);
-      if(idx<0) return;
+      if(idx<0) continue;
       const p = inventory[idx];
       const realQty = Math.min(vendido, p.qty||0);
-      if(realQty<=0) return;
+      if(realQty<=0) continue;
 
       inventory[idx].qty -= realQty;
       totalVendido += realQty;
 
       const cu = Number(p.cost)||0;
+      costoPedido += realQty*cu;
       const row = {product:p.name, date:d, time:nowHHMM(), qty:realQty, costUnit:cu};
       if(pedido.pv) row.pv = pedido.pv;
       sales.push(row);
-    });
-  });
+      itemsPedido.push({producto:p.name, qty:realQty});
+    }
+
+    if(pedido.pv && itemsPedido.length){
+      const monto = await pedirMontoVenta(pedido.nombre, costoPedido);
+      if(monto!==null){
+        pvVentas.push({
+          id:'pvv_'+Date.now()+'_'+Math.floor(Math.random()*1000),
+          pv:pedido.pv, fecha:d, hora:nowHHMM(), monto, costo:costoPedido, ganancia:monto-costoPedido,
+          items:itemsPedido
+        });
+      }
+    }
+  }
+  savePvVentas();
 
   saveSilent();
   try{ cloudSaveNow(); }catch(_){}
@@ -11288,6 +11512,8 @@ async function vgVenderPedido(pedidoId){
 
   const d = todayLocalISO();
   let totalVendido = 0;
+  let totalCosto = 0;
+  const itemsVendidos = [];
 
   vendibles.forEach(it=>{
     const idx = (inventory||[]).findIndex(p=>toUpperSafe(p.name)===it.key);
@@ -11300,10 +11526,25 @@ async function vgVenderPedido(pedidoId){
     totalVendido += realQty;
 
     const cu = Number(p.cost)||0;
+    totalCosto += realQty*cu;
     const row = {product:p.name, date:d, time:nowHHMM(), qty:realQty, costUnit:cu};
     if(pedido.pv) row.pv = pedido.pv;
     sales.push(row);
+    itemsVendidos.push({producto:p.name, qty:realQty});
   });
+
+  // ✅ Si el pedido tiene PV, se pregunta cuánto se cobró para calcular su ganancia.
+  if(pedido.pv && itemsVendidos.length){
+    const monto = await pedirMontoVenta(pedido.nombre, totalCosto);
+    if(monto!==null){
+      pvVentas.push({
+        id:'pvv_'+Date.now()+'_'+Math.floor(Math.random()*1000),
+        pv:pedido.pv, fecha:d, hora:nowHHMM(), monto, costo:totalCosto, ganancia:monto-totalCosto,
+        items:itemsVendidos
+      });
+      savePvVentas();
+    }
+  }
 
   saveSilent();
   try{ cloudSaveNow(); }catch(_){}
@@ -11679,6 +11920,18 @@ function _pvPickMostrarOtro(){
   el.otroWrap.style.display = 'block';
   el.ok.style.display = 'block';
   setTimeout(()=>{ el.otroInput && el.otroInput.focus(); }, 0);
+}
+
+// Pregunta cuánto se cobró en total por una venta ya etiquetada con un PV,
+// para poder calcular la ganancia de ese PV (igual que en "Ventas").
+// Devuelve un número (puede ser 0 si escribe 0) o null si omitió/canceló.
+async function pedirMontoVenta(etiqueta, costoEstimado){
+  const msg = `¿Cuánto cobraste en total${etiqueta ? ` en ${etiqueta}` : ''}? (costo de lo vendido: ${money(costoEstimado)})`;
+  const v = await AppUI.promptNumber(msg, {
+    title:'Ingreso de la venta', placeholder:'Ej. 250', value:'', min:0, max:999999,
+    okText:'Guardar', cancelText:'Omitir'
+  });
+  return v; // null = omitió (no se registra ganancia para esta venta); número = lo que escribió
 }
 
 document.addEventListener('DOMContentLoaded', ()=>{
