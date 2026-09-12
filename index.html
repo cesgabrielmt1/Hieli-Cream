@@ -4416,6 +4416,22 @@ let merma=safeParseJSON(localStorage.getItem("merma_v1"), [])||[]; // {product,d
 let tiendas=safeParseJSON(localStorage.getItem("tiendas_v1"), [])||[];
 // Historial de traspasos entre Matriz y tiendas (auditoría, no afecta stock por sí solo).
 let traspasos=safeParseJSON(localStorage.getItem("traspasos_v1"), [])||[];
+
+// 🩹 Reparación de una sola vez: ventas/merma de tiendas guardadas ANTES de
+// que se etiquetaran con "pv" (por eso no contaban en "Puntos de venta"
+// aunque son la misma tienda). Si ya tienen "tienda" pero no "pv", se les
+// pone pv = ese mismo nombre de tienda.
+(function _repararPvDeTiendas(){
+  try{
+    let cambios = false;
+    (sales||[]).forEach(s=>{ if(s.tienda && !s.pv){ s.pv = s.tienda; cambios = true; } });
+    (merma||[]).forEach(m=>{ if(m.tienda && !m.pv){ m.pv = m.tienda; cambios = true; } });
+    if(cambios){
+      localStorage.setItem("sales", JSON.stringify(sales));
+      localStorage.setItem("merma_v1", JSON.stringify(merma));
+    }
+  }catch(_){}
+})();
 // Ventas registradas por Punto de Venta (Ir a llevar / Vender todo con PV elegido):
 // {id, pv, fecha, hora, monto, costo, ganancia, items:[{producto,qty}]}
 let pvVentas=safeParseJSON(localStorage.getItem("pvVentas_v1"), [])||[];
@@ -5068,13 +5084,42 @@ async function venderEnTienda(tiendaId, producto){
   t.stock[producto] = Math.max(0, max-q);
   // ✅ Se registra en la MISMA cola "sales" que usa la Matriz, para que
   // cuente junto con todo lo demás en Reportes, Base de datos, etc.
-  // Se etiqueta con la tienda para poder desglosar por sucursal en Reportes/DB.
-  sales.push({ product:producto, date:todayLocalISO(), time:nowHHMM(), qty:q, costUnit:getUnitCost(producto), tienda:t.nombre, tiendaId:t.id });
+  // Se etiqueta con la tienda (tienda/tiendaId) para desglosar por sucursal
+  // en Reportes/DB, Y ADEMÁS con pv:t.nombre para que cuente como un Punto
+  // de Venta más en "Productos vendidos > Puntos de venta" (antes no
+  // llevaba pv y por eso esas ventas no aparecían ahí).
+  sales.push({ product:producto, date:todayLocalISO(), time:nowHHMM(), qty:q, costUnit:getUnitCost(producto), tienda:t.nombre, tiendaId:t.id, pv:t.nombre });
 
   saveSilent();
   saveTiendas();
   renderTiendas();
   AppUI.toast(`✅ Vendiste ${q} de ${producto} en ${t.nombre}`);
+}
+
+// Comparte por WhatsApp lo que hay actualmente en el inventario de esta tienda.
+function tzCompartirInventario(tiendaId){
+  const t = tiendaFindById(tiendaId);
+  if(!t) return;
+  const entries = Object.entries(t.stock||{}).filter(([,q])=>(Number(q)||0)>0);
+  if(!entries.length){ AppUI.toast('Esta tienda no tiene inventario para compartir'); return; }
+
+  let totalPiezas = 0;
+  const lineas = entries.map(([nombre,qty])=>{
+    const q = Number(qty)||0;
+    totalPiezas += q;
+    return `• ${nombre}: ${q} pz`;
+  });
+
+  const texto = [
+    `🧊 *${t.nombre} — Inventario disponible*`,
+    ``,
+    ...lineas,
+    ``,
+    `*TOTAL: ${totalPiezas} piezas*`
+  ].join('\n');
+
+  const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
+  window.open(url, '_blank');
 }
 
 async function decreaseEnTienda(tiendaId, producto){
@@ -5214,7 +5259,14 @@ function _renderTiendaDetalle(wrap, t){
     </div>
 
     <div id="tzInventarioView">
-      <div style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:.06em;margin-bottom:8px">INVENTARIO DE ESTA TIENDA</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:.06em">INVENTARIO DE ESTA TIENDA</div>
+        ${stockEntries.length ? `
+        <button type="button" onclick="tzCompartirInventario('${escapeHtmlAttr(t.id)}')"
+          style="margin:0;padding:5px 12px;border-radius:20px;border:1.5px solid #bbf7d0;background:#f0fdf4;color:#16a34a;font-weight:800;font-size:.72rem;display:flex;align-items:center;gap:4px">
+          📲 Compartir
+        </button>` : ''}
+      </div>
       ${
         stockEntries.length ? stockEntries.map(([nombre,qty])=>`
           <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:14px;margin-bottom:10px">
@@ -6562,7 +6614,9 @@ function statsPvPoblarFiltro(){
   const sel = document.getElementById('statsPvFiltro');
   if(!sel) return;
   const prev = sel.value;
-  const pvs = (listaPVs||[]).includes('Casa') ? (listaPVs||[]) : ['Casa', ...(listaPVs||[])];
+  const nombresTiendas = (tiendas||[]).map(t=>t.nombre).filter(Boolean);
+  const base = (listaPVs||[]).includes('Casa') ? (listaPVs||[]) : ['Casa', ...(listaPVs||[])];
+  const pvs = [...new Set([...base, ...nombresTiendas])];
   sel.innerHTML = `<option value="">Todos los PVs</option>` +
     pvs.map(p=>`<option value="${escapeHtmlAttr(p)}">${escapeHtml(p)}</option>`).join('');
   if(prev){
@@ -9562,13 +9616,20 @@ function triggerImport(){
    }
 
    if(d.sales){
-    sales=(d.sales||[]).map(s=>({
-     product:(s.product||"").toString().trim(),
-     date:normalizeISODate(s.date)||todayLocalISO(),
-     time:s.time||"",
-     qty:Math.max(1, parseInt(s.qty)||1),
-     costUnit:(s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0)
-    }));
+    sales=(d.sales||[]).map(s=>{
+     const row = {
+      product:(s.product||"").toString().trim(),
+      date:normalizeISODate(s.date)||todayLocalISO(),
+      time:s.time||"",
+      qty:Math.max(1, parseInt(s.qty)||1),
+      costUnit:(s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0)
+     };
+     // ✅ No perder a qué PV/tienda pertenece esta venta al importar
+     if(s.pv) row.pv = s.pv;
+     if(s.tienda) row.tienda = s.tienda;
+     if(s.tiendaId) row.tiendaId = s.tiendaId;
+     return row;
+    });
    }
 
    if(Array.isArray(d.stockIn)){
@@ -9582,13 +9643,19 @@ function triggerImport(){
    }
 
    if(Array.isArray(d.merma)){
-    merma=(d.merma||[]).map(s=>({
-     product:(s.product||"").toString().trim(),
-     date:normalizeISODate(s.date)||todayLocalISO(),
-     time:s.time||"",
-     qty:Math.max(1, parseInt(s.qty)||1),
-     costUnit:(s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0)
-    }));
+    merma=(d.merma||[]).map(s=>{
+     const row = {
+      product:(s.product||"").toString().trim(),
+      date:normalizeISODate(s.date)||todayLocalISO(),
+      time:s.time||"",
+      qty:Math.max(1, parseInt(s.qty)||1),
+      costUnit:(s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0)
+     };
+     if(s.pv) row.pv = s.pv;
+     if(s.tienda) row.tienda = s.tienda;
+     if(s.tiendaId) row.tiendaId = s.tiendaId;
+     return row;
+    });
     localStorage.setItem("merma_v1", JSON.stringify(merma));
    }
 
@@ -9826,6 +9893,7 @@ if(comprasPayload && typeof comprasPayload === 'object'){
    }catch(_){}
 
    AppUI.toast(String("✅ Importado correctamente — sincronizando con la nube..."));
+   window.__forzarProximoCloudSave = true;
    try{ cloudSaveNow(); }catch(_){}
   }catch(err){
    AppUI.alert("No se pudo importar: " + (err?.message || err), {title:"Error"});
