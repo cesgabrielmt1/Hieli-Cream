@@ -301,6 +301,16 @@ const __CLOUD_FIELD_MAP = {
 // cada vez que se confirma un guardado propio — solo se toca lo que de
 // verdad cambió por fuera.
 function _applyCloudDataSmart(d){
+  // 🛡️ Si TODAVÍA tenemos un guardado nuestro en camino (o encolado) hacia
+  // la nube, este dato que acaba de llegar puede ser de ANTES de ese
+  // guardado — aplicarlo ahora borraría en la pantalla algo que acabas de
+  // hacer (ej. una venta) aunque ya esté a salvo en tu celular. Se reintenta
+  // en un momento, cuando ya no haya nada nuestro pendiente de confirmar.
+  if(__cloudSaveInFlight || __cloudSaveQueued || __pendingCloudSave){
+    setTimeout(()=>{ try{ _applyCloudDataSmart(d); }catch(_){} }, 700);
+    return;
+  }
+
   if(!__cloudBaseline) __cloudBaseline = {};
   let changedSomething = false;
   let huboRechazoSospechoso = false;
@@ -11450,6 +11460,12 @@ async function vgVenderTodosPedidos(){
   // preguntar el monto cobrado por cada pedido con PV (cada uno es una
   // venta/transacción distinta, con su propia ganancia).
   for(const pedido of pedidosActivos){
+    // ✅ Igual que al vender un pedido individual: se confirma/pregunta a
+    // qué PV va, en vez de asumir en silencio lo que se eligió al crearlo.
+    const eleccion = await pedirPVParaVenta();
+    if(eleccion === null) return; // canceló a medias — lo ya vendido hasta aquí no se revierte
+    const pvVenta = eleccion.pv || 'Casa';
+
     let costoPedido = 0;
     const itemsPedido = [];
     for(const [key,it] of Object.entries(pedido.items||{})){
@@ -11466,18 +11482,17 @@ async function vgVenderTodosPedidos(){
 
       const cu = Number(p.cost)||0;
       costoPedido += realQty*cu;
-      const row = {product:p.name, date:d, time:nowHHMM(), qty:realQty, costUnit:cu};
-      if(pedido.pv) row.pv = pedido.pv;
+      const row = {product:p.name, date:d, time:nowHHMM(), qty:realQty, costUnit:cu, pv:pvVenta};
       sales.push(row);
       itemsPedido.push({producto:p.name, qty:realQty});
     }
 
-    if(pedido.pv && itemsPedido.length){
+    if(pvVenta !== 'Casa' && itemsPedido.length){
       const monto = await pedirMontoVenta(pedido.nombre, costoPedido);
       if(monto!==null){
         pvVentas.push({
           id:'pvv_'+Date.now()+'_'+Math.floor(Math.random()*1000),
-          pv:pedido.pv, fecha:d, hora:nowHHMM(), monto, costo:costoPedido, ganancia:monto-costoPedido,
+          pv:pvVenta, fecha:d, hora:nowHHMM(), monto, costo:costoPedido, ganancia:monto-costoPedido,
           items:itemsPedido
         });
       }
@@ -11616,6 +11631,13 @@ async function vgVenderPedido(pedidoId){
   const ok = await AppUI.confirm(`Vas a vender (${pedido.nombre}):\n${resumen}\n\n¿Confirmar venta?`, {title:'Confirmar venta', danger:false});
   if(!ok) return;
 
+  // ✅ Se pregunta a qué PV va esta venta AQUÍ, al momento de venderla — no
+  // se confía en lo que se haya elegido cuando se creó el pedido (pudo
+  // haber sido hace días, o quedar en blanco/Casa por accidente).
+  const eleccion = await pedirPVParaVenta();
+  if(eleccion === null) return; // canceló
+  const pvVenta = eleccion.pv || 'Casa';
+
   const d = todayLocalISO();
   let totalVendido = 0;
   let totalCosto = 0;
@@ -11633,19 +11655,18 @@ async function vgVenderPedido(pedidoId){
 
     const cu = Number(p.cost)||0;
     totalCosto += realQty*cu;
-    const row = {product:p.name, date:d, time:nowHHMM(), qty:realQty, costUnit:cu};
-    if(pedido.pv) row.pv = pedido.pv;
+    const row = {product:p.name, date:d, time:nowHHMM(), qty:realQty, costUnit:cu, pv:pvVenta};
     sales.push(row);
     itemsVendidos.push({producto:p.name, qty:realQty});
   });
 
-  // ✅ Si el pedido tiene PV, se pregunta cuánto se cobró para calcular su ganancia.
-  if(pedido.pv && itemsVendidos.length){
+  // ✅ Si es un PV real (no Casa), se pregunta cuánto se cobró para calcular su ganancia.
+  if(pvVenta !== 'Casa' && itemsVendidos.length){
     const monto = await pedirMontoVenta(pedido.nombre, totalCosto);
     if(monto!==null){
       pvVentas.push({
         id:'pvv_'+Date.now()+'_'+Math.floor(Math.random()*1000),
-        pv:pedido.pv, fecha:d, hora:nowHHMM(), monto, costo:totalCosto, ganancia:monto-totalCosto,
+        pv:pvVenta, fecha:d, hora:nowHHMM(), monto, costo:totalCosto, ganancia:monto-totalCosto,
         items:itemsVendidos
       });
       savePvVentas();
