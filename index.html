@@ -105,6 +105,18 @@ async function forzarSincronizacionManual(){
 let __pendingCloudSave = false; // hubo un cambio mientras __cloudReady era false: reintentar en cuanto se confirme la nube
 let __pendingQtyDeltas = {}; // { nombreSabor: sumaDeToquesPendientes } — se reaplican ENCIMA de la nube, nunca la pisan
 
+// 🛡️ Cola de escritura: si tocas varias cosas muy rápido (ej. "Regresaste"
+// dos veces seguidas), antes podían salir DOS guardados a la nube casi al
+// mismo tiempo. Si por lo que sea el de datos VIEJOS llegaba al servidor
+// DESPUÉS que el de datos nuevos (la red no siempre entrega en orden), lo
+// viejo pisaba lo nuevo — y tu pantalla, al recibir ese eco, "regresaba"
+// solita a un número anterior unos segundos después. Ahora solo se manda
+// UNA subida a la vez: si llega otro cambio mientras la anterior sigue en
+// camino, se espera a que termine y se manda de nuevo leyendo los datos
+// MÁS RECIENTES en ese momento (nunca los de cuando se encoló).
+let __cloudSaveInFlight = false;
+let __cloudSaveQueued = false;
+
 function _doCloudSave(){
   // 🔒 No subir nada hasta confirmar los datos reales del servidor.
   // Evita que un dispositivo recién abierto (con datos locales viejos)
@@ -113,6 +125,13 @@ function _doCloudSave(){
     console.warn("cloudSave bloqueado: esperando confirmación del servidor");
     updateCloudStamp("☁️ Sincronizando... (esperando nube antes de guardar)");
     __pendingCloudSave = true; // no se pierde: se reintenta solo
+    return;
+  }
+  // 🛡️ Ya hay una subida en camino: no mandar otra en paralelo (eso es lo
+  // que podía llegar "desordenado" y pisar lo nuevo con lo viejo). Se marca
+  // para reintentar apenas la actual termine, leyendo los datos de ese momento.
+  if(__cloudSaveInFlight){
+    __cloudSaveQueued = true;
     return;
   }
   __pendingCloudSave = false;
@@ -192,6 +211,7 @@ function _doCloudSave(){
     // (Ya no se usa un contador de "ignorar snapshots": la comparación de
     // contenido en _applyCloudDataSmart es la que decide si el eco de este
     // guardado se aplica o no — más confiable con toques rápidos.)
+    __cloudSaveInFlight = true;
     db.collection("data").doc(CLOUD_DOC).set(payload, {merge:true})
       .then(()=>{
         updateCloudStamp("☁️ Sincronizado");
@@ -199,7 +219,14 @@ function _doCloudSave(){
         // que acabamos de subir, para futuras comparaciones.
         __cloudBaseline = Object.assign({}, __cloudBaseline||{}, local);
       })
-      .catch(()=> updateCloudStamp("⚠️ Sin conexión (guardado local)"));
+      .catch(()=> updateCloudStamp("⚠️ Sin conexión (guardado local)"))
+      .finally(()=>{
+        __cloudSaveInFlight = false;
+        if(__cloudSaveQueued){
+          __cloudSaveQueued = false;
+          _doCloudSave(); // manda lo más reciente, ya sin encimarse con la anterior
+        }
+      });
   }catch(e){ console.warn("cloudSave error:", e); }
 }
 
@@ -7389,9 +7416,20 @@ async function sell(i, btn){
  if(!_btnThrottle("sell_"+i)) return;
  const max = inventory[i]?.qty||0;
  if(max<=0){ AppUI.toast("Sin existencia de este sabor"); return; }
- const q = await openSellQtyModal(inventory[i].name, max);
+ const nombreEsperado = inventory[i].name;
+ const q = await openSellQtyModal(nombreEsperado, max);
  if(q===null || !q || q<=0) return;
- doSell(i, q, btn);
+ // 🛡️ Mientras el cuadro de cantidad estuvo abierto, algo pudo reordenar el
+ // inventario (otra venta, un sabor nuevo, etc.) y "i" ya no apunta al mismo
+ // sabor que abriste. Si eso pasó, se busca el sabor correcto por NOMBRE en
+ // vez de vender/descontar lo que ahora esté sentado en ese índice viejo.
+ let idx = i;
+ if(!inventory[idx] || inventory[idx].name !== nombreEsperado){
+   const real = inventory.findIndex(p=>p.name===nombreEsperado);
+   if(real===-1){ AppUI.toast(`⚠️ No encontré "${nombreEsperado}" — la venta no se aplicó, inténtalo de nuevo.`); return; }
+   idx = real;
+ }
+ doSell(idx, q, btn);
 }
 
 function doSell(i, qty, btn){
