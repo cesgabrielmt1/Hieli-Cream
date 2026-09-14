@@ -148,7 +148,13 @@ function _doCloudSave(){
       cu_recipes:   JSON.parse(localStorage.getItem("cu_recipes_v1")  || "{}"),
       compras_plan: JSON.parse(localStorage.getItem("compras_plan_v1")|| "{}"),
       compras_have: JSON.parse(localStorage.getItem("compras_have_v1")|| "{}"),
-      vg_pedidos:   JSON.parse(localStorage.getItem("vg_pedidos_v1")  || "[]"),
+      // ⚠️ vg_pedidos (Ventas Grandes) YA NO viaja en el guardado automático
+      // general. Se maneja 100% local/offline mientras se arma y ajusta un
+      // pedido, y solo se sube a la nube explícitamente al Vender o Eliminar
+      // (ver vgPushPedidosToCloud). Así se evita que un guardado disparado
+      // por OTRO cambio (ej. una venta normal) arrastre de rebote un pedido
+      // a medio ajustar, y que un snapshot entrante lo resucite después de
+      // venderlo — que es lo que causaba las ventas duplicadas.
       tiendas:      JSON.parse(localStorage.getItem("tiendas_v1")     || "[]"),
       traspasos:    JSON.parse(localStorage.getItem("traspasos_v1")   || "[]"),
       pvVentas:     JSON.parse(localStorage.getItem("pvVentas_v1")    || "[]")
@@ -284,7 +290,10 @@ function _applyCloudData(d){
 const __CLOUD_FIELD_MAP = {
   inventory:'inventory', sales:'sales', ventasDinero:'ventasDinero', listaPVs:'listaPVs',
   pvColores:'pvColores', cu_catalog:'cu_catalog_v1', cu_recipes:'cu_recipes_v1',
-  compras_plan:'compras_plan_v1', compras_have:'compras_have_v1', vg_pedidos:'vg_pedidos_v1',
+  compras_plan:'compras_plan_v1', compras_have:'compras_have_v1',
+  // vg_pedidos: fuera de este mapa a propósito — no se recibe por pull
+  // automático (ver nota en _doCloudSave). Solo se actualiza cuando ESTE
+  // dispositivo hace vgPushPedidosToCloud() al vender/eliminar un pedido.
   stockIn:'stockIn_v1', merma:'merma_v1', tiendas:'tiendas_v1', traspasos:'traspasos_v1', pvVentas:'pvVentas_v1'
 };
 
@@ -11054,17 +11063,36 @@ const VG_LLEVADO_KEY_LEGACY = 'vg_llevado_v1'; // formato viejo, solo para migra
 function vgPedidosLoad(){ return safeParseJSON(localStorage.getItem(VG_PEDIDOS_KEY)||'[]', []); }
 function vgPedidosSave(){
   try{ localStorage.setItem(VG_PEDIDOS_KEY, JSON.stringify(__vgPedidos)); }catch(_){}
-  // ✅ Antes no se subía a la nube al tocar "Regresaste"/llevado. Si mientras
-  // tanto llegaba una sincronización de la nube por otro cambio, esa versión
-  // vieja (sin tu toque) pisaba local y parecía que las tarjetas "regresaban"
-  // o cambiaban de posición.
-  try{ cloudSaveSoon(); }catch(_){}
-  // ✅ Ya no se llama render() aquí (reconstruía TODA la lista de productos
-  // principales en cada toque de +/-). Ajustar llevado/regresado de un
-  // pedido no cambia el inventario, así que no hace falta.
-  if(__cloudReady){ cloudSaveQtyDebounced(); }
-  else { __pendingCloudSave = true; }
+  // ⚠️ A PROPÓSITO ya no sube nada a la nube aquí (antes llamaba a
+  // cloudSaveSoon/cloudSaveQtyDebounced en CADA ajuste de llevado/regresado).
+  // Eso era lo que causaba que un pedido ya vendido pudiera "reaparecer":
+  // el ajuste local se mandaba a la nube de a poquitos, y si mientras tanto
+  // llegaba un snapshot de otro momento, un pedido a medio ajustar (o ya
+  // vendido en otro instante) se mezclaba con lo que tenías en pantalla,
+  // causando la venta duplicada.
+  // Ahora Ventas Grandes se maneja 100% local/offline mientras armas y
+  // ajustas un pedido — funciona igual sin internet — y solo se sube a la
+  // nube al VENDER o ELIMINAR el pedido (ver vgPushPedidosToCloud), que es
+  // el único momento en que de verdad hace falta que otro celular se entere.
   try{ actualizarApartadosBadge && actualizarApartadosBadge(); }catch(_){}
+}
+
+// Sube SOLO vg_pedidos a la nube. Se llama explícitamente al vender o
+// eliminar un pedido — nunca en cada ajuste. Funciona igual offline: la
+// persistencia local de Firestore ya está habilitada, así que este .set()
+// se encola solo y se manda en cuanto regrese la conexión.
+function vgPushPedidosToCloud(){
+  try{
+    updateCloudStamp("☁️ Subiendo pedido...");
+    db.collection("data").doc(CLOUD_DOC).set({
+      vg_pedidos: __vgPedidos,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, {merge:true}).then(()=>{
+      updateCloudStamp("☁️ Sincronizado");
+    }).catch(()=>{
+      updateCloudStamp("📴 Sin internet (pedido guardado local, subirá al reconectar)");
+    });
+  }catch(_){}
 }
 
 // Migra el formato viejo (un solo "llevado" global) a un pedido llamado "Pedido 1",
@@ -11435,7 +11463,9 @@ function vgRenderPedidos(){
   }
 }
 
+let __vgVendiendoTodos = false;
 async function vgVenderTodosPedidos(){
+  if(__vgVendiendoTodos) return; // 🛡️ anti doble-toque
   const pedidosActivos = (__vgPedidos||[]).filter(ped => Object.values(ped.items||{}).some(it=>(it.llevado||0)>0));
   const resumenMap = vgResumenPorSaborTodosPedidos(pedidosActivos);
   const entries = Object.entries(resumenMap).filter(([,v])=>v.vendido>0);
@@ -11451,6 +11481,9 @@ async function vgVenderTodosPedidos(){
   }).join('\n');
   const ok = await AppUI.confirm(`Vas a vender:\n${resumen}\n\n¿Confirmar venta?`, {title:'Confirmar venta', danger:false});
   if(!ok) return;
+
+  __vgVendiendoTodos = true;
+  try{
 
   const d = todayLocalISO();
   let totalVendido = 0;
@@ -11512,8 +11545,11 @@ async function vgVenderTodosPedidos(){
     return t.vendido <= 0;
   });
   vgPedidosSave();
+  vgPushPedidosToCloud();
   vgRender();
   vgRenderPedidos();
+
+  }finally{ __vgVendiendoTodos = false; }
 }
 
 function vgAjustarLlevadoPedido(pedidoId, key, delta){
@@ -11583,6 +11619,7 @@ async function vgEliminarPedido(pedidoId){
   __vgPedidos = (__vgPedidos||[]).filter(p=>p.id!==pedidoId);
   __vgPedidosExpandido.delete(pedidoId);
   vgPedidosSave();
+  vgPushPedidosToCloud();
   vgRenderPedidos();
 }
 
@@ -11611,7 +11648,14 @@ function vgCompartirPedido(pedidoId){
   window.open(url, '_blank');
 }
 
+// 🛡️ Candado anti doble-toque: si tocas "Vender" dos veces seguidas antes de
+// que la tarjeta desaparezca (o el pedido ya se está vendiendo por otra
+// razón), la segunda llamada se ignora en vez de vender el mismo pedido dos
+// veces.
+const __vgVendiendoIds = new Set();
+
 async function vgVenderPedido(pedidoId){
+  if(__vgVendiendoIds.has(pedidoId)) return;
   const pedido = vgFindPedido(pedidoId);
   if(!pedido) return;
 
@@ -11623,6 +11667,9 @@ async function vgVenderPedido(pedidoId){
     AppUI.toast('No hay piezas vendidas todavía');
     return;
   }
+
+  __vgVendiendoIds.add(pedidoId);
+  try{
 
   const resumen = vendibles.map(it=>{
     const item = (inventory||[]).find(p=>toUpperSafe(p.name)===it.key);
@@ -11681,8 +11728,11 @@ async function vgVenderPedido(pedidoId){
 
   __vgPedidos = (__vgPedidos||[]).filter(p=>p.id!==pedidoId);
   vgPedidosSave();
+  vgPushPedidosToCloud();
   vgRender();
   vgRenderPedidos();
+
+  }finally{ __vgVendiendoIds.delete(pedidoId); }
 }
 
 
