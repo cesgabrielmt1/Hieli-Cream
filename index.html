@@ -323,6 +323,21 @@ function _canonKey(obj){
   return '{'+keys.map(k=>JSON.stringify(k)+':'+_canonKey(obj[k])).join(',')+'}';
 }
 
+// Igual que _canonKey, pero ADEMÁS ignora campos puramente derivados/
+// calculados (como "productKey", que solo se recalcula del nombre del
+// producto cada vez que abres la app — ver migrateSalesArray). Sin esto, la
+// MISMA venta ya migrada en un celular (con productKey) y todavía sin migrar
+// en otro (sin productKey) se veían como DOS ventas distintas al unir datos
+// de la nube, y se quedaban duplicadas las dos — eso fue lo que hizo que 28
+// piezas vendidas terminaran contadas como 56.
+const _CAMPOS_DERIVADOS_VENTA = new Set(['productKey']);
+function _logRowKey(obj){
+  if(obj===null || typeof obj!=='object') return JSON.stringify(obj);
+  if(Array.isArray(obj)) return '['+obj.map(_logRowKey).join(',')+']';
+  const keys = Object.keys(obj).filter(k=>!_CAMPOS_DERIVADOS_VENTA.has(k)).sort();
+  return '{'+keys.map(k=>JSON.stringify(k)+':'+_logRowKey(obj[k])).join(',')+'}';
+}
+
 function _applyCloudDataSmart(d){
   // 🛡️ Si TODAVÍA tenemos un guardado nuestro en camino (o encolado) hacia
   // la nube, este dato que acaba de llegar puede ser de ANTES de ese
@@ -382,15 +397,16 @@ function _applyCloudDataSmart(d){
           return;
         }
         if(esArray && __LOG_FIELDS.has(field) && Array.isArray(localVal)){
-          // Une local + entrante por IDENTIDAD de cada fila (sin importar
-          // el orden de sus propiedades), sin reemplazar el arreglo — así
-          // una venta local reciente nunca desaparece por un eco de la
-          // nube que todavía no la traía, y una fila ya presente en ambos
-          // lados no se duplica solo porque se guardó con otro orden.
-          const seen = new Set(localVal.map(r=>_canonKey(r)));
+          // Une local + entrante por IDENTIDAD de cada fila (sin importar el
+          // orden de sus propiedades ni campos derivados como productKey),
+          // sin reemplazar el arreglo — así una venta local reciente nunca
+          // desaparece por un eco de la nube que todavía no la traía, y una
+          // fila ya presente en ambos lados no se duplica solo porque se
+          // guardó con otro orden o le falta/sobra un campo calculado.
+          const seen = new Set(localVal.map(r=>_logRowKey(r)));
           const merged = localVal.slice();
           (incomingVal||[]).forEach(r=>{
-            const k = _canonKey(r);
+            const k = _logRowKey(r);
             if(!seen.has(k)){ seen.add(k); merged.push(r); }
           });
           const mergedStr = JSON.stringify(merged);
@@ -4526,12 +4542,18 @@ let traspasos=safeParseJSON(localStorage.getItem("traspasos_v1"), [])||[];
 let pvVentas=safeParseJSON(localStorage.getItem("pvVentas_v1"), [])||[];
 
 // 🩹 Reparación de una sola vez: una fila con el MISMO contenido pero
-// guardada con sus propiedades en OTRO ORDEN (por venir de otro celular o de
-// una sincronización distinta) no se reconocía como la misma venta al unir
-// datos de la nube, y se quedaba duplicada — eso infló los totales de
-// "Productos vendidos" de golpe. Esto la limpia dejando una sola copia de
-// cada fila realmente idéntica, y sube la versión ya corregida a la nube
-// para que los demás celulares también se queden con el dato correcto.
+// guardada con sus propiedades en OTRO ORDEN, o con un campo derivado de más
+// o de menos (como "productKey", agregado por migrateSalesArray en cada
+// apertura), no se reconocía como la misma venta al unir datos de la nube,
+// y se quedaba duplicada — eso infló los totales de golpe (ej. 28 piezas
+// contadas como 56). Esto la limpia dejando una sola copia de cada fila
+// realmente idéntica, y sube la versión ya corregida a la nube para que los
+// demás celulares también se queden con el dato correcto.
+// ⚠️ Corre UNA SOLA VEZ de verdad por versión (v2: ahora también ignora
+// productKey al comparar — v1 no lo hacía y por eso no alcanzó a limpiar
+// este caso). Si en el futuro hace falta otra pasada, subir el número de
+// versión de esta bandera.
+if(!localStorage.getItem("_dedupLogsV2Done")){
 (function _repararDuplicadosPorOrdenDeLlaves(){
   try{
     let cambios = false;
@@ -4539,7 +4561,7 @@ let pvVentas=safeParseJSON(localStorage.getItem("pvVentas_v1"), [])||[];
       const seen = new Set();
       const out = [];
       (arr||[]).forEach(r=>{
-        const k = _canonKey(r);
+        const k = _logRowKey(r);
         if(seen.has(k)){ cambios = true; return; }
         seen.add(k);
         out.push(r);
@@ -4566,8 +4588,11 @@ let pvVentas=safeParseJSON(localStorage.getItem("pvVentas_v1"), [])||[];
         try{ window.__forzarProximoCloudSave = true; cloudSaveNow(); }catch(_){}
       }, 3000);
     }
+    localStorage.setItem("_dedupLogsV1Done","1");
+    localStorage.setItem("_dedupLogsV2Done","1");
   }catch(_){}
 })();
+}
 
 function saveTiendas(){
   try{ localStorage.setItem("tiendas_v1", JSON.stringify(tiendas)); }catch(_){}
@@ -11130,6 +11155,7 @@ async function vgVenderTodo(){
         items:itemsVendidos
       });
       savePvVentas();
+      vgAcumularEnVentasDinero(d, pv, monto);
     }
   }
 
@@ -11622,6 +11648,7 @@ async function vgVenderTodosPedidos(){
           pv:pvVenta, fecha:d, hora:nowHHMM(), monto, costo:costoPedido, ganancia:monto-costoPedido,
           items:itemsPedido
         });
+        vgAcumularEnVentasDinero(d, pvVenta, monto);
       }
     }
   }
@@ -11811,6 +11838,7 @@ async function vgVenderPedido(pedidoId){
         items:itemsVendidos
       });
       savePvVentas();
+      vgAcumularEnVentasDinero(d, pvVenta, monto);
     }
   }
 
@@ -12211,6 +12239,28 @@ function _pvPickMostrarOtro(){
   el.otroWrap.style.display = 'block';
   el.ok.style.display = 'block';
   setTimeout(()=>{ el.otroInput && el.otroInput.focus(); }, 0);
+}
+
+// Suma "monto" al registro MANUAL de "Ventas > Gestionar PVs" para ese PV y
+// fecha — así una venta con monto capturada desde Ventas Grandes también
+// aparece ahí, sin tener que volver a escribirla a mano. Si ese PV ya tenía
+// un monto ese día, se le SUMA (no se reemplaza): vender un pedido por
+// partes en el mismo día va acumulando el total correcto.
+function vgAcumularEnVentasDinero(fecha, pvNombre, monto){
+  try{
+    if(!pvNombre || pvNombre==='Casa' || !monto) return;
+    let idx = ventasDinero.findIndex(v=>v.fecha===fecha);
+    if(idx<0){ ventasDinero.push({fecha, pvs:[], vendido:0}); idx = ventasDinero.length-1; }
+    const reg = ventasDinero[idx];
+    if(!Array.isArray(reg.pvs)) reg.pvs = [];
+    const pvRow = reg.pvs.find(p=>p.nombre===pvNombre);
+    if(pvRow){ pvRow.monto = (Number(pvRow.monto)||0) + monto; }
+    else{ reg.pvs.push({nombre:pvNombre, monto}); }
+    reg.vendido = reg.pvs.reduce((a,b)=>a+(Number(b.monto)||0),0);
+    if("gasto" in reg){ reg.ganancia = reg.vendido - Number(reg.gasto||0); }
+    ventasDinero.sort((a,b)=>a.fecha.localeCompare(b.fecha));
+    localStorage.setItem("ventasDinero", JSON.stringify(ventasDinero));
+  }catch(_){}
 }
 
 // Pregunta cuánto se cobró en total por una venta ya etiquetada con un PV,
