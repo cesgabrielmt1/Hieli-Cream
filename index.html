@@ -294,7 +294,16 @@ const __CLOUD_FIELD_MAP = {
   // vg_pedidos: fuera de este mapa a propósito — no se recibe por pull
   // automático (ver nota en _doCloudSave). Solo se actualiza cuando ESTE
   // dispositivo hace vgPushPedidosToCloud() al vender/eliminar un pedido.
-  stockIn:'stockIn_v1', merma:'merma_v1', tiendas:'tiendas_v1', traspasos:'traspasos_v1', pvVentas:'pvVentas_v1'
+  // (Antes "tiendas" también estuvo excluido de aquí, pero eso resultó peor:
+  // un celular que abre la app con una copia vieja de Tiendas guardada nunca
+  // la actualizaba, y esa copia vieja terminaba subiéndose y PISANDO lo que
+  // otro celular había guardado más reciente. Ahora "tiendas" sí se recibe
+  // por pull normal, protegido por la misma comparación de eco/baseline que
+  // usa "inventory" — y saveTiendas() ahora sube de inmediato en vez de con
+  // 2s de retraso, para cerrar la ventana de tiempo donde podía "regresarse"
+  // solo mientras vendías/descontabas.)
+  tiendas:'tiendas_v1',
+  stockIn:'stockIn_v1', merma:'merma_v1', traspasos:'traspasos_v1', pvVentas:'pvVentas_v1'
 };
 
 // ✅ Versión "inteligente": en vez de adivinar con un contador si un snapshot
@@ -3722,6 +3731,23 @@ document.addEventListener('DOMContentLoaded',()=>{
 <div class="sheet" id="proyeccionesSheet">
  <h2>Proyecciones</h2>
 
+ <!-- Píldora: General vs Puntos de venta -->
+ <div style="display:flex;gap:6px;background:#f1f0ff;border-radius:14px;padding:4px;margin-bottom:10px">
+   <button type="button" id="proyModoBtnGeneral" onclick="proySetModo('general')"
+     style="box-sizing:border-box;flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.84rem">
+     General
+   </button>
+   <button type="button" id="proyModoBtnPV" onclick="proySetModo('pv')"
+     style="box-sizing:border-box;flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.84rem">
+     Puntos de venta
+   </button>
+ </div>
+
+ <!-- Selector de PV: solo visible en modo "pv" -->
+ <select id="proyPVSelect" onchange="__proyPV=this.value; renderProyecciones()"
+   style="display:none;width:100%;padding:14px 16px;border-radius:14px;border:1.5px solid #e2e8f0;font-size:15px;font-weight:700;color:#0f172a;background:#f8fafc;margin-bottom:10px;appearance:none;-webkit-appearance:none;background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%236366f1%22 stroke-width=%222%22><polyline points=%226 9 12 15 18 9%22/></svg>');background-repeat:no-repeat;background-position:right 14px center;background-size:18px">
+ </select>
+
  <!-- Selector de día tipo dropdown -->
  <select id="proyDaySelect" onchange="__proyDayOffset=parseInt(this.value); renderProyecciones()"
    style="width:100%;padding:14px 16px;border-radius:14px;border:1.5px solid #e2e8f0;font-size:15px;font-weight:700;color:#0f172a;background:#f8fafc;margin-bottom:16px;appearance:none;-webkit-appearance:none;background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%236366f1%22 stroke-width=%222%22><polyline points=%226 9 12 15 18 9%22/></svg>');background-repeat:no-repeat;background-position:right 14px center;background-size:18px">
@@ -4597,7 +4623,11 @@ if(!localStorage.getItem("_dedupLogsV2Done")){
 function saveTiendas(){
   try{ localStorage.setItem("tiendas_v1", JSON.stringify(tiendas)); }catch(_){}
   try{ localStorage.setItem("traspasos_v1", JSON.stringify(traspasos)); }catch(_){}
-  try{ cloudSaveSoon(); }catch(_){}
+  // ✅ Antes esperaba 2s (cloudSaveSoon) — eso dejaba una ventana más larga
+  // para que una sincronización a medio camino "regresara" el inventario de
+  // la tienda justo después de vender/descontar. Ahora sube de inmediato,
+  // igual que una venta normal.
+  try{ if(__cloudReady){ cloudSaveNow(); } else { __pendingCloudSave = true; } }catch(_){}
 }
 
 function savePvVentas(){
@@ -5016,16 +5046,12 @@ function abrirTienda(id){
 // Cambia entre las cápsulas "Enviar", "Inventario" y "Gráfica" dentro del detalle de una tienda.
 function tzSetTab(tab){
   window.__tzTab = tab;
-  const enviarView = document.getElementById('tzEnviarView');
   const inventarioView = document.getElementById('tzInventarioView');
   const graficaView = document.getElementById('tzGraficaView');
-  const btnE = document.getElementById('tzTabBtnEnviar');
   const btnI = document.getElementById('tzTabBtnInventario');
   const btnG = document.getElementById('tzTabBtnGrafica');
-  if(enviarView) enviarView.style.display = tab==='enviar' ? '' : 'none';
   if(inventarioView) inventarioView.style.display = tab==='inventario' ? '' : 'none';
   if(graficaView) graficaView.style.display = tab==='grafica' ? '' : 'none';
-  if(btnE){ btnE.style.background = tab==='enviar' ? '#fff' : 'transparent'; btnE.style.color = tab==='enviar' ? '#5d3fd1' : '#7c7c9a'; }
   if(btnI){ btnI.style.background = tab==='inventario' ? '#fff' : 'transparent'; btnI.style.color = tab==='inventario' ? '#5d3fd1' : '#7c7c9a'; }
   if(btnG){ btnG.style.background = tab==='grafica' ? '#fff' : 'transparent'; btnG.style.color = tab==='grafica' ? '#5d3fd1' : '#7c7c9a'; }
   if(tab==='grafica') tzGraficaRender();
@@ -5167,6 +5193,36 @@ function tzToggleRow(idx){
 }
 
 // Envía a la tienda TODOS los sabores marcados en la lista, cada uno con su cantidad.
+// ✅ Agregar inventario a UN sabor de esta tienda directo desde su tarjeta
+// (reemplaza tener que ir a una pantalla aparte de "Enviar" para mandar
+// nada más un sabor a la vez).
+async function tzAgregarProducto(tiendaId, producto){
+  const t = tiendaFindById(tiendaId);
+  if(!t) return;
+  const idx = inventory.findIndex(p=>p.name===producto);
+  if(idx<0){ AppUI.toast(`"${producto}" ya no existe en Matriz`); return; }
+  const disponible = inventory[idx].qty||0;
+  if(disponible<=0){ AppUI.toast(`No hay "${producto}" disponible en Matriz`); return; }
+
+  const cantidad = await AppUI.promptNumber(`¿Cuántos "${producto}" mandas de Matriz a ${t.nombre}? (disponibles: ${disponible})`, {
+    title:'Enviar a tienda', min:1, max:disponible, value:disponible, okText:'Enviar'
+  });
+  if(cantidad===null || !cantidad || cantidad<=0) return;
+
+  inventory[idx].qty -= cantidad;
+  t.stock[producto] = (Number(t.stock[producto])||0) + cantidad;
+  traspasos.unshift({
+    id:'tr_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+    fecha:todayLocalISO(), hora:nowHHMM(), tiendaId:t.id, tiendaNombre:t.nombre, producto, cantidad, direccion:'matriz->tienda'
+  });
+
+  saveSilent();
+  saveTiendas();
+  render();
+  renderTiendas();
+  AppUI.toast(`✅ Enviaste ${cantidad} de ${producto} a ${t.nombre}`);
+}
+
 function enviarSeleccionATienda(tiendaId){
   const t = tiendaFindById(tiendaId);
   if(!t) return;
@@ -5361,6 +5417,12 @@ function _renderTiendaDetalle(wrap, t){
     .sort((a,b)=>a[0].localeCompare(b[0],'es'));
   const totalPiezas = stockEntries.reduce((a,[,q])=>a+(Number(q)||0),0);
 
+  // ✅ Ahora se listan TODOS los sabores del catálogo (existan o no en esta
+  // tienda todavía), para poder agregarles inventario directo desde su
+  // propia tarjeta con el botón "+ Agregar" — sin tener que ir a una
+  // pantalla de "Enviar" aparte.
+  const todosProductos = (inventory||[]).map(p=>p.name).sort((a,b)=>a.localeCompare(b,'es'));
+
   // Snapshot de lo disponible en Matriz para armar el checklist de envío (índices estables mientras esta vista está abierta).
   const matrizList = (inventory||[]).filter(p=>(p.qty||0)>0).map(p=>({name:p.name, qty:p.qty}));
   window.__tzMatrizList = matrizList;
@@ -5384,10 +5446,6 @@ function _renderTiendaDetalle(wrap, t){
     </div>
 
     <div style="display:flex;gap:6px;background:#f1f0ff;border-radius:14px;padding:4px;margin-bottom:14px">
-      <button type="button" id="tzTabBtnEnviar" onclick="tzSetTab('enviar')"
-        style="box-sizing:border-box;flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.8rem">
-        Enviar
-      </button>
       <button type="button" id="tzTabBtnInventario" onclick="tzSetTab('inventario')"
         style="box-sizing:border-box;flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.8rem">
         Inventario
@@ -5396,31 +5454,6 @@ function _renderTiendaDetalle(wrap, t){
         style="box-sizing:border-box;flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.8rem">
         Gráfica
       </button>
-    </div>
-
-    <div id="tzEnviarView">
-      <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:14px;margin-bottom:14px">
-        <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">ENVIAR DESDE MATRIZ</div>
-        ${
-          matrizList.length ? `
-          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
-            ${matrizList.map((p,idx)=>`
-              <label style="box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:9px 10px;border:1.5px solid #ede9fe;border-radius:12px;background:#faf9ff">
-                <input type="checkbox" id="tzChk_${idx}" onchange="tzToggleRow(${idx})"
-                  style="box-sizing:border-box;flex:0 0 18px;width:18px;height:18px;padding:0;margin:0;border-radius:4px;border:1.5px solid #c4b5fd;accent-color:#5d3fd1">
-                <span style="flex:1;min-width:0;font-weight:700;font-size:.84rem;color:#1e1b2e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.name)} <span style="color:#94a3b8;font-weight:600">(${p.qty} en Matriz)</span></span>
-                <input type="number" id="tzQty_${idx}" min="1" max="${p.qty}" placeholder="Cant." disabled
-                  style="box-sizing:border-box;flex:0 0 60px;width:60px;margin:0;padding:8px 4px;border-radius:10px;border:1.5px solid #ede9fe;background:#fff;font-weight:800;font-size:.84rem;color:#1e1b2e;text-align:center">
-              </label>
-            `).join('')}
-          </div>
-          <button type="button" onclick="enviarSeleccionATienda('${t.id}')"
-            style="box-sizing:border-box;width:100%;margin:0;padding:11px;border-radius:12px;border:none;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);color:#fff;font-weight:800;font-size:.86rem">
-            Enviar seleccionados
-          </button>
-          ` : `<div class="smallnote">No hay existencias en Matriz para enviar.</div>`
-        }
-      </div>
     </div>
 
     <div id="tzInventarioView">
@@ -5433,22 +5466,30 @@ function _renderTiendaDetalle(wrap, t){
         </button>` : ''}
       </div>
       ${
-        stockEntries.length ? stockEntries.map(([nombre,qty])=>`
-          <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:14px;margin-bottom:10px">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-              <div style="font-weight:800;font-size:.92rem;color:#1e1b2e">${escapeHtml(nombre)}</div>
-              <div style="font-weight:900;font-size:1.1rem;color:#5d3fd1">${qty}</div>
+        todosProductos.length ? todosProductos.map(nombre=>{
+          const qty = Number(t.stock[nombre])||0;
+          const hayStock = qty>0;
+          const btnBase = 'box-sizing:border-box;margin:0;border-radius:14px;font-weight:800;';
+          return `
+          <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:22px;padding:16px;margin-bottom:12px;box-shadow:0 4px 14px rgba(124,95,230,.07)">
+            <div style="display:block;width:100%;font-weight:800;font-size:.98rem;color:#1e1b2e;margin-bottom:10px;word-break:break-word">${escapeHtml(nombre)||'(sin nombre)'}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:14px">
+              <div style="font-weight:900;font-size:1.6rem;color:${hayStock?'#5d3fd1':'#c7c2e0'}">${qty}</div>
+              <button type="button" data-tid="${escapeHtmlAttr(t.id)}" data-nombre="${escapeHtmlAttr(nombre)}" onclick="tzAgregarProducto(this.dataset.tid,this.dataset.nombre)"
+                style="box-sizing:border-box;margin:0;padding:6px 14px;border-radius:20px;border:none;background:linear-gradient(135deg,#7c5fe6,#5d3fd1);color:#fff;font-weight:800;font-size:.74rem;white-space:nowrap">
+                + Agregar
+              </button>
             </div>
             <div style="display:flex;gap:10px;align-items:stretch">
-              <button type="button" data-tid="${escapeHtmlAttr(t.id)}" data-nombre="${escapeHtmlAttr(nombre)}" onclick="decreaseEnTienda(this.dataset.tid,this.dataset.nombre)" title="Descontar / merma"
-                style="box-sizing:border-box;flex:0 0 48px;margin:0;padding:10px 0;border-radius:12px;border:none;background:linear-gradient(135deg,#f06f8c,#e0445f);color:#fff;font-weight:800;font-size:1.15rem">−</button>
-              <button type="button" data-tid="${escapeHtmlAttr(t.id)}" data-nombre="${escapeHtmlAttr(nombre)}" onclick="venderEnTienda(this.dataset.tid,this.dataset.nombre)"
-                style="box-sizing:border-box;flex:1;margin:0;padding:10px 0;border-radius:12px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-weight:800;font-size:.86rem">VENDER</button>
-              <button type="button" data-tid="${escapeHtmlAttr(t.id)}" data-nombre="${escapeHtmlAttr(nombre)}" onclick="regresarATiendaMatriz(this.dataset.tid,this.dataset.nombre)" title="Regresar a Matriz"
-                style="box-sizing:border-box;flex:0 0 48px;margin:0;padding:10px 0;border-radius:12px;border:1.5px solid #ede9fe;background:#faf9ff;color:#5d3fd1;font-weight:800;font-size:1.05rem">↩</button>
+              <button type="button" ${hayStock?`data-tid="${escapeHtmlAttr(t.id)}" data-nombre="${escapeHtmlAttr(nombre)}" onclick="decreaseEnTienda(this.dataset.tid,this.dataset.nombre)"`:'disabled'} title="Descontar / merma"
+                style="${btnBase}flex:0 0 48px;padding:10px 0;border:none;background:${hayStock?'linear-gradient(135deg,#f06f8c,#e0445f)':'#f1f0f5'};color:${hayStock?'#fff':'#c7c2e0'};font-size:1.15rem">−</button>
+              <button type="button" ${hayStock?`data-tid="${escapeHtmlAttr(t.id)}" data-nombre="${escapeHtmlAttr(nombre)}" onclick="venderEnTienda(this.dataset.tid,this.dataset.nombre)"`:'disabled'}
+                style="${btnBase}flex:1;padding:10px 0;border:none;background:${hayStock?'linear-gradient(135deg,#22c55e,#16a34a)':'#f1f0f5'};color:${hayStock?'#fff':'#c7c2e0'};font-size:.86rem">VENDER</button>
+              <button type="button" ${hayStock?`data-tid="${escapeHtmlAttr(t.id)}" data-nombre="${escapeHtmlAttr(nombre)}" onclick="regresarATiendaMatriz(this.dataset.tid,this.dataset.nombre)"`:'disabled'} title="Regresar a Matriz"
+                style="${btnBase}flex:0 0 48px;padding:10px 0;border:1.5px solid ${hayStock?'#ede9fe':'#f1f0f5'};background:${hayStock?'#faf9ff':'#f1f0f5'};color:${hayStock?'#5d3fd1':'#c7c2e0'};font-size:1.05rem">↩</button>
             </div>
           </div>
-        `).join('') : `<div class="smallnote" style="text-align:center;padding:10px 0">Esta tienda no tiene inventario todavía. Usa "Enviar desde Matriz" para mandarle sabores.</div>`
+        `;}).join('') : `<div class="smallnote" style="text-align:center;padding:10px 0">Todavía no tienes sabores en Matriz para mostrar aquí.</div>`
       }
     </div>
 
@@ -5494,7 +5535,7 @@ function _renderTiendaDetalle(wrap, t){
     </div>
   `;
 
-  if(!window.__tzTab) window.__tzTab = stockEntries.length ? 'inventario' : 'enviar';
+  if(!window.__tzTab || window.__tzTab==='enviar') window.__tzTab = 'inventario';
   tzSetTab(window.__tzTab);
 }
 
@@ -8527,7 +8568,22 @@ function renderSalesDB(){
   costUnit:0
  })).filter(r=>r.date);
 
- const normalized = normVentas.concat(normIngresos);
+ // ✅ La merma ahora también se ve/edita/borra aquí — antes no aparecía en
+ // Base de datos y no había forma de corregir una merma marcada por error
+ // (ej. un accidente al tocar dos veces por el bug de tarjetas que
+ // desaparecen y reaparecen).
+ const normMerma=(merma||[]).map((s,__id)=>({
+  __id, tipo:'merma',
+  product:toUpperSafe(s.product),
+  displayName:(s.product||"").toString().trim() || "SIN NOMBRE",
+  date:normalizeISODate(s.date)||"",
+  time:s.time||"",
+  qty:Math.max(1,parseInt(s.qty)||1),
+  costUnit:(s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0),
+  tienda:s.tienda||''
+ })).filter(r=>r.date);
+
+ const normalized = normVentas.concat(normIngresos).concat(normMerma);
 
  const rows=normalized.filter(r=>
   (!f || r.date===f) &&
@@ -8546,18 +8602,19 @@ function renderSalesDB(){
 
  wrap.innerHTML=rows.map((r,i)=>{
   const esIngreso = r.tipo==='ingreso';
-  const borderColor = esIngreso ? '#bbf7d0' : '#ede9fe';
-  const accentColor  = esIngreso ? '#22c55e' : '#a78bfa';
-  const badgeBg    = esIngreso ? '#f0fdf4' : '#f5f3ff';
-  const badgeColor = esIngreso ? '#16a34a' : '#7c5fe6';
-  const badgeTexto = esIngreso ? '🟢 AGREGADO' : '🟣 VENDIDO';
+  const esMerma   = r.tipo==='merma';
+  const borderColor = esIngreso ? '#bbf7d0' : (esMerma ? '#fecaca' : '#ede9fe');
+  const accentColor  = esIngreso ? '#22c55e' : (esMerma ? '#ef4444' : '#a78bfa');
+  const badgeBg    = esIngreso ? '#f0fdf4' : (esMerma ? '#fef2f2' : '#f5f3ff');
+  const badgeColor = esIngreso ? '#16a34a' : (esMerma ? '#dc2626' : '#7c5fe6');
+  const badgeTexto = esIngreso ? '🟢 AGREGADO' : (esMerma ? `🔴 MERMA${r.tienda?` (${escapeHtml(r.tienda)})`:''}` : '🟣 VENDIDO');
   const horaTexto  = r.time ? ` · ${formatHora(r.time)}` : '';
-  const pref = esIngreso ? 'I' : '';
+  const pref = esIngreso ? 'I' : (esMerma ? 'M' : '');
   return `
   <div style="background:#fff;border:1.5px solid ${borderColor};border-left:4px solid ${accentColor};border-radius:16px;padding:12px 14px;margin-bottom:10px">
    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap">
      <span style="font-size:10px;font-weight:800;color:${badgeColor};letter-spacing:.05em;background:${badgeBg};padding:4px 10px;border-radius:20px;white-space:nowrap">${badgeTexto}${horaTexto}</span>
-     ${esIngreso ? '' : `<span class="smallnote" style="margin:0">CU: <b>${money(r.costUnit)}</b></span>`}
+     ${(esIngreso||esMerma) ? '' : `<span class="smallnote" style="margin:0">CU: <b>${money(r.costUnit)}</b></span>`}
    </div>
 
    <div class="row3">
@@ -8572,11 +8629,11 @@ function renderSalesDB(){
      </select>
     </div>
     <div>
-     <div class="lbl">${esIngreso?'AGREGADOS':'VENDIDOS'}</div>
+     <div class="lbl">${esIngreso?'AGREGADOS':(esMerma?'MERMADOS':'VENDIDOS')}</div>
      <input type="number" id="db${pref}Q_${i}" value="${r.qty}" style="font-size:.84rem;padding:7px 10px">
     </div>
    </div>
-   ${esIngreso ? '' : `
+   ${esIngreso||esMerma ? '' : `
    <div style="margin-top:8px">
      <div class="lbl">DE DÓNDE VIENE (PV)</div>
      <select id="dbPV_${i}" style="font-size:.84rem;padding:7px 10px;width:100%">
@@ -8586,11 +8643,11 @@ function renderSalesDB(){
    </div>`}
 
    <div style="display:flex;gap:10px;margin-top:12px">
-    <button type="button" onclick="${esIngreso?`dbSaveIngreso(${i})`:`dbSave(${i})`}"
-      style="margin:0;flex:1;padding:10px;border-radius:14px;border:none;background:linear-gradient(135deg,${esIngreso?'#22c55e,#16a34a':'#7c5fe6,#5d3fd1'});color:#fff;font-weight:700;font-size:.84rem;box-shadow:0 6px 16px rgba(${esIngreso?'34,197,94':'124,95,230'},.30)">
+    <button type="button" onclick="${esIngreso?`dbSaveIngreso(${i})`:(esMerma?`dbSaveMerma(${i})`:`dbSave(${i})`)}"
+      style="margin:0;flex:1;padding:10px;border-radius:14px;border:none;background:linear-gradient(135deg,${esIngreso?'#22c55e,#16a34a':(esMerma?'#ef4444,#dc2626':'#7c5fe6,#5d3fd1')});color:#fff;font-weight:700;font-size:.84rem;box-shadow:0 6px 16px rgba(${esIngreso?'34,197,94':(esMerma?'239,68,68':'124,95,230')},.30)">
       Guardar
     </button>
-    <button type="button" onclick="${esIngreso?`dbDeleteIngreso(${i})`:`dbDelete(${i})`}"
+    <button type="button" onclick="${esIngreso?`dbDeleteIngreso(${i})`:(esMerma?`dbDeleteMerma(${i})`:`dbDelete(${i})`)}"
       style="margin:0;flex:1;padding:10px;border-radius:14px;background:#fef2f2;color:#dc2626;border:1.5px solid #fecaca;font-weight:700;font-size:.84rem">
       Borrar
     </button>
@@ -8689,6 +8746,53 @@ async function dbDeleteIngreso(i){
 
   if(id!=null && id>=0 && id < stockIn.length){
     stockIn.splice(id,1);
+  }
+
+  saveSilent();
+  try{ cloudSaveNow(); }catch(_){}
+  renderSalesDB();
+}
+
+async function dbSaveMerma(i){
+  const r=window.__dbRows[i];
+  if(!r || r.tipo!=='merma') return;
+  const id = r.__id;
+
+  const newDate = document.getElementById(`dbMD_${i}`).value;
+  const newProd = document.getElementById(`dbMP_${i}`).value;
+  const newQty  = parseInt(document.getElementById(`dbMQ_${i}`).value)||0;
+
+  if(!(await AppUI.confirm(`Vas a guardar: ${newProd}, ${newQty} en merma el ${newDate}.`, {title:'Guardar cambios', danger:false}))) return;
+
+  // Si ponen 0 o negativo, lo tratamos como borrado
+  if(newQty<=0){
+    if(id!=null && id>=0 && id < merma.length){
+      merma.splice(id,1);
+    }
+  }else{
+    const payload = {product:newProd, date:newDate, time:r.time, qty:newQty, costUnit:r.costUnit};
+    if(r.tienda) payload.tienda = r.tienda;
+    if(id!=null && id>=0 && id < merma.length){
+      merma[id] = payload;
+    }else{
+      merma.push(payload);
+    }
+  }
+
+  saveSilent();
+  try{ cloudSaveNow(); }catch(_){}
+  renderSalesDB();
+}
+
+async function dbDeleteMerma(i){
+  const r=window.__dbRows[i];
+  if(!r || r.tipo!=='merma') return;
+  if(!(await AppUI.confirm(`Vas a borrar: ${r.displayName}, ${r.qty} en merma el ${r.date}. Esta acción no se puede deshacer.\n\n⚠️ Esto NO regresa las piezas al inventario — si quieres recuperarlas, agrégalas como "Entrada de stock" aparte.`, {title:'Borrar registro', danger:true}))) return;
+
+  const id = r.__id;
+
+  if(id!=null && id>=0 && id < merma.length){
+    merma.splice(id,1);
   }
 
   saveSilent();
@@ -11980,7 +12084,38 @@ const AppUI = (()=>{
     }
   }
 
-  function open({title='Mensaje', message='', kind='alert', okText='Aceptar', cancelText='Cancelar', dangerOk=false, showInput=false, inputValue='', inputPlaceholder='', inputMode='numeric'}={}){
+  // 🛡️ Cola de diálogos: antes, si se abría un segundo confirm/alert/prompt
+  // mientras el anterior seguía sin responder (ej. dos acciones casi al
+  // mismo tiempo, o un doble-toque), el segundo REESCRIBÍA el mismo cuadro
+  // por encima del primero — el primero se quedaba sin resolver para
+  // siempre, y la respuesta que dabas terminaba aplicándose a la pregunta
+  // equivocada. Esto fue la causa real de varios "se duplicó" / "se
+  // confirmó algo que no era" en distintas partes de la app. Ahora, si ya
+  // hay un cuadro abierto, el siguiente espera su turno en una cola y se
+  // muestra automáticamente en cuanto el actual se responde — nunca se
+  // pisan entre sí.
+  let __dialogQueue = [];
+  let __dialogBusy = false;
+
+  function _processDialogQueue(){
+    if(__dialogBusy || __dialogQueue.length===0) return;
+    __dialogBusy = true;
+    const {opts, resolve} = __dialogQueue.shift();
+    _showDialog(opts).then(result=>{
+      __dialogBusy = false;
+      resolve(result);
+      _processDialogQueue();
+    });
+  }
+
+  function open(opts={}){
+    return new Promise((resolve)=>{
+      __dialogQueue.push({opts, resolve});
+      _processDialogQueue();
+    });
+  }
+
+  function _showDialog({title='Mensaje', message='', kind='alert', okText='Aceptar', cancelText='Cancelar', dangerOk=false, showInput=false, inputValue='', inputPlaceholder='', inputMode='numeric'}={}){
     ensure();
     if(!el){
       // fallback extremo si no se pudo montar el modal
@@ -14612,13 +14747,45 @@ window.compararPeriodo=function(){
 ============================================= */
 
 let __proyDayOffset = 0;
+let __proyModo = 'general'; // 'general' | 'pv'
+let __proyPV = ''; // nombre del PV elegido (Melchor, Saleciano, San Rafael, Casa, etc.)
 
 const DIAS = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
 
 function initProyecciones(){
   __proyDayOffset = 0;
   buildDaySelector();
+  buildProyPVSelector();
+  proySetModo(__proyModo);
   renderProyecciones();
+}
+
+// Píldora General / Puntos de venta.
+function proySetModo(modo){
+  __proyModo = modo;
+  if(modo==='general') __proyPV = '';
+  else if(!__proyPV){
+    const sel = document.getElementById("proyPVSelect");
+    __proyPV = (sel && sel.options.length) ? sel.options[0].value : '';
+  }
+  const btnG = document.getElementById('proyModoBtnGeneral');
+  const btnP = document.getElementById('proyModoBtnPV');
+  const selPV = document.getElementById('proyPVSelect');
+  if(btnG){ btnG.style.background = modo==='general' ? '#fff' : 'transparent'; btnG.style.color = modo==='general' ? '#5d3fd1' : '#7c7c9a'; }
+  if(btnP){ btnP.style.background = modo==='pv' ? '#fff' : 'transparent'; btnP.style.color = modo==='pv' ? '#5d3fd1' : '#7c7c9a'; }
+  if(selPV){ selPV.style.display = modo==='pv' ? 'block' : 'none'; if(modo==='pv') selPV.value = __proyPV; }
+  renderProyecciones();
+}
+
+// Mismos PVs que aparecen en "Productos vendidos > Puntos de venta" —
+// incluye Casa y todos los que hayas creado (Melchor, Saleciano, San Rafael, etc).
+function buildProyPVSelector(){
+  const sel = document.getElementById("proyPVSelect");
+  if(!sel) return;
+  const lista = ['Casa', ...((listaPVs||[]).filter(p=>p!=='Casa'))];
+  sel.innerHTML = lista.map(pv=>`<option value="${escapeHtmlAttr(pv)}">${escapeHtml(pv)}</option>`).join("");
+  if(!__proyPV && lista.length) __proyPV = lista[0];
+  sel.value = __proyPV;
 }
 
 function buildDaySelector(){
@@ -14653,47 +14820,58 @@ function getDateStr(offset){
   return `${y}-${m}-${day}`;
 }
 
+// Ventas de un producto, ya filtradas por Punto de Venta si estás en modo
+// "pv" (__proyModo==='pv' con __proyPV elegido). En modo "general" no se
+// filtra: es todo el negocio.
+function _proyVentasDeProducto(productName){
+  const pName = productName.trim().toLowerCase();
+  let base = (sales||[]).filter(s => (s.product||'').trim().toLowerCase()===pName);
+  if(__proyModo==='pv' && __proyPV){
+    base = base.filter(s => (s.pv||'Casa') === __proyPV);
+  }
+  return base;
+}
+
+// ✅ Método mejorado: en vez de solo el promedio plano de las últimas 4
+// ocurrencias del mismo día de la semana, se usa un PROMEDIO PONDERADO de
+// hasta las últimas 8 ocurrencias de ese día — dándole más peso a las más
+// recientes. Así el número refleja mejor tu tendencia actual (subiendo o
+// bajando) en vez de tratar un dato de hace 2 meses igual que uno de la
+// semana pasada. Si no hay ningún historial de ese día de la semana
+// todavía, cae a un promedio ponderado (mismo criterio) de los últimos 14
+// días, sin importar qué día hayan sido.
 function getProyeccion(productName, targetOffset){
-  const today = new Date();
-  const targetDate = new Date(today);
-  targetDate.setDate(today.getDate() + targetOffset);
+  const ventas = _proyVentasDeProducto(productName);
+  if(!ventas.length) return 0;
 
-  // Primero: promedio del mismo día de semana (últimas 4 semanas)
-  let relevantSales = [];
-  for(let w = 1; w <= 4; w++){
-    const dateStr = getDateStr(0 - (7 * w) + targetOffset);
-    const pName = productName.trim().toLowerCase();
-    const daySales = (sales||[]).filter(s =>
-      normalizeISODate(s.date) === dateStr &&
-      (s.product||'').trim().toLowerCase() === pName
-    );
-    const total = daySales.reduce((a,b) => a + Number(b.qty||0), 0);
-    relevantSales.push(total);
-  }
+  const targetDate = new Date();
+  targetDate.setDate(targetDate.getDate() + targetOffset);
+  const diaSemanaObjetivo = targetDate.getDay();
 
-  const sumWeekday = relevantSales.reduce((a,b) => a+b, 0);
+  const porFecha = {};
+  ventas.forEach(s=>{
+    const f = normalizeISODate(s.date);
+    if(!f) return;
+    porFecha[f] = (porFecha[f]||0) + (Number(s.qty)||0);
+  });
 
-  // Si hay historial del día de semana, usarlo
-  if(sumWeekday > 0){
-    return Math.round(sumWeekday / relevantSales.length);
-  }
+  const promedioPonderado = (fechas)=>{
+    const pesos = fechas.map((_,i)=>fechas.length-i); // la más reciente pesa más
+    const sumaPesos = pesos.reduce((a,b)=>a+b,0);
+    let total = 0;
+    fechas.forEach((f,i)=>{ total += porFecha[f] * (pesos[i]/sumaPesos); });
+    return Math.round(total);
+  };
 
-  // Fallback: promedio de los últimos 7 días (cualquier día)
-  let fallbackSales = [];
-  const pName2 = productName.trim().toLowerCase();
-  for(let i = 1; i <= 7; i++){
-    const dateStr = getDateStr(-i);
-    const daySales = (sales||[]).filter(s =>
-      normalizeISODate(s.date) === dateStr &&
-      (s.product||'').trim().toLowerCase() === pName2
-    );
-    const total = daySales.reduce((a,b) => a + Number(b.qty||0), 0);
-    fallbackSales.push(total);
-  }
-  const sumFallback = fallbackSales.reduce((a,b) => a+b, 0);
-  if(sumFallback > 0){
-    return Math.round(sumFallback / fallbackSales.length);
-  }
+  const fechasMismoDia = Object.keys(porFecha)
+    .filter(f => new Date(f+'T00:00:00').getDay() === diaSemanaObjetivo)
+    .sort((a,b)=> b.localeCompare(a))
+    .slice(0,8);
+  if(fechasMismoDia.length) return promedioPonderado(fechasMismoDia);
+
+  // Fallback: no hay historial de ese día de la semana todavía
+  const fechasRecientes = Object.keys(porFecha).sort((a,b)=>b.localeCompare(a)).slice(0,14);
+  if(fechasRecientes.length) return promedioPonderado(fechasRecientes);
 
   return 0;
 }
@@ -14701,12 +14879,9 @@ function getProyeccion(productName, targetOffset){
 function getRealToday(productName, offset){
   if(offset !== 0) return 0;
   const dateStr = getDateStr(0); // local date
-  const pName = productName.trim().toLowerCase();
-  const daySales = (sales||[]).filter(s =>
-    normalizeISODate(s.date) === dateStr &&
-    (s.product||'').trim().toLowerCase() === pName
-  );
-  return daySales.reduce((a,b) => a + Number(b.qty||0), 0);
+  return _proyVentasDeProducto(productName)
+    .filter(s => normalizeISODate(s.date) === dateStr)
+    .reduce((a,b) => a + Number(b.qty||0), 0);
 }
 
 function hexToRgb(hex){
@@ -14726,10 +14901,40 @@ function renderProyecciones(){
   const totalDiffEl = document.getElementById("proyTotalDiff");
   if(!cards) return;
 
-  const products = (inventory||[]).map(p => p.name);
+  let products = (inventory||[]).map(p => p.name);
   if(!products.length){
     cards.innerHTML = `<div style="text-align:center;color:#94a3b8;padding:32px">No hay sabores en inventario</div>`;
     return;
+  }
+
+  // ✅ Si están en modo "Puntos de venta", primero se revisa que ese PV
+  // tenga ventas recientes de verdad — si no, se avisa claramente en vez de
+  // mostrar puros ceros para cada sabor.
+  if(__proyModo==='pv' && __proyPV){
+    const nombrePV = __proyPV;
+    const ventasPV = (sales||[]).filter(s => (s.pv||'Casa') === nombrePV);
+    if(!ventasPV.length){
+      cards.innerHTML = `<div style="text-align:center;color:#94a3b8;padding:32px;background:#fef2f2;border-radius:16px;border:1.5px solid #fecaca">
+        <div style="font-weight:800;color:#dc2626;margin-bottom:4px">No hay datos suficientes para proyectar</div>
+        <div style="font-size:.84rem">${escapeHtml(nombrePV)} todavía no tiene ninguna venta registrada.</div>
+      </div>`;
+      totalProyEl.textContent = '—'; totalRealEl.textContent = '—'; totalDiffEl.textContent = '—';
+      return;
+    }
+    const fechas = [...new Set(ventasPV.map(s=>normalizeISODate(s.date)).filter(Boolean))].sort();
+    const ultima = fechas[fechas.length-1];
+    const diasDesdeUltima = Math.floor((new Date() - new Date(ultima+'T00:00:00')) / 86400000);
+    if(diasDesdeUltima > 30){
+      cards.innerHTML = `<div style="text-align:center;color:#94a3b8;padding:32px;background:#fef2f2;border-radius:16px;border:1.5px solid #fecaca">
+        <div style="font-weight:800;color:#dc2626;margin-bottom:4px">No hay datos suficientes para proyectar</div>
+        <div style="font-size:.84rem">${escapeHtml(nombrePV)} no tiene ventas desde hace más de un mes (última: ${ultima}).</div>
+      </div>`;
+      totalProyEl.textContent = '—'; totalRealEl.textContent = '—'; totalDiffEl.textContent = '—';
+      return;
+    }
+    // Solo mostrar sabores que de verdad se han vendido en este PV alguna vez, para no llenar la lista de puros ceros.
+    const sabroesVendidosAqui = new Set(ventasPV.map(s=>s.product));
+    products = products.filter(name=>sabroesVendidosAqui.has(name));
   }
 
   // Calcular proyección y real por producto
