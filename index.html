@@ -3894,10 +3894,11 @@ document.addEventListener('DOMContentLoaded',()=>{
      <button type="button" id="agregarPVBtn" onclick="if(document.getElementById('agregarPVBtn').style.opacity==='0.3'){return;} agregarPVRow()" style="background:#e0e7ff;color:#3730a3;border:none;border-radius:10px;padding:7px 18px;font-weight:800;font-size:1rem;margin-bottom:10px">+</button>
      <div style="background:#f8f7ff;border-radius:12px;padding:14px 10px;margin-bottom:10px">
        <div style="font-size:.78rem;font-weight:800;color:#7c5fe6;text-align:center;margin-bottom:8px;letter-spacing:.03em">🌸 PUNTOS DE VENTA DEL DÍA</div>
-       <div style="position:relative;width:100%;height:340px">
+       <div style="position:relative;width:100%;height:280px">
          <canvas id="pvChart"></canvas>
        </div>
        <div style="text-align:center;margin-top:8px;font-size:.78rem;font-weight:700;color:#94a3b8">TOTAL <span id="pvChartTotal" style="color:#1e1b2e;font-weight:900;font-size:1rem">$0.00</span></div>
+       <div id="pvChartLista" style="margin-top:12px"></div>
      </div>
      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
        <input type="date" id="ventaFecha" style="font-size:.84rem;padding:7px 10px">
@@ -5197,30 +5198,46 @@ function tzToggleRow(idx){
 // (reemplaza tener que ir a una pantalla aparte de "Enviar" para mandar
 // nada más un sabor a la vez).
 async function tzAgregarProducto(tiendaId, producto){
-  const t = tiendaFindById(tiendaId);
-  if(!t) return;
-  const idx = inventory.findIndex(p=>p.name===producto);
-  if(idx<0){ AppUI.toast(`"${producto}" ya no existe en Matriz`); return; }
-  const disponible = inventory[idx].qty||0;
+  const t0 = tiendaFindById(tiendaId);
+  if(!t0) return;
+  const idx0 = inventory.findIndex(p=>p.name===producto);
+  if(idx0<0){ AppUI.toast(`"${producto}" ya no existe en Matriz`); return; }
+  const disponible = inventory[idx0].qty||0;
   if(disponible<=0){ AppUI.toast(`No hay "${producto}" disponible en Matriz`); return; }
 
-  const cantidad = await AppUI.promptNumber(`¿Cuántos "${producto}" mandas de Matriz a ${t.nombre}? (disponibles: ${disponible})`, {
+  const cantidad = await AppUI.promptNumber(`¿Cuántos "${producto}" mandas de Matriz a ${t0.nombre}? (disponibles: ${disponible})`, {
     title:'Enviar a tienda', min:1, max:disponible, value:disponible, okText:'Enviar'
   });
   if(cantidad===null || !cantidad || cantidad<=0) return;
 
-  inventory[idx].qty -= cantidad;
-  t.stock[producto] = (Number(t.stock[producto])||0) + cantidad;
+  // 🛡️ Se vuelve a buscar la tienda y el producto justo AQUÍ, después de
+  // esperar tu respuesta — no se reusa "t0"/"idx0" de arriba. Mientras el
+  // cuadro estaba abierto, una sincronización con la nube puede reemplazar
+  // por completo el arreglo de tiendas en memoria; si se seguía usando la
+  // referencia capturada antes de esperar, el aumento se aplicaba a un
+  // objeto ya descartado y se perdía en silencio — Matriz sí se descontaba
+  // (por eso "sí funcionaba a medias"), pero la tienda nunca lo recibía.
+  // Esto es justo lo que pasaba cuando agregabas un sabor y enseguida otro.
+  const t = tiendaFindById(tiendaId);
+  if(!t){ AppUI.toast('Esa tienda ya no existe'); return; }
+  const idx = inventory.findIndex(p=>p.name===producto);
+  if(idx<0){ AppUI.toast(`"${producto}" ya no existe en Matriz`); return; }
+  const disponibleAhora = inventory[idx].qty||0;
+  const cantidadFinal = Math.min(cantidad, disponibleAhora);
+  if(cantidadFinal<=0){ AppUI.toast(`Ya no hay "${producto}" disponible en Matriz`); return; }
+
+  inventory[idx].qty -= cantidadFinal;
+  t.stock[producto] = (Number(t.stock[producto])||0) + cantidadFinal;
   traspasos.unshift({
     id:'tr_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
-    fecha:todayLocalISO(), hora:nowHHMM(), tiendaId:t.id, tiendaNombre:t.nombre, producto, cantidad, direccion:'matriz->tienda'
+    fecha:todayLocalISO(), hora:nowHHMM(), tiendaId:t.id, tiendaNombre:t.nombre, producto, cantidad:cantidadFinal, direccion:'matriz->tienda'
   });
 
   saveSilent();
   saveTiendas();
   render();
   renderTiendas();
-  AppUI.toast(`✅ Enviaste ${cantidad} de ${producto} a ${t.nombre}`);
+  AppUI.toast(`✅ Enviaste ${cantidadFinal} de ${producto} a ${t.nombre}`);
 }
 
 function enviarSeleccionATienda(tiendaId){
@@ -5266,55 +5283,70 @@ function enviarSeleccionATienda(tiendaId){
 }
 
 async function regresarATiendaMatriz(tiendaId, producto){
-  const t = tiendaFindById(tiendaId);
-  if(!t) return;
-  const disponible = Number(t.stock[producto])||0;
-  if(disponible<=0) return;
-  const cantidad = await AppUI.promptNumber(`¿Cuántos "${producto}" regresan de ${t.nombre} a Matriz?`, {
-    title:'Regresar a Matriz', min:1, max:disponible, value:disponible, okText:'Regresar'
+  const t0 = tiendaFindById(tiendaId);
+  if(!t0) return;
+  const disponible0 = Number(t0.stock[producto])||0;
+  if(disponible0<=0) return;
+  const cantidad = await AppUI.promptNumber(`¿Cuántos "${producto}" regresan de ${t0.nombre} a Matriz?`, {
+    title:'Regresar a Matriz', min:1, max:disponible0, value:disponible0, okText:'Regresar'
   });
   if(cantidad===null || !cantidad || cantidad<=0) return;
 
-  const ok = await AppUI.confirm(`¿Seguro que quieres regresar ${cantidad} de "${producto}" de ${t.nombre} a Matriz?`, {
+  const ok = await AppUI.confirm(`¿Seguro que quieres regresar ${cantidad} de "${producto}" de ${t0.nombre} a Matriz?`, {
     title:'Confirmar regreso', okText:'Sí, regresar', cancelText:'Cancelar'
   });
   if(ok!==true) return;
 
+  // 🛡️ Volver a buscar todo DESPUÉS de esperar tus respuestas (ver nota en
+  // tzAgregarProducto) — nunca reusar t0/disponible0 capturados antes.
+  const t = tiendaFindById(tiendaId);
+  if(!t){ AppUI.toast('Esa tienda ya no existe'); return; }
+  const disponibleAhora = Number(t.stock[producto])||0;
+  const cantidadFinal = Math.min(cantidad, disponibleAhora);
+  if(cantidadFinal<=0){ AppUI.toast(`Ya no hay "${producto}" en ${t.nombre} para regresar`); return; }
+
   const idx = inventory.findIndex(p=>p.name===producto);
   if(idx<0){ AppUI.toast('Ese sabor ya no existe en el inventario de Matriz — no se puede regresar automáticamente.'); return; }
 
-  t.stock[producto] = Math.max(0, disponible-cantidad);
-  inventory[idx].qty = (inventory[idx].qty||0) + cantidad;
-  traspasos.unshift({ id:'tr_'+Date.now(), fecha:todayLocalISO(), hora:nowHHMM(), tiendaId:t.id, tiendaNombre:t.nombre, producto, cantidad, direccion:'tienda->matriz' });
+  t.stock[producto] = Math.max(0, disponibleAhora-cantidadFinal);
+  inventory[idx].qty = (inventory[idx].qty||0) + cantidadFinal;
+  traspasos.unshift({ id:'tr_'+Date.now(), fecha:todayLocalISO(), hora:nowHHMM(), tiendaId:t.id, tiendaNombre:t.nombre, producto, cantidad:cantidadFinal, direccion:'tienda->matriz' });
 
   saveSilent();
   saveTiendas();
   render();
   renderTiendas();
-  AppUI.toast(`✅ Regresaste ${cantidad} de ${producto} a Matriz`);
+  AppUI.toast(`✅ Regresaste ${cantidadFinal} de ${producto} a Matriz`);
 }
 
 async function venderEnTienda(tiendaId, producto){
-  const t = tiendaFindById(tiendaId);
-  if(!t) return;
-  const max = Number(t.stock[producto])||0;
+  const t0 = tiendaFindById(tiendaId);
+  if(!t0) return;
+  const max = Number(t0.stock[producto])||0;
   if(max<=0){ AppUI.toast('Sin existencia de este sabor en esta tienda'); return; }
   const q = await openSellQtyModal(producto, max);
   if(q===null || !q || q<=0) return;
 
-  t.stock[producto] = Math.max(0, max-q);
+  // 🛡️ Volver a buscar la tienda DESPUÉS de esperar (ver nota en tzAgregarProducto).
+  const t = tiendaFindById(tiendaId);
+  if(!t){ AppUI.toast('Esa tienda ya no existe'); return; }
+  const maxAhora = Number(t.stock[producto])||0;
+  const qFinal = Math.min(q, maxAhora);
+  if(qFinal<=0){ AppUI.toast(`Ya no hay "${producto}" disponible en ${t.nombre}`); return; }
+
+  t.stock[producto] = Math.max(0, maxAhora-qFinal);
   // ✅ Se registra en la MISMA cola "sales" que usa la Matriz, para que
   // cuente junto con todo lo demás en Reportes, Base de datos, etc.
   // Se etiqueta con la tienda (tienda/tiendaId) para desglosar por sucursal
   // en Reportes/DB, Y ADEMÁS con pv:t.nombre para que cuente como un Punto
   // de Venta más en "Productos vendidos > Puntos de venta" (antes no
   // llevaba pv y por eso esas ventas no aparecían ahí).
-  sales.push({ product:producto, date:todayLocalISO(), time:nowHHMM(), qty:q, costUnit:getUnitCost(producto), tienda:t.nombre, tiendaId:t.id, pv:t.nombre });
+  sales.push({ product:producto, date:todayLocalISO(), time:nowHHMM(), qty:qFinal, costUnit:getUnitCost(producto), tienda:t.nombre, tiendaId:t.id, pv:t.nombre });
 
   saveSilent();
   saveTiendas();
   renderTiendas();
-  AppUI.toast(`✅ Vendiste ${q} de ${producto} en ${t.nombre}`);
+  AppUI.toast(`✅ Vendiste ${qFinal} de ${producto} en ${t.nombre}`);
 }
 
 // Comparte por WhatsApp lo que hay actualmente en el inventario de esta tienda.
@@ -5344,17 +5376,23 @@ function tzCompartirInventario(tiendaId){
 }
 
 async function decreaseEnTienda(tiendaId, producto){
-  const t = tiendaFindById(tiendaId);
-  if(!t) return;
-  const qtyActual = Number(t.stock[producto])||0;
-  if(qtyActual<=0) return;
+  const t0 = tiendaFindById(tiendaId);
+  if(!t0) return;
+  const qtyActual0 = Number(t0.stock[producto])||0;
+  if(qtyActual0<=0) return;
 
   const esMerma = await AppUI.confirm(
-    `¿"${producto}" se va a MERMA en ${t.nombre}? (se dañó, se cayó, se echó a perder, etc.)`,
+    `¿"${producto}" se va a MERMA en ${t0.nombre}? (se dañó, se cayó, se echó a perder, etc.)`,
     {title:'¿Fue merma?', okText:'Sí, mermar', cancelText:'No, solo descontar'}
   );
   // Salir con la X = cancelar todo, no descuenta nada (mismo criterio que en Matriz).
   if(esMerma===null) return;
+
+  // 🛡️ Volver a buscar la tienda DESPUÉS de esperar (ver nota en tzAgregarProducto).
+  const t = tiendaFindById(tiendaId);
+  if(!t) return;
+  const qtyActual = Number(t.stock[producto])||0;
+  if(qtyActual<=0) return;
 
   t.stock[producto] = Math.max(0, qtyActual-1);
   if(esMerma){
@@ -13635,11 +13673,12 @@ if(!data.length){
   return;
 }
 
-// Gráfica tipo "rosa" (polar area): cada PV toma un radio proporcional a su
-// monto (los porcentajes más grandes se ven más grandes), con un pequeño
-// espacio entre rebanadas y color propio por PV (elegible en "Puntos de Venta").
+// Donut clásico: todas las rebanadas tienen el mismo radio, solo cambia el
+// ángulo — así hasta un PV de 1% se alcanza a ver y tocar (antes, con la
+// "rosa" (polar area), el radio también cambiaba según el monto y los PVs
+// chicos casi desaparecían, amontonados en el centro).
 window.pvChartObj=new Chart(ctx,{
-type:'polarArea',
+type:'doughnut',
 data:{
   labels: data.map(x=>x.nombre),
   datasets:[{
@@ -13647,35 +13686,23 @@ data:{
     backgroundColor: colors.map(c=>c+'E6'),
     borderColor: '#ffffff',
     borderWidth: 3,
-    offset: 10,
-    hoverOffset: 18,
+    hoverOffset: 14,
   }]
 },
 options:{
   responsive:true,
   maintainAspectRatio:false,
-  layout:{ padding: 34 },
-  scales:{
-    r:{
-      display:false,
-      // Dejamos ~22% de margen extra en el radio para que los % quepan
-      // AFUERA de cada rebanada, incluso cuando el PV casi no vendió.
-      max: (data.reduce((m,x)=>Math.max(m,Number(x.monto)||0),0) || 1) * 1.28,
-      grid:{ display:false },
-      ticks:{ display:false }
-    }
-  },
+  layout:{ padding: 18 },
+  cutout:'55%',
+  animation:{ animateRotate:true, animateScale:true },
   plugins:{
-    legend:{
-      display:true,
-      position:'bottom',
-      labels:{
-        usePointStyle:true,
-        pointStyle:'circle',
-        padding:14,
-        font:{ size:12, weight:'700' }
-      }
-    },
+    // ✅ Se quitó la leyenda de colores y los % encima de cada rebanada:
+    // con muchos PVs, las rebanadas chiquitas se saturaban de números
+    // encimados e ilegibles, y los puntos de color eran redundantes con la
+    // lista de abajo (que ya trae nombre, color, monto exacto y %). Toca
+    // una rebanada para ver el detalle en el mensaje emergente.
+    legend:{ display:false },
+    datalabels:{ display:false },
     tooltip:{
       backgroundColor:'#1e1b2e',
       padding:12,
@@ -13683,28 +13710,11 @@ options:{
       bodyFont:{size:13},
       callbacks:{
         label:(ctx)=>{
-          const v = Number(ctx.parsed.r ?? ctx.parsed)||0;
+          const v = Number(ctx.parsed)||0;
           const pct = total>0 ? (v/total*100) : 0;
           return ` $${v.toFixed(2)}  ·  ${pct.toFixed(0)}% del ingreso`;
         }
       }
-    },
-    datalabels:{
-      color:'#1e1b2e',
-      font:{ weight:'900', size:14 },
-      formatter:(value, ctx)=>{
-        const pct = total>0 ? (value/total*100) : 0;
-        return `${pct.toFixed(0)}%`;
-      },
-      anchor:'end',
-      align:'end',
-      offset:6,
-      clamp:true,
-      clip:false,
-      textAlign:'center',
-      backgroundColor:'rgba(255,255,255,.94)',
-      borderRadius:10,
-      padding:{top:5,bottom:5,left:8,right:8},
     }
   }
 }
@@ -13712,6 +13722,22 @@ options:{
 
 const totalEl = document.getElementById('pvChartTotal');
 if(totalEl) totalEl.textContent = '$'+total.toFixed(2);
+
+// Lista limpia debajo de la gráfica: color, nombre, monto y % — ordenada de
+// mayor a menor, sin encimarse sin importar cuántos PVs haya.
+const listaEl = document.getElementById('pvChartLista');
+if(listaEl){
+  const ordenado = data.slice().sort((a,b)=>(Number(b.monto)||0)-(Number(a.monto)||0));
+  listaEl.innerHTML = ordenado.map((x,i)=>{
+    const pct = total>0 ? (Number(x.monto)||0)/total*100 : 0;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 4px;${i>0?'border-top:1px solid #ede9fe':''}">
+      <span style="width:12px;height:12px;border-radius:50%;background:${colors[i]};flex:0 0 auto"></span>
+      <span style="flex:1;font-weight:700;font-size:.84rem;color:#1e1b2e;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(x.nombre)}</span>
+      <span style="font-weight:800;font-size:.84rem;color:#1e1b2e">$${(Number(x.monto)||0).toFixed(2)}</span>
+      <span style="font-weight:900;font-size:.84rem;color:#5d3fd1;min-width:34px;text-align:right">${pct.toFixed(0)}%</span>
+    </div>`;
+  }).join('');
+}
 }
 function guardarVentaDia(){
  const fecha=document.getElementById("ventaFecha").value || todayLocalISO();
@@ -14352,10 +14378,11 @@ function renderPVComparativaChart(data){
     return;
   }
 
-  // Misma gráfica tipo "rosa" (polar area) que Puntos de Venta del Día,
-  // con % por PV, solo que sumando todo el rango de fechas elegido.
+  // Donut clásico — mismo motivo que en "Puntos de venta del día": todas
+  // las rebanadas tienen el mismo radio, solo cambia el ángulo, así un PV
+  // chico no desaparece amontonado en el centro.
   window.pvComparativaChartObj=new Chart(ctx,{
-  type:'polarArea',
+  type:'doughnut',
   data:{
     labels: data.map(x=>x.nombre),
     datasets:[{
@@ -14363,33 +14390,22 @@ function renderPVComparativaChart(data){
       backgroundColor: colors.map(c=>c+'E6'),
       borderColor: '#ffffff',
       borderWidth: 3,
-      offset: 10,
-      hoverOffset: 18,
+      hoverOffset: 14,
     }]
   },
   options:{
     responsive:true,
     maintainAspectRatio:false,
-    layout:{ padding: 34 },
-    scales:{
-      r:{
-        display:false,
-        max: (data.reduce((m,x)=>Math.max(m,Number(x.monto)||0),0) || 1) * 1.28,
-        grid:{ display:false },
-        ticks:{ display:false }
-      }
-    },
+    layout:{ padding: 18 },
+    cutout:'55%',
+    animation:{ animateRotate:true, animateScale:true },
     plugins:{
-      legend:{
-        display:true,
-        position:'bottom',
-        labels:{
-          usePointStyle:true,
-          pointStyle:'circle',
-          padding:14,
-          font:{ size:12, weight:'700' }
-        }
-      },
+      // ✅ Se quitó la leyenda y los % encima de cada rebanada — con varios
+      // PVs se saturaban de números encimados. La lista de abajo ("% DEL
+      // INGRESO POR PV") ya trae nombre, color, monto y % bien legibles sin
+      // importar cuántos PVs haya.
+      legend:{ display:false },
+      datalabels:{ display:false },
       tooltip:{
         backgroundColor:'#1e1b2e',
         padding:12,
@@ -14397,28 +14413,11 @@ function renderPVComparativaChart(data){
         bodyFont:{size:13},
         callbacks:{
           label:(ctx)=>{
-            const v = Number(ctx.parsed.r ?? ctx.parsed)||0;
+            const v = Number(ctx.parsed)||0;
             const pct = total>0 ? (v/total*100) : 0;
             return ` $${v.toFixed(2)}  ·  ${pct.toFixed(0)}% del ingreso`;
           }
         }
-      },
-      datalabels:{
-        color:'#1e1b2e',
-        font:{ weight:'900', size:14 },
-        formatter:(value)=>{
-          const pct = total>0 ? (value/total*100) : 0;
-          return `${pct.toFixed(0)}%`;
-        },
-        anchor:'end',
-        align:'end',
-        offset:6,
-        clamp:true,
-        clip:false,
-        textAlign:'center',
-        backgroundColor:'rgba(255,255,255,.94)',
-        borderRadius:10,
-        padding:{top:5,bottom:5,left:8,right:8},
       }
     }
   }
