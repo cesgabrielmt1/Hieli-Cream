@@ -64,6 +64,15 @@ function cloudSaveNow(){
 
 // Con pequeño delay: para ediciones de texto
 function cloudSaveSoon(){
+  // 🛡️ Se marca "hay un guardado pendiente" DE INMEDIATO (no hasta que el
+  // timer dispare). Antes, durante estos 2 segundos de espera, __pendingCloudSave
+  // seguía en false, así que si llegaba un eco de la nube en ese hueco
+  // (ej. justo después de agregar un insumo nuevo o editar su CU),
+  // _applyCloudDataSmart no tenía forma de saber que había un cambio local
+  // sin subir todavía y lo pisaba con la versión vieja — el insumo/receta/
+  // sabor "se veía guardado un momento y luego desaparecía". Con el flag
+  // puesto desde ya, _applyCloudDataSmart espera y reintenta en vez de pisar.
+  __pendingCloudSave = true;
   clearTimeout(__cloudSaveTimer);
   __cloudSaveTimer = setTimeout(_doCloudSave, 2000);
 }
@@ -75,6 +84,10 @@ function cloudSaveSoon(){
 // "se volviera loco": subía y luego bajaba solo).
 let __qtySaveTimer = null;
 function cloudSaveQtyDebounced(){
+  // 🛡️ Mismo hueco que cloudSaveSoon, pero de 550ms: se marca pendiente
+  // desde ya para que un eco de la nube que llegue durante la espera no
+  // pise el toque +/- que todavía no se sube.
+  __pendingCloudSave = true;
   clearTimeout(__qtySaveTimer);
   __qtySaveTimer = setTimeout(_doCloudSave, 550);
 }
@@ -425,6 +438,38 @@ function _applyCloudDataSmart(d){
             const k = _logRowKey(r);
             if(!seen.has(k)){ seen.add(k); merged.push(r); }
           });
+          const mergedStr = JSON.stringify(merged);
+          if(mergedStr !== localStr){
+            localStorage.setItem(storageKey, mergedStr);
+            changedSomething = true;
+          }
+        } else if(field==='inventory' && Array.isArray(localVal)){
+          // 🛡️ Un sabor NUEVO que agregaste aquí, o uno que otro celular
+          // todavía no conoce, nunca desaparece: si "incoming" no lo trae,
+          // se conserva tal como está en local (con su cantidad). Para los
+          // sabores que SÍ vienen en ambos lados, se respeta "incoming"
+          // (validado arriba contra baseline/anti-destrucción) — esto solo
+          // evita que un sabor entero se BORRE por venir de un celular con
+          // datos más viejos.
+          const nombresIncoming = new Set((incomingVal||[]).map(p=>toUpperSafe(p && p.name)));
+          const faltantes = localVal.filter(p=>!nombresIncoming.has(toUpperSafe(p && p.name)));
+          const merged = faltantes.length ? [...(incomingVal||[]), ...faltantes] : (incomingVal||[]);
+          const mergedStr = JSON.stringify(merged);
+          if(mergedStr !== localStr){
+            localStorage.setItem(storageKey, mergedStr);
+            changedSomething = true;
+          }
+        } else if(field==='cu_catalog'){
+          // Mismo problema con insumos del Costo Unitario: se usa el mismo
+          // "merge sin perder datos" que ya existía para importar backups.
+          const merged = mergeCuCatalog(localVal, incomingVal);
+          const mergedStr = JSON.stringify(merged);
+          if(mergedStr !== localStr){
+            localStorage.setItem(storageKey, mergedStr);
+            changedSomething = true;
+          }
+        } else if(field==='cu_recipes'){
+          const merged = mergeCuRecipes(localVal, incomingVal);
           const mergedStr = JSON.stringify(merged);
           if(mergedStr !== localStr){
             localStorage.setItem(storageKey, mergedStr);
@@ -3874,8 +3919,9 @@ document.addEventListener('DOMContentLoaded',()=>{
  <p style="font-size:13px;color:#64748b;margin-top:0;margin-bottom:14px">Compara ingresos, gastos y ganancias automáticamente.</p>
 
  <div style="display:flex;gap:6px;background:#f1f0ff;border-radius:14px;padding:4px;margin-bottom:14px">
-   <button type="button" onclick="showVentasTab('registro')" id="ventasTabRegistro" style="flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.78rem;background:#fff;color:#5d3fd1">Registro</button>
-   <button type="button" onclick="showVentasTab('pv')" id="ventasTabComparativaPv" style="flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.78rem;background:transparent;color:#7c7c9a">Comparativa PV</button>
+   <button type="button" onclick="showVentasTab('registro')" id="ventasTabRegistro" style="flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.76rem;background:#fff;color:#5d3fd1">Registro</button>
+   <button type="button" onclick="showVentasTab('pv')" id="ventasTabComparativaPv" style="flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.76rem;background:transparent;color:#7c7c9a">Comparativa PV</button>
+   <button type="button" onclick="showVentasTab('ganancia')" id="ventasTabGanancia" style="flex:1;margin:0;padding:10px 4px;border:none;border-radius:11px;font-weight:800;font-size:.76rem;background:transparent;color:#7c7c9a">Ganancia</button>
  </div>
 
  <div id="ventasRegistroTab">
@@ -3946,6 +3992,38 @@ document.addEventListener('DOMContentLoaded',()=>{
    </div>
 
    <div id="pvComparativaInfo" style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px"></div>
+ </div>
+
+ <div id="ventasGananciaTab" style="display:none;">
+   <div style="background:linear-gradient(135deg,#f0fdf4,#fff);border:1.5px solid #bbf7d0;border-radius:14px;padding:12px 14px;margin-bottom:12px">
+     <div style="font-size:10px;font-weight:700;color:#16a34a;letter-spacing:.06em;margin-bottom:4px">GANANCIA TOTAL</div>
+     <div style="font-size:1.6rem;font-weight:900;color:#16a34a" id="ventasGanPvGanancia">$0.00</div>
+   </div>
+
+   <div style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
+     <div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">COMPARAR PERIODO</div>
+     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+       <input type="date" id="fechaInicioGan" style="font-size:.84rem;padding:7px 10px">
+       <input type="date" id="fechaFinGan" style="font-size:.84rem;padding:7px 10px">
+     </div>
+     <div style="margin-bottom:8px">
+       <div class="lbl" style="font-size:10px">PUNTO DE VENTA</div>
+       <select id="ganComparativaFiltro" style="font-size:.84rem;padding:7px 10px;width:100%"></select>
+     </div>
+     <button onclick="compararGananciaPV()" style="background:linear-gradient(135deg,#7c5fe6,#5d3fd1);border-radius:12px;font-size:.88rem">Comparar</button>
+   </div>
+
+   <div style="background:#f8f7ff;border-radius:16px;padding:14px 10px;margin-bottom:12px">
+     <div id="ganComparativaTitulo" style="font-size:.78rem;font-weight:800;color:#7c5fe6;text-align:center;margin-bottom:8px;letter-spacing:.03em">📈 GANANCIA DEL PERIODO</div>
+     <div class="pvChartScroll" id="ganChartScrollWrap">
+       <div class="pvChartInner" id="ganChartInnerWrap">
+         <canvas id="ganComparativaChart"></canvas>
+       </div>
+     </div>
+     <div style="text-align:center;margin-top:8px;font-size:.78rem;font-weight:700;color:#94a3b8">TOTAL <span id="ganComparativaChartTotal" style="color:#1e1b2e;font-weight:900;font-size:1rem">$0.00</span></div>
+   </div>
+
+   <div id="ganComparativaInfo" style="background:#fff;border:1.5px solid #ede9fe;border-radius:16px;padding:12px 14px"></div>
  </div>
 
 </div>
@@ -6970,6 +7048,45 @@ function _pvIngresoData(from, to){
   return {porPv, porDia};
 }
 
+// ✅ Ganancia real por PV: reparte el GASTO TOTAL de cada día (el mismo que usa
+// "Registro"/"Comparativa PV": costo de TODO lo vendido/mermado ese día, sin
+// importar si se etiquetó con un PV o no) entre los PVs de ese día, proporcional
+// a cuánto ingreso aportó cada uno. Así el total siempre cuadra EXACTO con
+// "Comparativa PV" — antes se restaba solo el costo de las ventas etiquetadas
+// con ese PV (mucho menor que el gasto real del día porque no todo lo que
+// se vende pasa por "Ventas Grandes" con un PV elegido), lo que inflaba la
+// ganancia de forma artificial.
+function _gananciaPorPvProporcional(from, to){
+  const porPv = new Map();   // nombre -> {ingreso,gasto,ganancia}
+  const porDia = new Map();  // fecha -> Map(nombre -> {ingreso,gasto,ganancia})
+  (ventasDinero||[]).forEach(row=>{
+    const d = normalizeISODate(row.fecha)||row.fecha||'';
+    if(!d) return;
+    if(from && d<from) return;
+    if(to && d>to) return;
+    const ventasDia = Number(row.vendido)||0;
+    const gastoDia = Number(row.gasto)||0;
+    (row.pvs||[]).forEach(p=>{
+      const nombre = (p.nombre||'').toString().trim();
+      const monto = Number(p.monto)||0;
+      if(!nombre || !monto) return;
+      const gastoPv = ventasDia>0 ? gastoDia*(monto/ventasDia) : 0;
+      const gananciaPv = monto - gastoPv;
+
+      if(!porPv.has(nombre)) porPv.set(nombre, {ingreso:0, gasto:0, ganancia:0});
+      const bp = porPv.get(nombre);
+      bp.ingreso += monto; bp.gasto += gastoPv; bp.ganancia += gananciaPv;
+
+      if(!porDia.has(d)) porDia.set(d, new Map());
+      const dm = porDia.get(d);
+      if(!dm.has(nombre)) dm.set(nombre, {ingreso:0, gasto:0, ganancia:0});
+      const bd = dm.get(nombre);
+      bd.ingreso += monto; bd.gasto += gastoPv; bd.ganancia += gananciaPv;
+    });
+  });
+  return {porPv, porDia};
+}
+
 // Ventas por sabor + por día de TODOS los puntos de venta (o uno solo si se filtra) — versión simplificada, igual estilo que General.
 function statsPvRender(){
   const pvFiltro = document.getElementById('statsPvFiltro')?.value || '';
@@ -7029,25 +7146,37 @@ function statsPvRender(){
 
   const arrFlavor = [...byFlavor.values()].sort((a,b)=>b.qty-a.qty);
   const totalQty = arrFlavor.reduce((a,x)=>a+x.qty,0);
-  const totalGasto = arrFlavor.reduce((a,x)=>a+x.gasto,0);
 
-  // ✅ Ingreso sale de lo que registras a mano en "Ventas" > Gestionar PVs
-  // (ventasDinero.pvs). La ganancia es ese ingreso menos el gasto (costo de "sales").
-  const { porPv: porPvIngreso, porDia: porDiaIngreso } = _pvIngresoData(from, to);
-  const totalIngreso = pvFiltro
-    ? (porPvIngreso.get(pvFiltro)||0)
-    : [...porPvIngreso.values()].reduce((a,b)=>a+b,0);
-  const totalGanancia = totalIngreso - totalGasto;
-  porDiaIngreso.forEach((mapaPv, d)=>{
-    const ingresoDia = pvFiltro
-      ? (mapaPv.get(pvFiltro)||0)
-      : [...mapaPv.values()].reduce((a,b)=>a+b,0);
-    if(!ingresoDia) return;
+  // ✅ Ingreso/gasto/ganancia salen del MISMO reparto proporcional que usa la
+  // pestaña "Ganancia" de Ventas (gasto real del día repartido según el
+  // ingreso de cada PV), para que ambas pantallas SIEMPRE cuadren entre sí
+  // y con "Comparativa PV". Antes el gasto aquí solo sumaba el costo de las
+  // ventas etiquetadas con ese PV (mucho menor que el gasto real del día),
+  // lo que inflaba la ganancia.
+  const { porPv: gananciaPorPv, porDia: gananciaPorDia } = _gananciaPorPvProporcional(from, to);
+  let totalIngreso = 0, totalGasto = 0, totalGanancia = 0;
+  if(pvFiltro){
+    const v = gananciaPorPv.get(pvFiltro) || {ingreso:0, gasto:0, ganancia:0};
+    totalIngreso = v.ingreso; totalGasto = v.gasto; totalGanancia = v.ganancia;
+  } else {
+    gananciaPorPv.forEach(v=>{ totalIngreso += v.ingreso; totalGasto += v.gasto; totalGanancia += v.ganancia; });
+  }
+  gananciaPorDia.forEach((mapaPv, d)=>{
+    let ingresoDia=0, gastoDia=0, gananciaDia=0;
+    if(pvFiltro){
+      const v = mapaPv.get(pvFiltro);
+      if(!v) return;
+      ingresoDia=v.ingreso; gastoDia=v.gasto; gananciaDia=v.ganancia;
+    } else {
+      mapaPv.forEach(v=>{ ingresoDia+=v.ingreso; gastoDia+=v.gasto; gananciaDia+=v.ganancia; });
+    }
+    if(!ingresoDia && !gastoDia) return;
     if(!byDia.has(d)) byDia.set(d, {fecha:d, qty:0, gasto:0});
     const bd = byDia.get(d);
-    bd.ingreso = (bd.ingreso||0) + ingresoDia;
+    bd.ingreso = ingresoDia;
+    bd.gasto = gastoDia;
+    bd.ganancia = gananciaDia;
   });
-  byDia.forEach(bd=>{ bd.ganancia = (bd.ingreso||0) - (bd.gasto||0); });
 
   const arrDia = [...byDia.values()].sort((a,b)=> b.fecha.localeCompare(a.fecha));
 
@@ -14226,20 +14355,32 @@ function actualizarResumenGrafica(labels,gastos,ganancias){
 function showVentasTab(tab){
  var r=document.getElementById('ventasRegistroTab');
  var p=document.getElementById('ventasComparativaPvTab');
+ var g=document.getElementById('ventasGananciaTab');
  var bR=document.getElementById('ventasTabRegistro');
  var bP=document.getElementById('ventasTabComparativaPv');
+ var bG=document.getElementById('ventasTabGanancia');
  if(r) r.style.display = tab==='registro' ? 'block' : 'none';
  if(p) p.style.display = tab==='pv' ? 'block' : 'none';
- [[bR,'registro'],[bP,'pv']].forEach(function(pair){
+ if(g) g.style.display = tab==='ganancia' ? 'block' : 'none';
+ [[bR,'registro'],[bP,'pv'],[bG,'ganancia']].forEach(function(pair){
    var btn=pair[0], name=pair[1];
    if(!btn) return;
    btn.style.background = tab===name ? '#fff' : 'transparent';
    btn.style.color = tab===name ? '#5d3fd1' : '#7c7c9a';
  });
  if(tab==='pv' && typeof poblarFiltroPvComparativa==='function') poblarFiltroPvComparativa();
+ if(tab==='ganancia' && typeof poblarFiltroGananciaPv==='function') poblarFiltroGananciaPv();
 }
 function poblarFiltroPvComparativa(){
  const sel=document.getElementById('pvComparativaFiltro');
+ if(!sel) return;
+ const prev = sel.value;
+ sel.innerHTML = '<option value="__ALL__">Todos</option>' +
+   (listaPVs||[]).map(p=>`<option value="${escapeHtmlAttr(p)}">${escapeHtml(p)}</option>`).join('');
+ if(prev && sel.querySelector(`option[value="${CSS.escape(prev)}"]`)) sel.value = prev;
+}
+function poblarFiltroGananciaPv(){
+ const sel=document.getElementById('ganComparativaFiltro');
  if(!sel) return;
  const prev = sel.value;
  sel.innerHTML = '<option value="__ALL__">Todos</option>' +
@@ -14500,6 +14641,152 @@ function renderPVComparativaChart(data){
             <span style="font-weight:700;font-size:.85rem;color:#64748b">$${x.monto.toFixed(2)}</span>
             <span style="font-weight:900;font-size:.85rem;color:#5d3fd1;min-width:44px;text-align:right">${pct.toFixed(0)}%</span>
           </div>
+        </div>`;
+      }).join('');
+  }
+}
+
+/* ===== Ganancia por PV: mismo criterio que "Puntos de venta" en Productos
+   vendidos — usa el MISMO reparto proporcional que "Puntos de venta" en
+   Productos vendidos (_gananciaPorPvProporcional): el gasto real del día
+   completo (igual criterio que "Registro"/"Comparativa PV") se reparte
+   entre los PVs de ese día según cuánto ingreso aportó cada uno. Así el
+   total de "Todos" SIEMPRE cuadra exacto con el total de "Comparativa PV".
+   Siempre en barras (con scroll si hay muchos datos), nunca dona. ===== */
+function compararGananciaPV(){
+  const inicio = document.getElementById('fechaInicioGan').value;
+  const fin = document.getElementById('fechaFinGan').value;
+  if(!inicio || !fin){ alert('Selecciona ambas fechas'); return; }
+
+  const { porPv, porDia } = _gananciaPorPvProporcional(inicio, fin);
+
+  const filtroSel = document.getElementById('ganComparativaFiltro');
+  const filtro = filtroSel ? filtroSel.value : '__ALL__';
+
+  if(filtro && filtro !== '__ALL__'){
+    // Un solo PV elegido: ganancia día por día
+    const dias = [...porDia.keys()].filter(d=> porDia.get(d).has(filtro)).sort();
+    const valores = dias.map(d=> porDia.get(d).get(filtro).ganancia);
+
+    const totalGan = valores.reduce((a,b)=>a+b,0);
+    const ganTotalEl = document.getElementById('ventasGanPvGanancia');
+    if(ganTotalEl) ganTotalEl.textContent = '$' + totalGan.toFixed(2);
+
+    renderGananciaBarChart(dias, valores, filtro, 'dia');
+    return;
+  }
+
+  // "Todos": ganancia total por PV en el periodo
+  const data = [...porPv.entries()]
+    .map(([nombre, v])=>({ nombre, ganancia: v.ganancia }))
+    .sort((a,b)=>b.ganancia-a.ganancia);
+
+  const totalGan = data.reduce((a,x)=>a+x.ganancia,0);
+  const ganTotalEl = document.getElementById('ventasGanPvGanancia');
+  if(ganTotalEl) ganTotalEl.textContent = '$' + totalGan.toFixed(2);
+
+  renderGananciaBarChart(data.map(x=>x.nombre), data.map(x=>x.ganancia), null, 'pv');
+}
+
+function renderGananciaBarChart(labels, valores, pvName, modo){
+  const cv = document.getElementById('ganComparativaChart');
+  const info = document.getElementById('ganComparativaInfo');
+  if(!cv || !window.Chart) return;
+  if(window.ganComparativaChartObj) window.ganComparativaChartObj.destroy();
+
+  const total = valores.reduce((a,b)=>a+(Number(b)||0),0);
+  const totalEl = document.getElementById('ganComparativaChartTotal');
+  if(totalEl) totalEl.textContent = '$'+total.toFixed(2);
+
+  const tituloEl = document.getElementById('ganComparativaTitulo');
+  if(tituloEl) tituloEl.textContent = modo==='dia'
+    ? ('📈 GANANCIA DE ' + pvName + ' POR DÍA')
+    : '📈 GANANCIA POR PUNTO DE VENTA';
+
+  const innerWrap = document.getElementById('ganChartInnerWrap');
+  if(innerWrap){
+    const anchoDinamico = labels.length <= 6 ? '100%' : (labels.length * 68) + 'px';
+    innerWrap.style.width = anchoDinamico;
+  }
+
+  if(!labels.length){
+    window.ganComparativaChartObj = null;
+    if(innerWrap) innerWrap.style.width = '100%';
+    if(info) info.innerHTML = `<div class="smallnote" style="text-align:center">No hay datos de ganancia en ese periodo.</div>`;
+    return;
+  }
+
+  const colors = modo==='dia'
+    ? labels.map(()=> getColorPV(pvName))
+    : labels.map(nombre=> getColorPV(nombre));
+
+  window.ganComparativaChartObj = new Chart(cv, {
+    type:'bar',
+    data:{
+      labels: labels,
+      datasets:[{
+        label: modo==='dia' ? pvName : 'Ganancia',
+        data: valores,
+        backgroundColor: colors,
+        borderRadius: 10,
+        borderSkipped: false,
+        categoryPercentage:0.7,
+        barPercentage:0.62,
+        maxBarThickness:46,
+        minBarLength:2
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      layout:{ padding:{ top:28, bottom:10, left:10, right:20 } },
+      plugins:{
+        legend:{ display:false },
+        tooltip:{
+          backgroundColor:'#1e1b2e',
+          padding:12,
+          titleFont:{size:13,weight:'bold'},
+          bodyFont:{size:12.5},
+          callbacks:{ label:(c)=> ` $${Number(c.parsed.y||0).toFixed(2)}` }
+        },
+        datalabels:{
+          display: (ctx)=> Number(ctx.dataset.data[ctx.dataIndex]||0) !== 0,
+          color:'#ffffff',
+          backgroundColor:(ctx)=> Number(ctx.dataset.data[ctx.dataIndex]||0) < 0 ? 'rgba(220,38,38,.92)' : 'rgba(22,163,74,.92)',
+          borderRadius:10,
+          padding:{top:4,bottom:4,left:7,right:7},
+          anchor:'end',
+          align:'top',
+          offset:4,
+          clamp:true,
+          clip:false,
+          font:{ size:11, weight:'800' },
+          formatter:(value)=> '$'+Number(value||0).toFixed(0)
+        }
+      },
+      scales:{
+        x:{
+          offset:true,
+          ticks:{ autoSkip:false, maxRotation:55, minRotation:55, padding:8, color:'#334155', font:{size:11,weight:'bold'} },
+          grid:{ display:false }
+        },
+        y:{
+          ticks:{ padding:8, color:'#334155', font:{size:11,weight:'bold'} },
+          grid:{ color:'rgba(148,163,184,.15)' }
+        }
+      }
+    }
+  });
+
+  if(info){
+    const encabezado = modo==='dia' ? `DETALLE POR DÍA — ${escapeHtml(pvName)}` : 'DETALLE POR PUNTO DE VENTA';
+    info.innerHTML = `<div style="font-size:11px;font-weight:800;color:#7c5fe6;letter-spacing:.07em;margin-bottom:10px">${encabezado}</div>` +
+      labels.map((label,i)=>{
+        const v = Number(valores[i]||0);
+        const c = modo==='pv' ? getColorPV(label) : null;
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f1f0ff">
+          <div style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:.85rem;color:#1e1b2e">${c?`<span style="width:12px;height:12px;border-radius:50%;background:${c};flex:0 0 auto"></span>`:''}${escapeHtml(label)}</div>
+          <div style="font-weight:900;font-size:.85rem;color:${v<0?'#dc2626':'#16a34a'}">${v<0?'-':''}$${Math.abs(v).toFixed(2)}</div>
         </div>`;
       }).join('');
   }
