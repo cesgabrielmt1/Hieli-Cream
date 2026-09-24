@@ -374,7 +374,14 @@ function _applyCloudDataSmart(d){
   // ganarle a tiempo a tu guardado local y sustituir tu arreglo completo,
   // borrando esa venta de tu celular aunque ya la habías hecho. Con la
   // nube, esto es imposible de perder: solo se agrega, nunca se sustituye.
-  const __LOG_FIELDS = new Set(['sales','stockIn','merma','pvVentas','traspasos','ventasDinero']);
+  // ⚠️ "ventasDinero" NO va aquí: a diferencia de una venta (que ya pasó y
+  // nunca cambia), es UN REGISTRO POR DÍA que se sigue ACTUALIZANDO (cada
+  // vez que agregas o cambias un monto en "Gestionar PVs", o Ventas Grandes
+  // suma un monto). Tratarlo como bitácora hacía que la versión vieja de un
+  // día se quedara pegada junto a la nueva cada vez que cambiaba, duplicando
+  // el ingreso de ese día. Este campo usa el reemplazo normal (como
+  // "inventory"), protegido por la comparación de eco/baseline de abajo.
+  const __LOG_FIELDS = new Set(['sales','stockIn','merma','pvVentas','traspasos']);
 
   Object.keys(__CLOUD_FIELD_MAP).forEach(field=>{
     if(!(field in d)) return; // este campo nunca se ha guardado en la nube
@@ -5579,6 +5586,40 @@ function _renderTiendaDetalle(wrap, t){
 
 let ventasDinero = JSON.parse(localStorage.getItem("ventasDinero") || "[]");
 
+// 🩹 Reparación de una sola vez: "ventasDinero" se trató por error como
+// bitácora (ver nota junto a __LOG_FIELDS) y eso dejaba DOS registros para
+// el mismo día — uno viejo/incompleto y otro con los montos actualizados —
+// duplicando el ingreso de ese día en Productos vendidos y en Registro. Esto
+// se queda con el más completo de cada fecha (el que tiene más PVs) y quita
+// el otro.
+if(!localStorage.getItem("_dedupVentasDineroV1Done")){
+  try{
+    const porFecha = {};
+    let huboCambios = false;
+    (ventasDinero||[]).forEach(v=>{
+      const f = v && v.fecha;
+      if(!f) return;
+      const actual = porFecha[f];
+      if(!actual){ porFecha[f] = v; return; }
+      huboCambios = true;
+      const pvsActual = (actual.pvs||[]).length;
+      const pvsNuevo = (v.pvs||[]).length;
+      // Se queda con el que tenga más PVs (más completo); si empatan, el de mayor "vendido".
+      if(pvsNuevo>pvsActual || (pvsNuevo===pvsActual && (Number(v.vendido)||0)>(Number(actual.vendido)||0))){
+        porFecha[f] = v;
+      }
+    });
+    if(huboCambios){
+      ventasDinero = Object.values(porFecha).sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
+      localStorage.setItem("ventasDinero", JSON.stringify(ventasDinero));
+      setTimeout(()=>{
+        try{ window.__forzarProximoCloudSave = true; cloudSaveNow(); }catch(_){}
+      }, 3000);
+    }
+    localStorage.setItem("_dedupVentasDineroV1Done","1");
+  }catch(_){}
+}
+
 // ---- MIGRACION DE REGISTROS ANTIGUOS (para que Graficas/Reportes lean la base vieja) ----
 function _normStr(v){return (v==null?"":String(v)).trim();}
 function _normKeyFlavor(v){return _normStr(v).toLowerCase();}
@@ -6858,11 +6899,32 @@ function statsPvPoblarFiltro(){
   const sel = document.getElementById('statsPvFiltro');
   if(!sel) return;
   const prev = sel.value;
+
+  // ✅ Solo se listan los PVs que de verdad tuvieron venta (piezas o $) en
+  // el rango de fechas actual — así no te aparecen 14 opciones cuando solo
+  // 3 vendieron ese día. Si no hay fechas puestas (rango "Todo"), se listan
+  // los que alguna vez tuvieron venta, en vez de absolutamente todos los
+  // PVs que existen aunque nunca hayan vendido nada.
+  const from = normalizeISODate(document.getElementById('statsPvFrom')?.value || '');
+  const to = normalizeISODate(document.getElementById('statsPvTo')?.value || '');
+  const pvsConVenta = new Set();
+  (sales||[]).forEach(s=>{
+    if(!s.pv) return;
+    const d = normalizeISODate(s.date);
+    if(!d) return;
+    if(from && d<from) return;
+    if(to && d>to) return;
+    pvsConVenta.add(s.pv);
+  });
+
   const nombresTiendas = (tiendas||[]).map(t=>t.nombre).filter(Boolean);
   const base = (listaPVs||[]).includes('Casa') ? (listaPVs||[]) : ['Casa', ...(listaPVs||[])];
-  const pvs = [...new Set([...base, ...nombresTiendas])];
+  const todos = [...new Set([...base, ...nombresTiendas])];
+  const pvs = todos.filter(p=>pvsConVenta.has(p));
+
   sel.innerHTML = `<option value="">Todos los PVs</option>` +
     pvs.map(p=>`<option value="${escapeHtmlAttr(p)}">${escapeHtml(p)}</option>`).join('');
+  // Si el PV que tenías elegido ya no tiene venta en este rango, se regresa a "Todos".
   if(prev){
     const opt = Array.from(sel.options).find(o=>o.value===prev);
     if(opt) sel.value = prev;
@@ -6879,10 +6941,11 @@ function statsPvSetPreset(preset){
   const toEl = document.getElementById('statsPvTo');
   if(fromEl) fromEl.value = from;
   if(toEl) toEl.value = to;
+  statsPvPoblarFiltro();
   statsPvRender();
 }
 
-function statsPvCustom(){ statsPvRender(); }
+function statsPvCustom(){ statsPvPoblarFiltro(); statsPvRender(); }
 
 // Ingreso real por PV, tomado de lo que registras a mano en "Ventas" (ventasDinero.pvs),
 // para poder cruzarlo con el costo (de "sales") y sacar la ganancia por PV.
