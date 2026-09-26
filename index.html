@@ -371,13 +371,6 @@ function _applyCloudDataSmart(d){
     return;
   }
 
-  // 🛡️ Descarta ecos fuera de orden (ver __lastAppliedServerTime arriba).
-  // Se revisa DESPUÉS del reintento de arriba (no antes), para que un
-  // snapshot que solo se está esperando a que termine un guardado propio no
-  // se marque como "ya visto" antes de tiempo y luego se rechace a sí mismo
-  // en el reintento.
-  if(!_isNewerServerSnapshot(d)) return;
-
   if(!__cloudBaseline) __cloudBaseline = {};
   let changedSomething = false;
   let huboRechazoSospechoso = false;
@@ -563,36 +556,6 @@ let __cloudReady = false;
 // documento entero. Esto evita que un celular editando "Inventario" pise los
 // cambios de "Ventas" que otro celular subió unos segundos antes.
 let __cloudBaseline = null;
-
-// 🛡️ Sello de tiempo del SERVIDOR de la última versión del documento que ya
-// procesamos. La red no siempre entrega los snapshots de onSnapshot en el
-// mismo orden en que se escribieron — con dos guardados seguidos muy rápido
-// (ej. descontar y luego registrar una venta), el eco del guardado MÁS VIEJO
-// a veces llega DESPUÉS del más nuevo. La comparación por CONTENIDO contra
-// __cloudBaseline no detecta esto: un eco viejo puede "verse distinto" del
-// baseline (que ya avanzó al más nuevo) y colarse como si fuera dato nuevo,
-// regresando la pantalla a un estado anterior justo enfrente del usuario
-// ("desconté 14 y volvieron a aparecer", "la venta se borró sola"). El
-// updatedAt que pone el servidor SIEMPRE llega en orden real, así que es la
-// primera línea de defensa: cualquier snapshot más viejo (o igual) que el
-// último que ya vimos se descarta de inmediato, sin importar qué tan
-// "diferente" se vea su contenido.
-let __lastAppliedServerTime = null;
-
-function _isNewerServerSnapshot(d){
-  const ts = d && d.updatedAt;
-  if(!ts || typeof ts.toMillis !== 'function'){
-    // Sin sello de tiempo de servidor (ej. el documento se acaba de crear):
-    // no hay con qué comparar, se deja pasar.
-    return true;
-  }
-  if(!__lastAppliedServerTime || ts.toMillis() > __lastAppliedServerTime.toMillis()){
-    __lastAppliedServerTime = ts;
-    return true;
-  }
-  console.warn("cloudPull IGNORADO: snapshot más viejo (o igual) que el último ya procesado — se descarta para que un eco fuera de orden no regrese datos a un estado anterior.");
-  return false;
-}
 
 function _bumpIgnore(){
   __ignoreSnapshots++;
