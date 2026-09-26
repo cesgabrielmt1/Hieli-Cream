@@ -29,12 +29,32 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// Habilitar persistencia offline automática
+// Habilitar persistencia offline: Firestore encola las escrituras mientras
+// no hay internet y las manda solas en cuanto regresa la conexión.
 db.enablePersistence({ synchronizeTabs: true })
   .catch(err => console.warn("Persistencia offline no disponible:", err.code));
 
 const CLOUD_DOC = "hielicream-13160";
 let __isOnline = navigator.onLine;
+
+// =====================================================================
+//  NUBE: SOLO DE SUBIDA (one-way push) — NUNCA vuelve a bajar nada solo
+// =====================================================================
+// Cómo funciona ahora:
+//   1) Haces una acción (agregas, quitas, vendes, editas receta, etc.)
+//   2) Se guarda de inmediato en ESTE celular (localStorage) — igual que
+//      siempre, eso lo sigue haciendo el resto de la app.
+//   3) En cuanto queda guardado local, aquí se sube en silencio a la nube
+//      SOLO lo que cambió, nada más, como respaldo.
+// La nube ya NO tiene forma de tocar tu pantalla ni tu inventario local de
+// forma automática: no hay listener en tiempo real, no hay fusión de datos
+// remotos con los locales. Por diseño, nada externo puede hacer que un
+// número "se regrese solo" después de tocarlo, porque nunca se vuelve a
+// leer la nube para decidir qué mostrar.
+// La única excepción es el botón manual "Ver inventario en la nube" (en
+// Guardado): eso SÍ lee la nube, pero solo para mostrarte un número en
+// pantalla — nunca escribe nada en tu inventario ni en localStorage.
+// =====================================================================
 
 // ---- INDICADOR DE CONEXIÓN ----
 function updateConnectionUI(){
@@ -43,50 +63,35 @@ function updateConnectionUI(){
   if(!dot || !text) return;
   if(__isOnline){
     dot.textContent  = "🟢";
-    text.textContent = "En línea — cambios se sincronizan con la nube";
+    text.textContent = "En línea — tus cambios se suben a la nube";
   } else {
     dot.textContent  = "🔴";
     text.textContent = "Sin internet — guardando local, subirá al reconectar";
   }
 }
 
-window.addEventListener("online",  () => { __isOnline=true;  updateConnectionUI(); __snapshotUnsub=null; cloudStartListening(); cloudSave(); });
+window.addEventListener("online",  () => { __isOnline=true;  updateConnectionUI(); _retryPendingCloudSaveIfAny(); });
 window.addEventListener("offline", () => { __isOnline=false; updateConnectionUI(); updateCloudStamp("📴 Sin internet (guardado local)"); });
 document.addEventListener("DOMContentLoaded", updateConnectionUI);
 
-// ---- GUARDAR EN NUBE ----
+// ---- SUBIR A LA NUBE (solo subida) ----
 let __cloudSaveTimer = null;
 
 // Inmediato: para ventas/inventario
-function cloudSaveNow(){
-  _doCloudSave();
-}
+function cloudSaveNow(){ _doCloudSave(); }
 
-// Con pequeño delay: para ediciones de texto
+// Con pequeño delay: para ediciones de texto (agrupa varias teclas seguidas
+// en una sola subida en vez de una por cada letra)
 function cloudSaveSoon(){
-  // 🛡️ Se marca "hay un guardado pendiente" DE INMEDIATO (no hasta que el
-  // timer dispare). Antes, durante estos 2 segundos de espera, __pendingCloudSave
-  // seguía en false, así que si llegaba un eco de la nube en ese hueco
-  // (ej. justo después de agregar un insumo nuevo o editar su CU),
-  // _applyCloudDataSmart no tenía forma de saber que había un cambio local
-  // sin subir todavía y lo pisaba con la versión vieja — el insumo/receta/
-  // sabor "se veía guardado un momento y luego desaparecía". Con el flag
-  // puesto desde ya, _applyCloudDataSmart espera y reintenta en vez de pisar.
   __pendingCloudSave = true;
   clearTimeout(__cloudSaveTimer);
   __cloudSaveTimer = setTimeout(_doCloudSave, 2000);
 }
 
 // Con delay corto: para toques de +/- en inventario. Si tocas varias veces
-// muy rápido, esto agrupa todos esos toques en UN SOLO guardado a la nube en
-// vez de mandar un guardado por cada toque. Eso evita que lleguen varias
-// confirmaciones del servidor fuera de orden (lo que hacía que el contador
-// "se volviera loco": subía y luego bajaba solo).
+// muy rápido, agrupa todos esos toques en UNA sola subida a la nube.
 let __qtySaveTimer = null;
 function cloudSaveQtyDebounced(){
-  // 🛡️ Mismo hueco que cloudSaveSoon, pero de 550ms: se marca pendiente
-  // desde ya para que un eco de la nube que llegue durante la espera no
-  // pise el toque +/- que todavía no se sube.
   __pendingCloudSave = true;
   clearTimeout(__qtySaveTimer);
   __qtySaveTimer = setTimeout(_doCloudSave, 550);
@@ -102,608 +107,154 @@ document.addEventListener('visibilitychange', () => {
 
 function cloudSave(){ _doCloudSave(); }
 
-// Botón de emergencia en Guardado: solo se usa cuando el guardado
-// automático se bloqueó por la red de seguridad anti-destrucción (ver
-// _doCloudSave). Pide confirmación explícita antes de subir de todos modos.
+// Botón en Guardado: fuerza una subida inmediata (ya no existe el bloqueo
+// automático de antes, porque ya no se compara contra la nube para subir).
 async function forzarSincronizacionManual(){
-  const ok = await AppUI.confirm(
-    "Vas a subir el inventario de ESTE celular a la nube tal como está ahora mismo, aunque sea mucho más chico que lo que ya había.\n\n¿Estás seguro de que borraste varios sabores a propósito y quieres que la nube quede así?",
-    {title:'Forzar subida', danger:true}
-  );
-  if(!ok) return;
-  window.__forzarProximoCloudSave = true;
+  updateCloudStamp("☁️ Subiendo...");
   _doCloudSave();
 }
 
-let __pendingCloudSave = false; // hubo un cambio mientras __cloudReady era false: reintentar en cuanto se confirme la nube
-let __pendingQtyDeltas = {}; // { nombreSabor: sumaDeToquesPendientes } — se reaplican ENCIMA de la nube, nunca la pisan
+let __pendingCloudSave = false;   // hubo un cambio mientras estábamos offline: reintentar al reconectar
+let __cloudSaveInFlight = false;  // ya hay una subida en camino
+let __cloudSaveQueued   = false;  // llegó otro cambio mientras la subida anterior seguía en camino
 
-// 🛡️ Cola de escritura: si tocas varias cosas muy rápido (ej. "Regresaste"
-// dos veces seguidas), antes podían salir DOS guardados a la nube casi al
-// mismo tiempo. Si por lo que sea el de datos VIEJOS llegaba al servidor
-// DESPUÉS que el de datos nuevos (la red no siempre entrega en orden), lo
-// viejo pisaba lo nuevo — y tu pantalla, al recibir ese eco, "regresaba"
-// solita a un número anterior unos segundos después. Ahora solo se manda
-// UNA subida a la vez: si llega otro cambio mientras la anterior sigue en
-// camino, se espera a que termine y se manda de nuevo leyendo los datos
-// MÁS RECIENTES en ese momento (nunca los de cuando se encoló).
-let __cloudSaveInFlight = false;
-let __cloudSaveQueued = false;
+// Todo lo que este celular sube a la nube (solo subida, nunca se descarga)
+const __CLOUD_FIELDS = {
+  inventory:'inventory', sales:'sales', stockIn:'stockIn_v1', merma:'merma_v1',
+  ventasDinero:'ventasDinero', listaPVs:'listaPVs', pvColores:'pvColores',
+  cu_catalog:'cu_catalog_v1', cu_recipes:'cu_recipes_v1',
+  compras_plan:'compras_plan_v1', compras_have:'compras_have_v1',
+  tiendas:'tiendas_v1', traspasos:'traspasos_v1', pvVentas:'pvVentas_v1'
+};
+const __CLOUD_OBJ_KEYS = new Set(['pvColores','cu_recipes','compras_plan','compras_have']); // estos son objetos {}, el resto son listas []
 
-function _cloudFieldKey(field, row){
-  try{
-    if(field==='inventory') return toUpperSafe(row && row.name);
-    if(field==='listaPVs') return 'PV:'+String(row||'').trim().toUpperCase();
-    if(field==='pvColores') return String(row||'').trim().toUpperCase();
-    if(field==='cu_catalog') return 'CAT:'+toUpperSafe(row && row.name);
-    if(field==='cu_recipes') return 'REC:'+String(row||'').trim().toUpperCase();
-    return _logRowKey(row);
-  }catch(_){ return JSON.stringify(row); }
+function _readLocalCloudState(){
+  const local = {};
+  Object.keys(__CLOUD_FIELDS).forEach(field=>{
+    const storageKey = __CLOUD_FIELDS[field];
+    const fallback = __CLOUD_OBJ_KEYS.has(field) ? "{}" : "[]";
+    try{ local[field] = JSON.parse(localStorage.getItem(storageKey) || fallback); }
+    catch(_){ local[field] = __CLOUD_OBJ_KEYS.has(field) ? {} : []; }
+  });
+  return local;
 }
 
-// Fusiona BASE + LOCAL + NUBE sin que una versión vieja pueda borrar un
-// cambio hecho en otro dispositivo. Regla: si solo un lado cambió, gana ese
-// lado; si ambos cambiaron cosas distintas, se conservan ambas. Si ambos
-// tocaron exactamente la misma fila, el cambio local se conserva y la nube
-// se incorpora solo cuando no hay conflicto.
-function _threeWayMergeField(field, base, local, remote){
-  const isArr = Array.isArray(local) || Array.isArray(remote) || Array.isArray(base);
-  if(isArr){
-    const B=Array.isArray(base)?base:[];
-    const L=Array.isArray(local)?local:[];
-    const R=Array.isArray(remote)?remote:[];
-    const bm=new Map(B.map(x=>[_cloudFieldKey(field,x),x]));
-    const lm=new Map(L.map(x=>[_cloudFieldKey(field,x),x]));
-    const rm=new Map(R.map(x=>[_cloudFieldKey(field,x),x]));
-    const keys=new Set([...bm.keys(),...lm.keys(),...rm.keys()]);
-    const out=[];
-    for(const k of keys){
-      const b=bm.get(k), l=lm.get(k), r=rm.get(k);
-      const bs=JSON.stringify(b), ls=JSON.stringify(l), rs=JSON.stringify(r);
-      let chosen;
-      if(ls===bs) chosen=r;
-      else if(rs===bs) chosen=l;
-      else if(ls===rs) chosen=l;
-      else if(field==='inventory' && b && l && r){
-        // Para cantidad de inventario, dos celulares pueden tocar el mismo
-        // sabor al mismo tiempo (+/-/venta). En vez de que uno pise al otro,
-        // sumamos ambos DELTAS respecto a la base confirmada.
-        const bo=Number(b.qty)||0, lo=Number(l.qty)||0, ro=Number(r.qty)||0;
-        chosen=Object.assign({}, r, l, {qty:Math.max(0, bo+(lo-bo)+(ro-bo))});
-      } else {
-        // Conflicto real sobre la misma fila: conservamos el cambio local.
-        chosen=l;
-      }
-      if(chosen!==undefined) out.push(chosen);
-    }
-    return out;
-  }
-  if(base && typeof base==='object' && local && typeof local==='object' && remote && typeof remote==='object'){
-    const out={};
-    const keys=new Set([...Object.keys(base),...Object.keys(local),...Object.keys(remote)]);
-    for(const k of keys){
-      const b=base[k], l=local[k], r=remote[k];
-      const bs=JSON.stringify(b), ls=JSON.stringify(l), rs=JSON.stringify(r);
-      if(ls===bs){ if(r!==undefined) out[k]=r; }
-      else if(rs===bs){ if(l!==undefined) out[k]=l; }
-      else if(ls===rs){ if(l!==undefined) out[k]=l; }
-      else { if(l!==undefined) out[k]=l; }
-    }
-    return out;
-  }
-  return JSON.stringify(local)===JSON.stringify(base) ? remote : local;
-}
+// Último estado que ya sabemos que quedó subido, para solo mandar lo que de
+// verdad cambió desde entonces (no todo el documento cada vez).
+let __cloudLastSynced = null;
 
 function _doCloudSave(){
-  if(!__cloudReady){
-    updateCloudStamp("☁️ Sincronizando... (esperando nube antes de guardar)");
-    __pendingCloudSave=true;
+  if(!__isOnline){
+    __pendingCloudSave = true;
+    updateCloudStamp("📴 Sin internet (guardado local)");
     return;
   }
-  if(__cloudSaveInFlight){ __cloudSaveQueued=true; return; }
+  if(__cloudSaveInFlight){ __cloudSaveQueued = true; return; }
 
-  __pendingCloudSave=false;
+  __pendingCloudSave = false;
   try{
-    const local={
-      inventory:JSON.parse(localStorage.getItem("inventory")||"[]"),
-      sales:JSON.parse(localStorage.getItem("sales")||"[]"),
-      stockIn:JSON.parse(localStorage.getItem("stockIn_v1")||"[]"),
-      merma:JSON.parse(localStorage.getItem("merma_v1")||"[]"),
-      ventasDinero:JSON.parse(localStorage.getItem("ventasDinero")||"[]"),
-      listaPVs:JSON.parse(localStorage.getItem("listaPVs")||"[]"),
-      pvColores:JSON.parse(localStorage.getItem("pvColores")||"{}"),
-      cu_catalog:JSON.parse(localStorage.getItem("cu_catalog_v1")||"[]"),
-      cu_recipes:JSON.parse(localStorage.getItem("cu_recipes_v1")||"{}"),
-      compras_plan:JSON.parse(localStorage.getItem("compras_plan_v1")||"{}"),
-      compras_have:JSON.parse(localStorage.getItem("compras_have_v1")||"{}"),
-      tiendas:JSON.parse(localStorage.getItem("tiendas_v1")||"[]"),
-      traspasos:JSON.parse(localStorage.getItem("traspasos_v1")||"[]"),
-      pvVentas:JSON.parse(localStorage.getItem("pvVentas_v1")||"[]")
-    };
+    const local = _readLocalCloudState();
 
-    const changed=[];
-    Object.keys(local).forEach(k=>{
-      const b=__cloudBaseline ? __cloudBaseline[k] : undefined;
-      if(JSON.stringify(local[k])!==JSON.stringify(b)) changed.push(k);
+    const changed = [];
+    Object.keys(local).forEach(field=>{
+      const prev = __cloudLastSynced ? __cloudLastSynced[field] : undefined;
+      if(JSON.stringify(local[field]) !== JSON.stringify(prev)) changed.push(field);
     });
     if(!changed.length){ updateCloudStamp("☁️ Sincronizado"); return; }
 
-    window.__cloudSaveBloqueadoPorSeguridad=false;
-    window.__forzarProximoCloudSave=false;
-    try{ const w=document.getElementById('ioSyncBlockedWarning'); if(w) w.style.display='none'; }catch(_){}
+    __cloudSaveInFlight = true;
+    updateCloudStamp("☁️ Subiendo...");
+    const ref = db.collection("data").doc(CLOUD_DOC);
+    const payload = { updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+    changed.forEach(field=>{ payload[field] = local[field]; });
 
-    __cloudSaveInFlight=true;
-    const ref=db.collection("data").doc(CLOUD_DOC);
-    db.runTransaction(async tx=>{
-      const snap=await tx.get(ref);
-      const server=snap.exists ? (snap.data()||{}) : {};
-      const payload={updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
-      const mergedForBaseline=Object.assign({},server);
-      changed.forEach(field=>{
-        const base=__cloudBaseline ? __cloudBaseline[field] : undefined;
-        const remote=server[field]!==undefined ? server[field] : (Array.isArray(local[field])?[]:{});
-        const merged=_threeWayMergeField(field,base,local[field],remote);
-        payload[field]=merged;
-        mergedForBaseline[field]=merged;
-      });
-      tx.set(ref,payload,{merge:true});
-      return {mergedForBaseline};
-    }).then(result=>{
-      const merged=result && result.mergedForBaseline ? result.mergedForBaseline : local;
-      const storageMap={inventory:'inventory',sales:'sales',stockIn:'stockIn_v1',merma:'merma_v1',ventasDinero:'ventasDinero',listaPVs:'listaPVs',pvColores:'pvColores',cu_catalog:'cu_catalog_v1',cu_recipes:'cu_recipes_v1',compras_plan:'compras_plan_v1',compras_have:'compras_have_v1',tiendas:'tiendas_v1',traspasos:'traspasos_v1',pvVentas:'pvVentas_v1'};
-      // No re-renderizamos toda la aplicación después de cada escritura.
-      // La pantalla ya fue actualizada por la acción local que originó este
-      // guardado. Solo escribimos en localStorage los campos cuyo resultado
-      // de la transacción realmente difiere de lo que había localmente.
-      // Esto evita el parpadeo y, sobre todo, evita recalcular todas las
-      // tarjetas/gráficas después de cada toque.
-      let remoteChanged=false;
-      Object.keys(storageMap).forEach(field=>{
-        if(!(field in merged)) return;
-        const storageKey=storageMap[field];
-        try{
-          const next=JSON.stringify(merged[field]);
-          const prev=localStorage.getItem(storageKey);
-          if(next!==prev){
-            localStorage.setItem(storageKey,next);
-            remoteChanged=true;
-          }
-        }catch(_){}
-      });
-      __cloudBaseline=Object.assign({},__cloudBaseline||{},merged);
-      if(remoteChanged){
-        try{
-          inventory=JSON.parse(localStorage.getItem("inventory")||"[]");
-          sales=JSON.parse(localStorage.getItem("sales")||"[]");
-          stockIn=JSON.parse(localStorage.getItem("stockIn_v1")||"[]");
-          merma=JSON.parse(localStorage.getItem("merma_v1")||"[]");
-          ventasDinero=JSON.parse(localStorage.getItem("ventasDinero")||"[]");
-          listaPVs=JSON.parse(localStorage.getItem("listaPVs")||"[]");
-          pvColores=JSON.parse(localStorage.getItem("pvColores")||"{}");
-          tiendas=JSON.parse(localStorage.getItem("tiendas_v1")||"[]");
-          traspasos=JSON.parse(localStorage.getItem("traspasos_v1")||"[]");
-          if(typeof pvVentas!=='undefined') pvVentas=JSON.parse(localStorage.getItem("pvVentas_v1")||"[]");
-          // Solo actualizamos la vista cuando la transacción incorporó un
-          // cambio procedente de otro estado, no en cada guardado propio.
-          render();
-        }catch(_){ }
-      }
+    ref.set(payload, { merge: true }).then(()=>{
+      __cloudLastSynced = Object.assign({}, __cloudLastSynced || {}, local);
       updateCloudStamp("☁️ Sincronizado");
     }).catch(e=>{
-      console.warn("cloudSave error:",e);
+      console.warn("cloudSave error:", e);
+      __pendingCloudSave = true;
       updateCloudStamp("⚠️ Sin conexión (guardado local)");
     }).finally(()=>{
-      __cloudSaveInFlight=false;
-      if(__cloudSaveQueued){ __cloudSaveQueued=false; _doCloudSave(); }
+      __cloudSaveInFlight = false;
+      if(__cloudSaveQueued){ __cloudSaveQueued = false; _doCloudSave(); }
     });
-  }catch(e){ console.warn("cloudSave error:",e); __cloudSaveInFlight=false; }
-}
-
-// ---- CARGAR DESDE NUBE ----
-// ---- ESCUCHAR CAMBIOS EN TIEMPO REAL (onSnapshot) ----
-function _applyCloudData(d){
-  if(d.inventory)    localStorage.setItem("inventory",       JSON.stringify(d.inventory));
-  if(d.sales)        localStorage.setItem("sales",           JSON.stringify(d.sales));
-  if(d.ventasDinero) localStorage.setItem("ventasDinero",    JSON.stringify(d.ventasDinero));
-  if(d.listaPVs)     localStorage.setItem("listaPVs",        JSON.stringify(d.listaPVs));
-  if(d.pvColores)    localStorage.setItem("pvColores",       JSON.stringify(d.pvColores));
-  if(d.cu_catalog)   localStorage.setItem("cu_catalog_v1",   JSON.stringify(d.cu_catalog));
-  if(d.cu_recipes)   localStorage.setItem("cu_recipes_v1",   JSON.stringify(d.cu_recipes));
-  if(d.compras_plan) localStorage.setItem("compras_plan_v1", JSON.stringify(d.compras_plan));
-  if(d.compras_have) localStorage.setItem("compras_have_v1", JSON.stringify(d.compras_have));
-  if(d.vg_pedidos)   localStorage.setItem("vg_pedidos_v1",   JSON.stringify(d.vg_pedidos));
-
-  // Guardamos esta versión como la "última confirmada por la nube" para
-  // que el próximo guardado sepa qué módulos realmente cambiaron localmente
-  // y suba solo esos (ver _doCloudSave).
-  // El baseline debe contener TODOS los campos que maneja el mapa. Si falta
-  // uno aquí, el próximo guardado lo considera siempre "cambiado" y podría
-  // volver a subir una copia local vieja.
-  __cloudBaseline = {};
-  Object.keys(__CLOUD_FIELD_MAP).forEach(field=>{
-    const storageKey=__CLOUD_FIELD_MAP[field];
-    const fallback=Array.isArray(d[field]) ? [] : {};
-    __cloudBaseline[field] = (field in d) ? d[field] : fallback;
-  });
-  if('vg_pedidos' in d) __cloudBaseline.vg_pedidos=d.vg_pedidos||[];
-
-  try{
-    inventory    = JSON.parse(localStorage.getItem("inventory")    || "[]");
-    sales        = JSON.parse(localStorage.getItem("sales")        || "[]");
-    ventasDinero = JSON.parse(localStorage.getItem("ventasDinero") || "[]");
-    listaPVs     = JSON.parse(localStorage.getItem("listaPVs")     || "[]");
-    pvColores    = JSON.parse(localStorage.getItem("pvColores")    || "{}");
-    if(typeof __vgPedidos !== 'undefined'){
-      __vgPedidos = JSON.parse(localStorage.getItem("vg_pedidos_v1") || "[]");
-      try{ vgRender && vgRender(); }catch(_){}
-      try{ vgRenderPedidos && vgRenderPedidos(); }catch(_){}
-    }
-    render();
-    try{ renderVentas && renderVentas(); }catch(_){}
-    try{ renderVentasChart && renderVentasChart(); }catch(_){}
-    try{ actualizarTextoVentaBtn && actualizarTextoVentaBtn(); }catch(_){}
-    try{ renderPVChart && renderPVChart(); }catch(_){}
-    try{ actualizarApartadosBadge && actualizarApartadosBadge(); }catch(_){}
-  }catch(e){ console.warn("applyCloudData:", e); }
-}
-
-// Mapa: nombre del campo en el documento de Firestore -> llave en localStorage
-const __CLOUD_FIELD_MAP = {
-  inventory:'inventory', sales:'sales', ventasDinero:'ventasDinero', listaPVs:'listaPVs',
-  pvColores:'pvColores', cu_catalog:'cu_catalog_v1', cu_recipes:'cu_recipes_v1',
-  compras_plan:'compras_plan_v1', compras_have:'compras_have_v1',
-  // vg_pedidos: fuera de este mapa a propósito — no se recibe por pull
-  // automático (ver nota en _doCloudSave). Solo se actualiza cuando ESTE
-  // dispositivo hace vgPushPedidosToCloud() al vender/eliminar un pedido.
-  // (Antes "tiendas" también estuvo excluido de aquí, pero eso resultó peor:
-  // un celular que abre la app con una copia vieja de Tiendas guardada nunca
-  // la actualizaba, y esa copia vieja terminaba subiéndose y PISANDO lo que
-  // otro celular había guardado más reciente. Ahora "tiendas" sí se recibe
-  // por pull normal, protegido por la misma comparación de eco/baseline que
-  // usa "inventory" — y saveTiendas() ahora sube de inmediato en vez de con
-  // 2s de retraso, para cerrar la ventana de tiempo donde podía "regresarse"
-  // solo mientras vendías/descontabas.)
-  tiendas:'tiendas_v1',
-  stockIn:'stockIn_v1', merma:'merma_v1', traspasos:'traspasos_v1', pvVentas:'pvVentas_v1'
-};
-
-// ✅ Versión "inteligente": en vez de adivinar con un contador si un snapshot
-// es "mío" o "de otro celular", compara el CONTENIDO campo por campo:
-//  - Si el dato que llega es IGUAL a lo que ya tengo local -> no hay nada
-//    que hacer (puede ser mi propio eco, o casualmente lo mismo).
-//  - Si es igual a lo último que sabía que había en el servidor (baseline)
-//    pero DISTINTO a mi local -> es un eco VIEJO de mi propio guardado que ya
-//    superé con un cambio más reciente -> se ignora (mi local manda).
-//  - Si es distinto a ambos -> es de verdad dato nuevo (otro celular, o la
-//    primera carga real) -> se aplica.
-// Esto evita reconstruir toda la pantalla (y el "sube y baja" del contador)
-// cada vez que se confirma un guardado propio — solo se toca lo que de
-// verdad cambió por fuera.
-// Clave de identidad de una fila SIN IMPORTAR el orden en que se guardaron
-// sus propiedades. JSON.stringify(obj) depende del orden de inserción de las
-// llaves — dos ventas con el MISMO contenido pero armadas por rutas de
-// código distintas (ej. una con {qty, producto,...} y otra con
-// {producto, qty,...}) producían strings distintos y NO se reconocían como
-// la misma fila al unir. Eso fue lo que infló los totales: la unión creía
-// que eran dos ventas diferentes y las dejaba las dos.
-function _canonKey(obj){
-  if(obj===null || typeof obj!=='object') return JSON.stringify(obj);
-  if(Array.isArray(obj)) return '['+obj.map(_canonKey).join(',')+']';
-  const keys = Object.keys(obj).sort();
-  return '{'+keys.map(k=>JSON.stringify(k)+':'+_canonKey(obj[k])).join(',')+'}';
-}
-
-// Igual que _canonKey, pero ADEMÁS ignora campos puramente derivados/
-// calculados (como "productKey", que solo se recalcula del nombre del
-// producto cada vez que abres la app — ver migrateSalesArray). Sin esto, la
-// MISMA venta ya migrada en un celular (con productKey) y todavía sin migrar
-// en otro (sin productKey) se veían como DOS ventas distintas al unir datos
-// de la nube, y se quedaban duplicadas las dos — eso fue lo que hizo que 28
-// piezas vendidas terminaran contadas como 56.
-const _CAMPOS_DERIVADOS_VENTA = new Set(['productKey']);
-function _logRowKey(obj){
-  if(obj===null || typeof obj!=='object') return JSON.stringify(obj);
-  if(Array.isArray(obj)) return '['+obj.map(_logRowKey).join(',')+']';
-  const keys = Object.keys(obj).filter(k=>!_CAMPOS_DERIVADOS_VENTA.has(k)).sort();
-  return '{'+keys.map(k=>JSON.stringify(k)+':'+_logRowKey(obj[k])).join(',')+'}';
-}
-
-function _applyCloudDataSmart(d){
-  // 🛡️ Si TODAVÍA tenemos un guardado nuestro en camino (o encolado) hacia
-  // la nube, este dato que acaba de llegar puede ser de ANTES de ese
-  // guardado — aplicarlo ahora borraría en la pantalla algo que acabas de
-  // hacer (ej. una venta) aunque ya esté a salvo en tu celular. Se reintenta
-  // en un momento, cuando ya no haya nada nuestro pendiente de confirmar.
-  // Si hay una escritura propia en curso, este snapshot puede ser el estado
-  // anterior que Firestore entrega mientras termina la transacción. No lo
-  // reprocesamos en bucle: la confirmación de la transacción y el siguiente
-  // snapshot traerán el estado definitivo.
-  if(__cloudSaveInFlight) return;
-
-  if(!__cloudBaseline) __cloudBaseline = {};
-  let changedSomething = false;
-  let huboRechazoSospechoso = false;
-
-  // Campos donde una caída brusca de tamaño es más probable que sea un
-  // dispositivo con datos viejos pisando lo nuevo, que un borrado real.
-  const __antiDestruccionPull = { inventory:3, sales:5, ventasDinero:5 };
-
-  // 🛡️ Campos tipo "bitácora" (una fila = una venta/entrada/merma/etc. que
-  // ya pasó): a estos NUNCA se les reemplaza el arreglo completo con lo que
-  // manda la nube — se UNEN (todo lo local + todo lo entrante, sin
-  // duplicar filas idénticas). Antes, si vendías 2 sabores casi al mismo
-  // tiempo, un eco de la nube que todavía no traía la segunda venta podía
-  // ganarle a tiempo a tu guardado local y sustituir tu arreglo completo,
-  // borrando esa venta de tu celular aunque ya la habías hecho. Con la
-  // nube, esto es imposible de perder: solo se agrega, nunca se sustituye.
-  // ⚠️ "ventasDinero" NO va aquí: a diferencia de una venta (que ya pasó y
-  // nunca cambia), es UN REGISTRO POR DÍA que se sigue ACTUALIZANDO (cada
-  // vez que agregas o cambias un monto en "Gestionar PVs", o Ventas Grandes
-  // suma un monto). Tratarlo como bitácora hacía que la versión vieja de un
-  // día se quedara pegada junto a la nueva cada vez que cambiaba, duplicando
-  // el ingreso de ese día. Este campo usa el reemplazo normal (como
-  // "inventory"), protegido por la comparación de eco/baseline de abajo.
-  const __LOG_FIELDS = new Set();
-
-  Object.keys(__CLOUD_FIELD_MAP).forEach(field=>{
-    if(!(field in d)) return; // este campo nunca se ha guardado en la nube
-    const storageKey = __CLOUD_FIELD_MAP[field];
-    const incomingVal = d[field];
-    const esArray = Array.isArray(incomingVal);
-
-    let localVal;
-    try{ localVal = JSON.parse(localStorage.getItem(storageKey) || (esArray?"[]":"{}")); }
-    catch(_){ localVal = esArray ? [] : {}; }
-
-    const incomingStr = JSON.stringify(incomingVal);
-    const localStr    = JSON.stringify(localVal);
-
-    if(incomingStr !== localStr){
-      const baselineVal = __cloudBaseline[field];
-      const baselineStr = baselineVal===undefined ? undefined : JSON.stringify(baselineVal);
-      if(incomingStr !== baselineStr){
-        // 🛡️ Antes de aplicar, revisar que no sea una caída sospechosa
-        // (ej. 491 ventas locales -> 482 llegando de la nube): eso no puede
-        // pasar que lo viejo sustituya lo nuevo, así que se ignora y se
-        // reprograma una subida correctiva con lo bueno que ya tenemos local.
-        const minAntes = __antiDestruccionPull[field];
-        if(minAntes && esArray && Array.isArray(localVal) && localVal.length >= minAntes && incomingVal.length < localVal.length * 0.5){
-          console.warn(`cloudPull IGNORADO: ${field} de la nube trae ${incomingVal.length} mientras que local tiene ${localVal.length} — se ignora para no pisar lo nuevo con lo viejo.`);
-          huboRechazoSospechoso = true;
-          // no se aplica localmente y NO se actualiza el baseline de este
-          // campo, para que el próximo guardado vuelva a subir lo bueno.
-          return;
-        }
-        if(esArray && __LOG_FIELDS.has(field) && Array.isArray(localVal)){
-          // Une local + entrante por IDENTIDAD de cada fila (sin importar el
-          // orden de sus propiedades ni campos derivados como productKey),
-          // sin reemplazar el arreglo — así una venta local reciente nunca
-          // desaparece por un eco de la nube que todavía no la traía, y una
-          // fila ya presente en ambos lados no se duplica solo porque se
-          // guardó con otro orden o le falta/sobra un campo calculado.
-          const seen = new Set(localVal.map(r=>_logRowKey(r)));
-          const merged = localVal.slice();
-          (incomingVal||[]).forEach(r=>{
-            const k = _logRowKey(r);
-            if(!seen.has(k)){ seen.add(k); merged.push(r); }
-          });
-          const mergedStr = JSON.stringify(merged);
-          if(mergedStr !== localStr){
-            localStorage.setItem(storageKey, mergedStr);
-            changedSomething = true;
-          }
-        } else if(field==='inventory' && Array.isArray(localVal)){
-          // 🛡️ Un sabor NUEVO que agregaste aquí, o uno que otro celular
-          // todavía no conoce, nunca desaparece: si "incoming" no lo trae,
-          // se conserva tal como está en local (con su cantidad). Para los
-          // sabores que SÍ vienen en ambos lados, se respeta "incoming"
-          // (validado arriba contra baseline/anti-destrucción) — esto solo
-          // evita que un sabor entero se BORRE por venir de un celular con
-          // datos más viejos.
-          const nombresIncoming = new Set((incomingVal||[]).map(p=>toUpperSafe(p && p.name)));
-          const faltantes = localVal.filter(p=>!nombresIncoming.has(toUpperSafe(p && p.name)));
-          const merged = faltantes.length ? [...(incomingVal||[]), ...faltantes] : (incomingVal||[]);
-          const mergedStr = JSON.stringify(merged);
-          if(mergedStr !== localStr){
-            localStorage.setItem(storageKey, mergedStr);
-            changedSomething = true;
-          }
-        } else if(field==='cu_catalog'){
-          // Mismo problema con insumos del Costo Unitario: se usa el mismo
-          // "merge sin perder datos" que ya existía para importar backups.
-          const merged = mergeCuCatalog(localVal, incomingVal);
-          const mergedStr = JSON.stringify(merged);
-          if(mergedStr !== localStr){
-            localStorage.setItem(storageKey, mergedStr);
-            changedSomething = true;
-          }
-        } else if(field==='cu_recipes'){
-          const merged = mergeCuRecipes(localVal, incomingVal);
-          const mergedStr = JSON.stringify(merged);
-          if(mergedStr !== localStr){
-            localStorage.setItem(storageKey, mergedStr);
-            changedSomething = true;
-          }
-        } else {
-          // Dato realmente nuevo — se aplica
-          localStorage.setItem(storageKey, incomingStr);
-          changedSomething = true;
-        }
-      }
-      // si incomingStr === baselineStr: eco viejo ya superado localmente -> se ignora
-    }
-
-    // El baseline siempre refleja el último valor real que sabemos que
-    // tiene el servidor para este campo (independientemente de si lo
-    // aplicamos o no) — así el próximo guardado sabe qué le falta subir.
-    __cloudBaseline[field] = incomingVal;
-  });
-
-  if(huboRechazoSospechoso){
-    try{ AppUI.toast("⚠️ Llegó un dato viejo desde otro celular y lo ignoramos para proteger tu información más reciente."); }catch(_){}
-    // Forzar una subida correctiva para que la nube quede con lo bueno.
-    window.__forzarProximoCloudSave = true;
-    setTimeout(()=>{ try{ _doCloudSave(); }catch(_){} }, 1200);
+  }catch(e){
+    console.warn("cloudSave error:", e);
+    __cloudSaveInFlight = false;
   }
-
-  if(!changedSomething) return;
-
-  try{
-    inventory    = JSON.parse(localStorage.getItem("inventory")    || "[]");
-    sales        = JSON.parse(localStorage.getItem("sales")        || "[]");
-    stockIn      = JSON.parse(localStorage.getItem("stockIn_v1")   || "[]");
-    merma        = JSON.parse(localStorage.getItem("merma_v1")     || "[]");
-    ventasDinero = JSON.parse(localStorage.getItem("ventasDinero") || "[]");
-    listaPVs     = JSON.parse(localStorage.getItem("listaPVs")     || "[]");
-    pvColores    = JSON.parse(localStorage.getItem("pvColores")    || "{}");
-    tiendas      = JSON.parse(localStorage.getItem("tiendas_v1")   || "[]");
-    traspasos    = JSON.parse(localStorage.getItem("traspasos_v1") || "[]");
-    if(typeof pvVentas !== 'undefined') pvVentas = JSON.parse(localStorage.getItem("pvVentas_v1") || "[]");
-    if(typeof __vgPedidos !== 'undefined'){
-      __vgPedidos = JSON.parse(localStorage.getItem("vg_pedidos_v1") || "[]");
-      try{ vgRender && vgRender(); }catch(_){}
-      try{ vgRenderPedidos && vgRenderPedidos(); }catch(_){}
-    }
-    render();
-    try{
-      const dbSheetEl = document.getElementById("editDbSheet");
-      if(dbSheetEl && dbSheetEl.classList.contains("active")){ renderSalesDB(); try{ renderTraspasosDB(); }catch(_){} }
-    }catch(_){}
-    try{
-      const mermaSheetEl = document.getElementById("mermaSheet");
-      if(mermaSheetEl && mermaSheetEl.classList.contains("active")) renderMerma();
-    }catch(_){}
-    try{
-      const tiendasSheetEl = document.getElementById("tiendasSheet");
-      if(tiendasSheetEl && tiendasSheetEl.classList.contains("active")) renderTiendas();
-    }catch(_){}
-    try{ renderVentas && renderVentas(); }catch(_){}
-    try{ renderVentasChart && renderVentasChart(); }catch(_){}
-    try{ actualizarTextoVentaBtn && actualizarTextoVentaBtn(); }catch(_){}
-    try{ renderPVChart && renderPVChart(); }catch(_){}
-    try{ actualizarApartadosBadge && actualizarApartadosBadge(); }catch(_){}
-  }catch(e){ console.warn("applyCloudDataSmart:", e); }
-}
-
-let __snapshotUnsub = null;
-// Usamos CONTADOR en vez de boolean: cada save suma 1, cada snapshot resta 1
-// Así si tocas 5 veces rápido, se ignoran exactamente 5 snapshots propios
-let __ignoreSnapshots = 0;
-let __ignoreResetTimer = null;
-
-// ---- CANDADO ANTI-SOBRESCRITURA ----
-// Un dispositivo que estuvo cerrado mucho tiempo abre con datos VIEJOS en su
-// localStorage (y hasta en la caché local de Firestore). Si ese dispositivo
-// sube a la nube ANTES de haber confirmado los datos reales del servidor,
-// pisa (sobrescribe) los datos más nuevos que otros dispositivos ya subieron.
-// __cloudReady solo pasa a true cuando confirmamos datos del SERVIDOR
-// (doc.metadata.fromCache === false), nunca con datos de caché local.
-let __cloudReady = false;
-// Snapshot del último estado confirmado en la nube, por módulo. Se usa para
-// saber, al guardar, cuáles módulos cambiaron realmente en ESTE dispositivo
-// desde la última sincronización — así solo se suben esos, en vez de todo el
-// documento entero. Esto evita que un celular editando "Inventario" pise los
-// cambios de "Ventas" que otro celular subió unos segundos antes.
-let __cloudBaseline = null;
-
-function _bumpIgnore(){
-  __ignoreSnapshots++;
-  // Seguro: si en 8s no llegaron todos los snapshots, resetear
-  clearTimeout(__ignoreResetTimer);
-  __ignoreResetTimer = setTimeout(() => { __ignoreSnapshots = 0; }, 8000);
 }
 
 function _retryPendingCloudSaveIfAny(){
   if(__pendingCloudSave) _doCloudSave();
 }
 
-// Reaplica ENCIMA de los datos frescos de la nube solo los toques de +/- que
-// se hicieron antes de confirmar conexión (nunca al revés). Así nunca se pisa
-// algo más nuevo de otro celular: la nube manda, y tu toque se suma después.
-function _replayPendingQtyDeltas(){
-  const names = Object.keys(__pendingQtyDeltas);
-  if(names.length===0) return;
-  names.forEach(name=>{
-    const delta = __pendingQtyDeltas[name];
-    const idx = inventory.findIndex(p=>p.name===name);
-    if(idx>-1) inventory[idx].qty = Math.max(0, (inventory[idx].qty||0) + delta);
-  });
-  __pendingQtyDeltas = {};
-  try{ render(); }catch(_){}
-  saveSilent();
-  __pendingCloudSave = true;
-}
-
-function cloudStartListening(){
-  // Si ya hay un listener activo, no crear otro
-  if(__snapshotUnsub) return;
-  updateCloudStamp("☁️ Conectando...");
-  __snapshotUnsub = db.collection("data").doc(CLOUD_DOC).onSnapshot({includeMetadataChanges: true}, doc => {
-    if(!doc.exists){
-      // No hay nada en la nube todavía: este dispositivo puede ser el primero en subir
-      __cloudReady = true;
-      updateCloudStamp("☁️ Sin datos en nube aún");
-      _replayPendingQtyDeltas();
-      _retryPendingCloudSaveIfAny();
-      return;
-    }
-    const esDelServidor = !doc.metadata.fromCache;
-    if(!esDelServidor){
-      // Caché local (puede ser vieja) o eco de un guardado propio en camino:
-      // nunca decide nada por sí sola, solo informa que sigue sincronizando.
-      if(!__cloudReady) updateCloudStamp("☁️ Sincronizando...");
-      return;
-    }
-    __cloudReady = true;
-    // ✅ Comparamos por CONTENIDO (no por conteo) para saber si esto es de
-    // verdad dato nuevo o solo el eco de algo que YO acabo de subir. Esto es
-    // lo que evita el "sube y baja" y que la lista se reconstruya de golpe
-    // mientras estás tocando otro botón.
-    _applyCloudDataSmart(doc.data());
-    updateCloudStamp("☁️ Sincronizado en tiempo real");
-    _replayPendingQtyDeltas();
-    _retryPendingCloudSaveIfAny();
-  }, err => {
-    __snapshotUnsub = null;
-    updateCloudStamp("⚠️ Sin conexión (datos locales)");
-    // Reconectar rápido tras error (5s en vez de 30s)
-    setTimeout(() => { if(__isOnline && !__snapshotUnsub) cloudStartListening(); }, 5000);
-  });
-}
-
-// Alias para compatibilidad con llamadas existentes
-function cloudLoad(){ cloudStartListening(); }
-
-// Reconectador automático cada 30s
-setInterval(() => {
-  if(!__snapshotUnsub && __isOnline){
-    console.log('☁️ Reconectando listener...');
-    cloudStartListening();
-  }
-}, 30000);
-
-// Reconectar cuando la app vuelve al frente
-document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState === 'visible' && __isOnline){
-    if(!__snapshotUnsub){
-      console.log('☁️ App al frente — reconectando...');
-      cloudStartListening();
-    }
-    // (Ya no forzamos __ignoreSnapshots=0 aquí: si había guardados propios en
-    // camino, resetear esto a la fuerza podía hacer que una confirmación
-    // tardía del servidor se tratara como "dato externo" y pisara el
-    // contador con un valor intermedio. El candado de 8s ya cubre el caso
-    // de que algo se quede atorado.)
-  }
-});
-
 function updateCloudStamp(msg){
   const el = document.getElementById("cloudStamp");
   if(el) el.textContent = msg;
 }
 
-// Iniciar listener al cargar
-window.addEventListener("load", () => setTimeout(cloudStartListening, 1500));
+// Alias por compatibilidad con el código existente: la nube ya no se
+// "escucha" ni se descarga sola, así que estas quedan vacías a propósito.
+function cloudLoad(){ /* la nube ya no se descarga automáticamente */ }
+function cloudStartListening(){ /* desactivado a propósito: la app ya no escucha la nube, solo sube */ }
+
+// =====================================================================
+//  VER INVENTARIO EN LA NUBE (solo lectura, manual, no cambia nada local)
+// =====================================================================
+async function verInventarioEnNube(){
+  const box   = document.getElementById("cloudInvViewer");
+  const list  = document.getElementById("cloudInvViewerList");
+  const total = document.getElementById("cloudInvViewerTotal");
+  const when  = document.getElementById("cloudInvViewerWhen");
+  if(!box || !list) return;
+  box.style.display = "block";
+  list.innerHTML = `<div style="text-align:center;color:#94a3b8;padding:14px;font-size:.84rem">Consultando la nube...</div>`;
+  if(when) when.textContent = "";
+  if(total) total.textContent = "—";
+  try{
+    const snap = await db.collection("data").doc(CLOUD_DOC).get({ source: "server" });
+    if(!snap.exists){
+      list.innerHTML = `<div style="text-align:center;color:#94a3b8;padding:14px;font-size:.84rem">Todavía no hay nada subido a la nube.</div>`;
+      return;
+    }
+    const d = snap.data() || {};
+    const inv = Array.isArray(d.inventory) ? d.inventory : [];
+    if(!inv.length){
+      list.innerHTML = `<div style="text-align:center;color:#94a3b8;padding:14px;font-size:.84rem">La nube todavía no tiene sabores guardados.</div>`;
+      return;
+    }
+    const filas = inv.slice().sort((a,b)=> String(a.name||'').localeCompare(String(b.name||'')));
+    let sum = 0;
+    list.innerHTML = filas.map(p=>{
+      const qty = Number(p.qty)||0;
+      sum += qty;
+      const color = p.color || "#6366f1";
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 4px;border-bottom:1px solid #eff6ff">
+        <span style="display:flex;align-items:center;gap:8px;font-size:.86rem;font-weight:700;color:#0f172a">
+          <span style="width:10px;height:10px;border-radius:50%;background:${color}"></span>
+          ${escapeHtml(p.name||'')}
+        </span>
+        <span style="font-weight:900;color:#2563eb">${qty}</span>
+      </div>`;
+    }).join("");
+    if(total) total.textContent = sum;
+    if(when && d.updatedAt && d.updatedAt.toDate){
+      try{
+        const f = d.updatedAt.toDate();
+        const pad = n => String(n).padStart(2,'0');
+        when.textContent = `Última subida: ${f.getFullYear()}-${pad(f.getMonth()+1)}-${pad(f.getDate())} ${pad(f.getHours())}:${pad(f.getMinutes())}`;
+      }catch(_){}
+    }
+  }catch(e){
+    console.warn("verInventarioEnNube:", e);
+    list.innerHTML = `<div style="text-align:center;color:#dc2626;padding:14px;font-size:.84rem">No se pudo consultar la nube (revisa tu internet).</div>`;
+  }
+}
+
+// Al abrir la app o recuperar internet, solo intenta subir lo que haya
+// quedado pendiente — nunca descarga nada.
+window.addEventListener("load", () => { updateConnectionUI(); setTimeout(()=>{ if(__isOnline) _retryPendingCloudSaveIfAny(); }, 1200); });
 </script>
 <!-- /Firebase -->
 
@@ -4437,12 +3988,20 @@ document.addEventListener('DOMContentLoaded',()=>{
    <span id="ioConnectionText">En línea — cambios se sincronizan con la nube</span>
  </div>
 
- <!-- Aviso: guardado automático bloqueado por seguridad -->
- <div id="ioSyncBlockedWarning" style="display:none;background:#fef2f2;border:1.5px solid #fecaca;border-radius:16px;padding:12px 14px;margin-bottom:14px">
-   <div style="font-size:.84rem;font-weight:800;color:#dc2626;margin-bottom:6px">⚠️ Sincronización automática detenida</div>
-   <div class="smallnote" style="margin-bottom:10px">Tu inventario en este celular bajó mucho de golpe comparado con lo que hay en la nube. Para protegerte de perder datos, NO lo subimos automáticamente.</div>
-   <div class="smallnote" style="margin-bottom:10px"><b>Si de verdad borraste varios sabores a propósito</b>, puedes forzar la subida. Si no fue a propósito, mejor cierra la app y ábrela de nuevo para que se actualice sola con lo que hay en la nube.</div>
-   <button onclick="forzarSincronizacionManual()" style="margin:0;width:100%;padding:10px;border-radius:14px;border:1.5px solid #fecaca;background:#fff;color:#dc2626;font-weight:800;font-size:.82rem">Forzar subida de todos modos</button>
+ <!-- VER INVENTARIO EN LA NUBE (solo lectura, no trae ni cambia nada local) -->
+ <div style="background:#fff;border:1.5px solid #dbeafe;border-radius:16px;padding:12px 14px;margin-bottom:12px">
+   <div style="font-size:11px;font-weight:800;color:#2563eb;letter-spacing:.07em;margin-bottom:8px">☁️ INVENTARIO EN LA NUBE</div>
+   <div class="smallnote" style="margin-bottom:12px">Solo para consultar cuánto hay guardado en la nube ahora mismo. Tocar este botón NO cambia nada en este celular.</div>
+   <button onclick="verInventarioEnNube()" style="margin:0;width:100%;padding:11px;border-radius:14px;border:1.5px solid #dbeafe;background:#eff6ff;color:#2563eb;font-weight:700;font-size:.84rem;margin-bottom:10px">👁️ Ver inventario en la nube</button>
+   <button onclick="forzarSincronizacionManual()" style="margin:0;width:100%;padding:9px;border-radius:14px;border:1px solid #ede9fe;background:#fff;color:#7c5fe6;font-weight:700;font-size:.78rem;margin-bottom:10px">🔄 Forzar subida ahora</button>
+   <div id="cloudInvViewer" style="display:none">
+     <div id="cloudInvViewerWhen" class="smallnote" style="margin-bottom:8px"></div>
+     <div id="cloudInvViewerList" style="max-height:280px;overflow-y:auto;background:#f8faff;border-radius:12px;padding:6px 10px"></div>
+     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid #dbeafe">
+       <span style="font-size:.78rem;font-weight:700;color:#64748b">TOTAL HIELITOS EN LA NUBE</span>
+       <span id="cloudInvViewerTotal" style="font-size:1rem;font-weight:900;color:#2563eb">0</span>
+     </div>
+   </div>
  </div>
 
  <!-- COPIAS DE SEGURIDAD -->
@@ -4762,7 +4321,7 @@ function saveTiendas(){
   // para que una sincronización a medio camino "regresara" el inventario de
   // la tienda justo después de vender/descontar. Ahora sube de inmediato,
   // igual que una venta normal.
-  try{ if(__cloudReady){ cloudSaveNow(); } else { __pendingCloudSave = true; } }catch(_){}
+  try{ cloudSaveNow(); }catch(_){}
 }
 
 function savePvVentas(){
@@ -7769,8 +7328,7 @@ function increase(i, btn){
  flash(i,"add");
  try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, +1); }catch(_){}
  _regAddBatch(inventory[i].name, 1);
- if(__cloudReady){ cloudSaveQtyDebounced(); }
- else { __pendingQtyDeltas[inventory[i].name] = (__pendingQtyDeltas[inventory[i].name]||0) + 1; }
+ cloudSaveQtyDebounced();
 }
 
 function increaseBy(i, n){
@@ -7782,8 +7340,7 @@ function increaseBy(i, n){
  flash(i,"add");
  try{ window.__showDeltaByIndex && window.__showDeltaByIndex(i, +n); }catch(_){}
  _regAddBatch(inventory[i].name, n);
- if(__cloudReady){ cloudSaveQtyDebounced(); }
- else { __pendingQtyDeltas[inventory[i].name] = (__pendingQtyDeltas[inventory[i].name]||0) + n; }
+ cloudSaveQtyDebounced();
 }
 
 async function addQtyPrompt(i){
@@ -7859,8 +7416,7 @@ async function decrease(i, btn){
      _regMermaBatch(nombre, 1);
      AppUI.toast(`🗑️ ${nombre} va a merma`);
    }
-   if(__cloudReady){ cloudSaveQtyDebounced(); }
-   else { __pendingQtyDeltas[inventory[i].name] = (__pendingQtyDeltas[inventory[i].name]||0) - 1; }
+   cloudSaveQtyDebounced();
  }
 }
 
@@ -7923,8 +7479,7 @@ function doSell(i, qty, btn){
  // Igual que en +/- de inventario: si vendes varias veces muy rápido,
  // agrupamos esos toques en un solo guardado a la nube en vez de mandar
  // uno por cada toque (evita que el contador "se vuelva loco").
- if(__cloudReady){ cloudSaveQtyDebounced(); }
- else { __pendingCloudSave = true; }
+ cloudSaveQtyDebounced();
 }
 
 function openConfig(i){
