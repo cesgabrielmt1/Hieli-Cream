@@ -6656,29 +6656,44 @@ function _pvIngresoData(from, to){
   return {porPv, porDia};
 }
 
-// ✅ Ganancia real por PV: reparte el GASTO TOTAL de cada día (el mismo que usa
-// "Registro"/"Comparativa PV": costo de TODO lo vendido/mermado ese día, sin
-// importar si se etiquetó con un PV o no) entre los PVs de ese día, proporcional
-// a cuánto ingreso aportó cada uno. Así el total siempre cuadra EXACTO con
-// "Comparativa PV" — antes se restaba solo el costo de las ventas etiquetadas
-// con ese PV (mucho menor que el gasto real del día porque no todo lo que
-// se vende pasa por "Ventas Grandes" con un PV elegido), lo que inflaba la
-// ganancia de forma artificial.
+// ✅ Ganancia por PV (1 x 1): ingreso = lo que capturaste en "Ventas" para ese PV;
+// gasto = cantidad x CU de las ventas etiquetadas con ese PV ese día (CU guardado en
+// cada venta); ganancia = ingreso - gasto. Ya NO se reparte el gasto del día por
+// proporción de ingreso. (Para el día completo / comparar días, la ganancia sigue
+// siendo ingreso - gasto - merma: ver ventasDinero.gasto, que ya incluye la merma.)
 function _gananciaPorPvProporcional(from, to){
   const porPv = new Map();   // nombre -> {ingreso,gasto,ganancia}
   const porDia = new Map();  // fecha -> Map(nombre -> {ingreso,gasto,ganancia})
+
+  // Gasto real por día + PV: cantidad x CU de las ventas etiquetadas con ese PV
+  const gastoDiaPv = new Map(); // "fecha||pv" -> gasto
+  (sales||[]).forEach(s=>{
+    if(!s || !s.pv) return;
+    const d = normalizeISODate(s.date)||'';
+    if(!d) return;
+    if(from && d<from) return;
+    if(to && d>to) return;
+    const qty = Math.max(1, parseInt(s.qty)||1);
+    const cu = (s.costUnit==null ? getUnitCost(s.product) : Number(s.costUnit)||0);
+    const k = d+'||'+String(s.pv).trim();
+    gastoDiaPv.set(k, (gastoDiaPv.get(k)||0) + qty*cu);
+  });
+
   (ventasDinero||[]).forEach(row=>{
     const d = normalizeISODate(row.fecha)||row.fecha||'';
     if(!d) return;
     if(from && d<from) return;
     if(to && d>to) return;
-    const ventasDia = Number(row.vendido)||0;
-    const gastoDia = Number(row.gasto)||0;
+    // sumar montos por PV (por si el mismo PV aparece 2 veces el mismo día)
+    const montos = new Map();
     (row.pvs||[]).forEach(p=>{
       const nombre = (p.nombre||'').toString().trim();
       const monto = Number(p.monto)||0;
       if(!nombre || !monto) return;
-      const gastoPv = ventasDia>0 ? gastoDia*(monto/ventasDia) : 0;
+      montos.set(nombre, (montos.get(nombre)||0) + monto);
+    });
+    montos.forEach((monto, nombre)=>{
+      const gastoPv = gastoDiaPv.get(d+'||'+nombre) || 0;
       const gananciaPv = monto - gastoPv;
 
       if(!porPv.has(nombre)) porPv.set(nombre, {ingreso:0, gasto:0, ganancia:0});
